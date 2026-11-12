@@ -176,6 +176,18 @@ async function harvestRun(label, viewport, seed) {
   await pg.click("#hNewTreeBtn");
   const fresh = await pg.evaluate(() => ({ ph: window.__harvest.game.phase, sw: window.__harvest.game.swings }));
   check(fresh.ph === "chop" && fresh.sw === 0, "NEW TREE starts a fresh tree");
+
+  // the farm still chops after a visit to the forest (the two chops live side by side)
+  if (label === "desktop") {
+    await pg.click("#tabFarm");
+    const onFarm = await pg.evaluate(() => ({ f: !document.getElementById("farmScreen").hidden, h: document.getElementById("harvestScreen").hidden, running: window.__harvest.running }));
+    check(onFarm.f && onFarm.h && !onFarm.running, "FARM tab: the forest stops while the farm shows");
+    await pg.evaluate(() => { const f = window.__farm.farm; f.state.plots[0] = null; f.plant(0, "pine"); f.state.plots[0].plantedAt -= 10 * 60 * 1000; window.__farm.select(0); window.__farm.tick(); });
+    for (let k = 0; k < 4; k++) await pg.click('[data-act="chop"]');
+    await pg.waitForTimeout(200);
+    const farmed = await pg.evaluate(() => ({ plot: window.__farm.farm.plotAt(0), logs: window.__farm.farm.logCount("pine") }));
+    check(farmed.plot === null && farmed.logs === 1, "farm chop after a harvest: four hits fell the pine into the shed");
+  }
   await pg.close();
 }
 

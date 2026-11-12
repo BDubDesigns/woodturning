@@ -745,6 +745,10 @@
     /* ============ the frame ============ */
     function update(dt) {
       T += dt;
+      // The page shell can change the stage's size after we measured it (fonts
+      // loading, a tab bar wrapping, the phone turning): keep the canvas and the
+      // input mapping in step with what is really on screen.
+      if ((stage.clientWidth || 300) !== W || (stage.clientHeight || 300) !== Hh) resize();
       game.step(dt);
       handleEvents();
       shake = Math.max(0, shake - dt * 3.2);
