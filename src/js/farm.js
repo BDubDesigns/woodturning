@@ -71,6 +71,8 @@
     opts = opts || {};
     var now = opts.now || function () { return Date.now(); };
     var onChange = opts.onChange || function () {};
+    // opts.timersOff: () => bool. The full unlock removes every timer: trees are ready the moment they are planted.
+    var timersOff = opts.timersOff || function () { return false; };
     game.farm = normalizeFarm(game.farm);
     var farm = game.farm, wallet = game.wallet;
 
@@ -78,8 +80,8 @@
     function plotAt(i) { return i >= 0 && i < farm.plots.length ? farm.plots[i] : null; }
 
     function grownMs(p) { return Math.max(0, now() - p.plantedAt) + p.skipped; }
-    function progress(p) { return Math.min(1, grownMs(p) / WOODS[p.wood].growMs); }
-    function remainingMs(p) { return Math.max(0, WOODS[p.wood].growMs - grownMs(p)); }
+    function progress(p) { return timersOff() ? 1 : Math.min(1, grownMs(p) / WOODS[p.wood].growMs); }
+    function remainingMs(p) { return timersOff() ? 0 : Math.max(0, WOODS[p.wood].growMs - grownMs(p)); }
     function isMature(p) { return !!p && remainingMs(p) <= 0; }
     function stage(p) {
       if (!p) return "empty";
@@ -128,6 +130,21 @@
       if (n >= CFG.MAX_PLOTS) return null;
       var k = n - CFG.START_PLOTS;
       return CFG.LAND_PRICES[Math.min(k, CFG.LAND_PRICES.length - 1)];
+    }
+    /* The same land, for diamonds instead of coins. A shortcut, never the
+       only way: coins buy it too. */
+    function landPriceDiamonds() {
+      var price = landPrice();
+      return price === null ? null : Math.ceil(price / (opts.coinsPerDiamond || 10));
+    }
+    function buyLandWithDiamonds() {
+      var cost = landPriceDiamonds();
+      if (cost === null) return { ok: false, reason: "no more land" };
+      if (wallet.diamonds < cost) return { ok: false, reason: "not enough diamonds", cost: cost };
+      wallet.diamonds -= cost;
+      farm.plots.push(null);
+      changed();
+      return { ok: true, cost: cost, index: farm.plots.length - 1 };
     }
     function buyLand() {
       var price = landPrice();
@@ -181,7 +198,7 @@
        once on load, before touch(). */
     function grownWhileAway() {
       var out = [];
-      if (!farm.lastSeen) return out;
+      if (timersOff() || !farm.lastSeen) return out;
       var away = now() - farm.lastSeen;
       if (away <= 0) return out;
       farm.plots.forEach(function (p, i) {
@@ -197,7 +214,7 @@
       state: farm, wallet: wallet, now: now,
       plotAt: plotAt, progress: progress, remainingMs: remainingMs, isMature: isMature, stage: stage,
       diamondsToFinish: diamondsToFinish,
-      plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand,
+      plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
       chopHit: chopHit, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
     };
   }

@@ -54,6 +54,7 @@
           <button class="tab" id="tabFarm" role="tab" aria-selected="false" aria-controls="farmScreen">FARM</button>
           <button class="tab" id="tabHarvest" role="tab" aria-selected="false" aria-controls="harvestScreen">HARVEST</button>
           <button class="tab" id="tabLathe" role="tab" aria-selected="true" aria-controls="latheScreen">LATHE</button>
+          <button class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="mineScreen">MINE</button>
         </div>
         <div class="wallet" aria-label="Wallet">
           <span class="coin-chip" title="Coins">
@@ -64,6 +65,11 @@
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="#6fd3e6" stroke="#2b7f93" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 21 9 9m3 12 3-12" fill="none" stroke="#2b7f93" stroke-width="1.2" opacity="0.7"/></svg>
             <b id="walletDiamonds">0</b>
           </span>
+          <span class="coin-chip" title="Gems">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 21 9 12 22 3 9z" fill="#d86fa8" stroke="#8a2f62" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 9h18M12 2v20" fill="none" stroke="#8a2f62" stroke-width="1.2" opacity="0.6"/></svg>
+            <b id="walletGems">0</b>
+          </span>
+          <span class="full-badge" id="fullBadge" title="Full game unlocked" hidden>FULL</span>
         </div>
       </nav>
 
@@ -151,7 +157,13 @@
           <div id="ctx"></div>
         </div>
       </div>
+
+      <div id="mineScreen" class="screen" hidden>
+        <div id="mineBody"></div>
+      </div>
     </div>
+
+    <div id="adOverlay" role="dialog" aria-modal="true" aria-labelledby="adTitle" hidden></div>
 
     <script src="vendor/three.min.js"></script>
     <script src="js/cutting.js"></script>
@@ -163,6 +175,8 @@
     <script src="js/main.js"></script>
     <script src="js/save.js"></script>
     <script src="js/farm.js"></script>
+    <script src="js/monetize.js"></script>
     <script src="js/farm-ui.js"></script>
+    <script src="js/monetize-ui.js"></script>
   </body>
 </html>

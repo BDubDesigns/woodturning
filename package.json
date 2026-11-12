@@ -4,7 +4,7 @@
   "description": "A cozy woodturning game. Lathe base, farm, and harvest.",
   "scripts": {
     "build": "node tools/build.mjs",
-    "test": "node --test tests/cutting.test.js tests/farm.test.js tests/harvest.test.js",
-    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html && node tests/e2e-farm.mjs lathe.html"
+    "test": "node --test tests/cutting.test.js tests/farm.test.js tests/harvest.test.js tests/monetize.test.js",
+    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html && node tests/e2e-farm.mjs lathe.html && node tests/e2e-mine.mjs lathe.html"
   }
 }

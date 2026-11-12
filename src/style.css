@@ -290,3 +290,53 @@ footer {
 .act.primary { border-color: var(--amber); background: var(--btn-bg-on); }
 .act.primary .an { color: var(--amber); }
 .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset; }
+
+/* ---------- the mine ---------- */
+.full-badge {
+  padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber);
+  font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.14em;
+}
+#mineScreen { overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #2c2a33 0%, #1c1a22 50%, #100e14 100%); }
+#mineBody { width: 100%; max-width: 640px; margin: 0 auto; padding: 14px 14px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.mine-card {
+  padding: 12px 14px 14px; border-radius: 12px; color: #f3e7d3;
+  background: rgba(20, 15, 11, 0.72); border: 1px solid #4a3a52;
+}
+.mine-card h2 { margin: 0 0 6px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.18em; color: var(--amber); }
+.mine-card p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.45; }
+.mine-card p b { color: var(--amber); }
+.mine-card ul { margin: 0 0 10px; padding-left: 18px; font-size: 14.5px; line-height: 1.5; }
+.mine-card .row { display: flex; flex-wrap: wrap; gap: 10px; }
+.mine-card .promise { margin: 0; color: #d9c7a4; font-size: 13.5px; }
+.mine-card .confirm { color: #ffd98a; }
+.mine-card.full { border-color: var(--amber); }
+.mine-card.full.owned { border-color: #6fd3e6; }
+.mine-card .act, .ad-card .act { background: #2a2119; color: #f3e7d3; border-color: #5a4630; }
+.mine-card .act.primary { background: #4a2f14; border-color: var(--amber); }
+.mine-card .act .ad, .ad-card .act .ad { color: #bfae8f; }
+.mine-card .act.primary .an { color: var(--amber); }
+.mine-card .act[aria-disabled="true"] { opacity: 0.55; }
+.mine-note { min-height: 20px; margin-top: 10px; font-size: 14px; color: #ffd98a; opacity: 0; transition: opacity 0.25s ease; }
+.mine-note.on { opacity: 1; }
+.mine-foot { margin: 0; font-size: 12.5px; color: var(--faint); text-align: center; }
+.mine-foot b { color: var(--dim); font-weight: 600; }
+#adOverlay {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  padding: 18px; background: rgba(8, 6, 4, 0.82);
+}
+#adOverlay[hidden] { display: none !important; }
+.ad-card {
+  width: 100%; max-width: 380px; padding: 16px; border-radius: 14px; color: #f3e7d3;
+  background: linear-gradient(180deg, #2f2438 0%, #201828 100%); border: 1px solid #6a4d7a;
+}
+.ad-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; background: #f3e7d3; color: #201828; font-weight: 700; font-size: 12px; letter-spacing: 0.12em; }
+.ad-title { margin: 10px 0 6px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.06em; }
+.ad-body { font-size: 14.5px; line-height: 1.45; color: #d9c7a4; }
+.ad-time { margin: 14px 0 6px; font-variant-numeric: tabular-nums; font-size: 15px; color: #ffd98a; }
+.ad-bar { height: 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.4); overflow: hidden; margin-bottom: 14px; }
+.ad-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6fd3e6, #c8f0f7); }
+.ad-close { width: 100%; flex: none; }
+@media (max-width: 460px) {
+  .tab { padding: 6px 11px; font-size: 15px; letter-spacing: 0.1em; }
+  .wallet { gap: 9px; }
+}

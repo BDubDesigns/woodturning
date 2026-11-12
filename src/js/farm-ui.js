@@ -17,7 +17,9 @@
 
   var storage = Save.pickStorage(root);
   var game = Save.load(storage);
-  var farm = F.createFarm(game, { onChange: persist });
+  var M = G.Monetize;
+  var mine = M.createMine(game, { onChange: persist });
+  var farm = F.createFarm(game, { onChange: persist, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND });
   function persist() { farm.touch(); Save.write(storage, game); renderWallet(); }
 
   var plotsEl = $("plots"), ctxEl = $("ctx"), shedEl = $("shed"), toastEl = $("toast");
@@ -27,8 +29,8 @@
   var ctxSig = "";
 
   /* ---------------- screens ---------------- */
-  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen") };
-  var tabs = { farm: $("tabFarm"), harvest: $("tabHarvest"), lathe: $("tabLathe") };
+  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen") };
+  var tabs = { farm: $("tabFarm"), harvest: $("tabHarvest"), lathe: $("tabLathe"), mine: $("tabMine") };
   var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats"), harvestStatsEl = $("harvestStats");
   var current = null;
   function showScreen(name) {
@@ -53,6 +55,11 @@
       titleEl.innerHTML = "THE <em>FOREST</em>";
       subEl.textContent = "HARVEST · CHOP, DELIMB, SAW";
       statsEl.style.display = "none";
+    } else if (name === "mine") {
+      titleEl.innerHTML = "THE <em>MINE</em>";
+      subEl.textContent = "WATCH AN AD · MINE DIAMONDS OR GEMS · NO TRICKS";
+      statsEl.style.display = "none";
+      if (root.MineUI) root.MineUI.show();
     } else {
       titleEl.innerHTML = "THE <em>LATHE</em>";
       subEl.textContent = "PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING";
@@ -65,12 +72,15 @@
   tabs.farm.addEventListener("click", function () { showScreen("farm"); });
   tabs.harvest.addEventListener("click", function () { showScreen("harvest"); });
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
+  tabs.mine.addEventListener("click", function () { showScreen("mine"); });
 
   /* ---------------- wallet ---------------- */
-  var coinsEl = $("walletCoins"), diamondsEl = $("walletDiamonds");
+  var coinsEl = $("walletCoins"), diamondsEl = $("walletDiamonds"), gemsEl = $("walletGems"), unlockedEl = $("fullBadge");
   function renderWallet() {
     coinsEl.textContent = String(game.wallet.coins);
     diamondsEl.textContent = String(game.wallet.diamonds);
+    gemsEl.textContent = String(game.wallet.gems);
+    unlockedEl.hidden = !mine.isUnlocked();
   }
 
   /* ---------------- toast ---------------- */
@@ -147,14 +157,14 @@
     var btn = document.createElement("button");
     btn.className = "plot land"; btn.type = "button"; btn.id = "buyLand";
     btn.addEventListener("click", function () {
-      var price = farm.landPrice();
+      var price = farm.landPrice(), dprice = farm.landPriceDiamonds();
       var r = farm.buyLand();
       if (r.ok) {
         toast("New land cleared. Plot " + (r.index + 1) + " is ready to plant.");
         select(r.index);
         layoutPlots();
       } else if (r.reason === "not enough coins") {
-        toast("A new plot costs " + price + " coins. You have " + game.wallet.coins + ".");
+        toast("A new plot costs " + price + " coins or " + dprice + " diamonds. You have " + game.wallet.coins + " coins.");
       }
     });
     return btn;
@@ -281,10 +291,24 @@
     return b;
   }
 
+  /* Land for diamonds: the same plot coins buy, as a shortcut. */
+  function landAct() {
+    var cost = farm.landPriceDiamonds();
+    if (cost === null) return null;
+    var b = act("NEW LAND", cost + (cost === 1 ? " diamond" : " diamonds") + ", or " + farm.landPrice() + " coins", "", game.wallet.diamonds >= cost, function () {
+      var r = farm.buyLandWithDiamonds();
+      if (r.ok) { toast("New land cleared for " + r.cost + (r.cost === 1 ? " diamond." : " diamonds.") + " Plot " + (r.index + 1) + " is ready."); layoutPlots(); select(r.index); }
+      else toast("New land takes " + cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + game.wallet.diamonds + ". The mine has more.");
+    });
+    b.setAttribute("data-act", "landdiamonds");
+    return b;
+  }
+
   function ctxSignature() {
     var p = farm.plotAt(selected);
-    if (selected < 0) return "none";
-    if (!p) return "empty|" + selected;
+    var extra = game.wallet.diamonds + "|" + farm.state.plots.length + "|" + (mine.isUnlocked() ? 1 : 0);
+    if (selected < 0) return "none|" + extra;
+    if (!p) return "empty|" + selected + "|" + extra;
     var cost = farm.isMature(p) ? 0 : farm.diamondsToFinish(p);
     return [selected, p.wood, farm.stage(p), p.hits, cost, game.wallet.diamonds].join("|");
   }
@@ -300,19 +324,23 @@
     if (selected < 0) {
       line.textContent = "Tap a plot to plant, tend, or chop. Trees keep growing while the game is closed.";
       ctxEl.appendChild(line);
+      var la0 = landAct();
+      if (la0) { row.appendChild(la0); ctxEl.appendChild(row); }
       return;
     }
     if (!p) {
       line.innerHTML = "<b>Plot " + (selected + 1) + "</b> is empty. What will you grow?";
       F.WOOD_ORDER.forEach(function (id) {
         var w = WOODS[id];
-        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), F.formatDuration(w.growMs) + " to grow, " + w.hits + " swipes to chop", "", true, function () {
+        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), (mine.isUnlocked() ? "Ready right away, " : F.formatDuration(w.growMs) + " to grow, ") + w.hits + " swipes to chop", "", true, function () {
           var r = farm.plant(selected, id);
           if (r.ok) { select(selected); tick(); }
         });
         b.setAttribute("data-plant", id);
         row.appendChild(b);
       });
+      var la1 = landAct();
+      if (la1) row.appendChild(la1);
     } else if (farm.isMature(p)) {
       var left = WOODS[p.wood].hits - p.hits;
       line.innerHTML = "<b>" + WOODS[p.wood].name + "</b> is fully grown. Swipe into the trunk from the side. " + left + (left === 1 ? " swipe" : " swipes") + " to go.";
@@ -365,7 +393,7 @@
   layoutPlots();
   renderWallet();
   persist();
-  showScreen(/#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : "lathe");
+  showScreen(/#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : "lathe");
   if (grew.length) {
     var names = grew.map(function (g) { return WOODS[g.wood].name.toLowerCase(); });
     pendingToast = grew.length === 1 ? "While you were away, your " + names[0] + " finished growing." : "While you were away, " + grew.length + " trees finished growing.";
@@ -374,6 +402,7 @@
 
   root.__farm = {
     farm: farm, game: game, storage: storage, select: select, showScreen: showScreen, tick: tick,
+    mine: mine, persist: persist, toast: toast, renderWallet: renderWallet, tickFarm: tick,
     get selected() { return selected; }
   };
 })(window);

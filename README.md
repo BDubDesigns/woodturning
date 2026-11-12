@@ -37,11 +37,22 @@ mine, monetization, distribution, and the one-month bet.
   blank. Canvas2D only, so it runs in every webview. The farm's quick chop
   stays as it is; wiring a farm tree into the full harvest is a later step.
 
+- Monetization (slice 6): the money model, kept honest. Diamonds are called
+  diamonds. The MINE tab trades one finished ad (about 5 seconds, close button
+  always there) for exactly 3 diamonds or 1 gem, no randomness. Gems sell for 25
+  coins. Diamonds skip growing time, grow a tree now, or buy land. The full
+  unlock ($5, one constant in `src/js/monetize.js`) removes every ad and every
+  timer. The free game is complete: the core loop never asks for diamonds, gems,
+  an ad, or the unlock. Ads and payments are two seams (`MineUI.adProvider`,
+  `MineUI.payProvider`) with a labelled house ad and a no-charge preview
+  purchase until the Play Store slice wires AdMob and Play Billing. Play Pass
+  notes are in `docs/play-pass.md` (open question, not applied for).
+
 ## Play
 
-Open `lathe.html` in a browser. The FARM, HARVEST and LATHE tabs switch
-screens (`lathe.html#farm` opens the farm, `#harvest` the forest, and
-`?seed=N` picks the harvest's tree). It is one self-contained file (no network),
+Open `lathe.html` in a browser. The FARM, HARVEST, LATHE and MINE tabs switch
+screens (`lathe.html#farm` opens the farm, `#harvest` the forest, `#mine` the mine,
+and `?seed=N` picks the harvest's tree). It is one self-contained file (no network),
 so it can be hosted anywhere or opened in an in-app browser. `?view=2d`
 starts in the flat view.
 

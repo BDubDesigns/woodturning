@@ -6,7 +6,7 @@
    to memory: the game still plays, it just will not remember.
 
    The shape is a plain object that other slices add sections to:
-     { v, wallet: { coins, diamonds }, farm: {...} }
+     { v, wallet: { coins, diamonds, gems }, farm: {...}, mine: {...} }
    ============================================================ */
 (function (root) {
   "use strict";
@@ -14,7 +14,7 @@
   var VERSION = 1;
 
   function newGame() {
-    return { v: VERSION, wallet: { coins: 250, diamonds: 5 }, farm: null };
+    return { v: VERSION, wallet: { coins: 250, diamonds: 5, gems: 0 }, farm: null, mine: null };
   }
 
   function memoryStore() {
@@ -47,8 +47,10 @@
     if (data.wallet && typeof data.wallet === "object") {
       if (isCount(data.wallet.coins)) game.wallet.coins = data.wallet.coins;
       if (isCount(data.wallet.diamonds)) game.wallet.diamonds = data.wallet.diamonds;
+      if (isCount(data.wallet.gems)) game.wallet.gems = data.wallet.gems;
     }
     if (data.farm && typeof data.farm === "object") game.farm = data.farm;
+    if (data.mine && typeof data.mine === "object") game.mine = data.mine;
     return game;
   }
   function isCount(n) { return typeof n === "number" && isFinite(n) && n >= 0; }
