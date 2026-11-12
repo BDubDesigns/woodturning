@@ -336,7 +336,15 @@ footer {
 .ad-bar { height: 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.4); overflow: hidden; margin-bottom: 14px; }
 .ad-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6fd3e6, #c8f0f7); }
 .ad-close { width: 100%; flex: none; }
+/* Four tabs plus a three-currency wallet: tighten at phone width, and wrap
+   rather than ever spill sideways (tap targets keep their 40px height). */
+#tabs { flex-wrap: wrap; row-gap: 4px; }
+.wallet { margin-left: auto; }
 @media (max-width: 460px) {
-  .tab { padding: 6px 11px; font-size: 15px; letter-spacing: 0.1em; }
-  .wallet { gap: 9px; }
+  #tabs { padding: 6px 8px; gap: 6px; }
+  .tab-group { gap: 4px; }
+  .tab { padding: 6px 8px; font-size: 14px; letter-spacing: 0.06em; }
+  .wallet { gap: 7px; }
+  .coin-chip { gap: 4px; }
+  .coin-chip b { font-size: 17px; }
 }
