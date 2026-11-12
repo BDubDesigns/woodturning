@@ -45,9 +45,11 @@
     renderer.domElement.addEventListener("webglcontextlost", function (e) { e.preventDefault(); onFail(); }, false);
 
     /* ---------------- textures (procedural canvas) ---------------- */
+    var woodCanvas = null, grainCanvas = null;   // base wood, and the grain streaks alone (laid over paint so it shows through)
     function makeWoodTexture() {
       var c = document.createElement("canvas"); c.width = 1024; c.height = 512;
-      var g = c.getContext("2d");
+      var gc = document.createElement("canvas"); gc.width = 1024; gc.height = 512;
+      var g = c.getContext("2d"), gg = gc.getContext("2d");
       var grad = g.createLinearGradient(0, 0, 1024, 0);
       grad.addColorStop(0, "#a9763e"); grad.addColorStop(0.5, "#b5854a"); grad.addColorStop(1, "#a06c36");
       g.fillStyle = grad; g.fillRect(0, 0, 1024, 512);
@@ -56,25 +58,30 @@
       for (var i = 0; i < 210; i++) {
         var x = Math.random() * 1024;
         var dark = Math.random() > 0.42;
-        g.strokeStyle = dark ? "rgba(105,62,26," + (0.1 + Math.random() * 0.24) + ")"
-                             : "rgba(238,196,138," + (0.07 + Math.random() * 0.16) + ")";
-        g.lineWidth = 0.6 + Math.random() * 2.4;
-        g.beginPath();
-        g.moveTo(x, -10);
-        var wob = (Math.random() - 0.5) * 14;
-        g.bezierCurveTo(x + wob, 150, x - wob, 340, x + (Math.random() - 0.5) * 8, 522);
-        g.stroke();
+        var style = dark ? "rgba(105,62,26," + (0.1 + Math.random() * 0.24) + ")"
+                         : "rgba(238,196,138," + (0.07 + Math.random() * 0.16) + ")";
+        var lw = 0.6 + Math.random() * 2.4, wob = (Math.random() - 0.5) * 14, endX = x + (Math.random() - 0.5) * 8;
+        [g, gg].forEach(function (cx) {
+          cx.strokeStyle = style; cx.lineWidth = lw;
+          cx.beginPath();
+          cx.moveTo(x, -10);
+          cx.bezierCurveTo(x + wob, 150, x - wob, 340, endX, 522);
+          cx.stroke();
+        });
       }
       for (var k = 0; k < 5; k++) {        // a few knots make the spin readable
         var kx = Math.random() * 1024, ky = Math.random() * 512;
-        for (var r = 9; r > 1; r -= 2) {
-          g.strokeStyle = "rgba(110,66,28," + (0.16 + (9 - r) * 0.03) + ")";
-          g.lineWidth = 1.4;
-          g.beginPath(); g.ellipse(kx, ky, r * 1.5, r, 0.3, 0, Math.PI * 2); g.stroke();
-        }
-        g.fillStyle = "rgba(84,48,20,0.85)";
-        g.beginPath(); g.ellipse(kx, ky, 2.4, 1.7, 0.3, 0, Math.PI * 2); g.fill();
+        [g, gg].forEach(function (cx) {
+          for (var r = 9; r > 1; r -= 2) {
+            cx.strokeStyle = "rgba(110,66,28," + (0.16 + (9 - r) * 0.03) + ")";
+            cx.lineWidth = 1.4;
+            cx.beginPath(); cx.ellipse(kx, ky, r * 1.5, r, 0.3, 0, Math.PI * 2); cx.stroke();
+          }
+          cx.fillStyle = "rgba(84,48,20,0.85)";
+          cx.beginPath(); cx.ellipse(kx, ky, 2.4, 1.7, 0.3, 0, Math.PI * 2); cx.fill();
+        });
       }
+      woodCanvas = c; grainCanvas = gc;
       var tex = new THREE.CanvasTexture(c);
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.anisotropy = 4;
@@ -235,7 +242,84 @@
 
     /* ---------------- the workpiece ---------------- */
     var woodTex = makeWoodTexture();
-    var woodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.72, metalness: 0.0, bumpMap: woodTex, bumpScale: 0.6 });
+
+    /* Paint lives in a second canvas: the bare wood, then each slice's coat over it, then the
+       grain streaks laid back on top of the painted rows so the wood still shows through.
+       On the lathe's UV, V runs along the length (slice 0 at V=0, the bottom of the canvas). */
+    var PAINT_W = 1024, PAINT_H = 512, PNT = L.Paint, coat = S.coat;
+    var paintCanvas = document.createElement("canvas"); paintCanvas.width = PAINT_W; paintCanvas.height = PAINT_H;
+    var pg = paintCanvas.getContext("2d");
+    pg.drawImage(woodCanvas, 0, 0);
+    var paintTex = new THREE.CanvasTexture(paintCanvas);
+    paintTex.wrapS = paintTex.wrapT = THREE.RepeatWrapping;
+    paintTex.anisotropy = 4;
+    paintTex.colorSpace = THREE.SRGBColorSpace;
+
+    /* Roughness per slice: matte wood is rough, a sprayed finish is smooth. One column of
+       texels per slice, so the gloss can differ along the length. */
+    var ROUGH_MATTE = 0.74, ROUGH_GLOSS = 0.1;
+    var roughCanvas = document.createElement("canvas"); roughCanvas.width = 4; roughCanvas.height = SEG;
+    var rg = roughCanvas.getContext("2d");
+    var roughTex = new THREE.CanvasTexture(roughCanvas);
+    roughTex.wrapS = roughTex.wrapT = THREE.ClampToEdgeWrapping;
+
+    /* A bright softbox and a window strip for the finish to reflect. Only the finished wood
+       takes this reflection (envMapIntensity follows the gloss), so unfinished wood is unchanged. */
+    var envCanvas = document.createElement("canvas"); envCanvas.width = 1024; envCanvas.height = 512;
+    (function () {
+      var e = envCanvas.getContext("2d");
+      var bg = e.createLinearGradient(0, 0, 0, 512);
+      bg.addColorStop(0, "#2e2318"); bg.addColorStop(0.5, "#201710"); bg.addColorStop(1, "#0f0a06");
+      e.fillStyle = bg; e.fillRect(0, 0, 1024, 512);
+      function box(x, y, w, h, c) {
+        var gr = e.createLinearGradient(0, y, 0, y + h);
+        gr.addColorStop(0, c); gr.addColorStop(1, "rgba(255,235,190,0.55)");
+        e.fillStyle = gr; e.fillRect(x, y, w, h);
+      }
+      box(560, 92, 300, 70, "#fffaf0");     // softbox above and in front
+      box(900, 150, 70, 150, "#ffe9b8");    // window strip off to the side
+      box(120, 170, 60, 130, "#ffd89a");
+    })();
+    var envTex = new THREE.CanvasTexture(envCanvas);
+    envTex.mapping = THREE.EquirectangularReflectionMapping;
+    envTex.colorSpace = THREE.SRGBColorSpace;
+
+    var woodMat = new THREE.MeshStandardMaterial({ map: paintTex, roughness: 1, roughnessMap: roughTex, metalness: 0.0, bumpMap: woodTex, bumpScale: 0.6, envMap: envTex, envMapIntensity: 0 });
+    var paintSeen = -1, roughSeen = -1, paintFrame = 0;
+    function cssRgb(c) { return "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")"; }
+    function syncPaint(force) {
+      if (!force && coat.version === paintSeen) return;
+      if (!force && (++paintFrame % 2)) return;            // repaint at most every other frame while painting
+      paintSeen = coat.version;
+      pg.globalCompositeOperation = "source-over"; pg.globalAlpha = 1;
+      pg.drawImage(woodCanvas, 0, 0);
+      var step = PAINT_H / (SEG - 1), tmp = [0, 0, 0];
+      for (var j = 0; j < SEG; j++) {
+        var a = coat.coat[j];
+        if (a < 0.01) continue;
+        var y1 = Math.max(0, PAINT_H - (j + 0.5) * step), y2 = Math.min(PAINT_H, PAINT_H - (j - 0.5) * step), h = y2 - y1 + 0.8;
+        tmp[0] = coat.color[j * 3]; tmp[1] = coat.color[j * 3 + 1]; tmp[2] = coat.color[j * 3 + 2];
+        pg.globalAlpha = Math.min(1, a * 1.02);
+        pg.fillStyle = cssRgb(tmp);
+        pg.fillRect(0, y1, PAINT_W, h);
+        pg.globalAlpha = Math.min(1, a) * 0.8;
+        pg.drawImage(grainCanvas, 0, y1, PAINT_W, h, 0, y1, PAINT_W, h);
+      }
+      pg.globalAlpha = 1;
+      paintTex.needsUpdate = true;
+      // roughness map from the gloss
+      var avg = 0;
+      for (var r = 0; r < SEG; r++) {
+        var gl = coat.gloss[r]; avg += gl;
+        var v = Math.round((ROUGH_MATTE + (ROUGH_GLOSS - ROUGH_MATTE) * Math.pow(gl, 0.85)) * 255);
+        rg.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
+        rg.fillRect(0, SEG - 1 - r, 4, 1);
+      }
+      roughTex.needsUpdate = true;
+      woodMat.envMapIntensity = 0.6 * Math.pow(avg / SEG, 0.9);
+      renderer.shadowMap.needsUpdate = true;
+    }
+    syncPaint(true);
     var endMat = new THREE.MeshStandardMaterial({ map: makeEndTexture(), roughness: 0.85 });
 
     var spinGroup = new THREE.Group();
@@ -327,6 +411,64 @@
       blade.scale.x = S.tip === "gouge" ? 1 : 0.92;
     }
 
+    /* ---------------- the brush and the spray bottle ----------------
+       Same convention as the chisel: origin at the working end (bristle tip,
+       nozzle), the body runs up local +Y toward the hand. */
+    var brushG = new THREE.Group();
+    brushG.scale.setScalar(1.22);
+    brushG.visible = false;
+    scene.add(brushG);
+    var brushHandle = new THREE.Mesh(new THREE.LatheGeometry(handleProfile, 22), new THREE.MeshStandardMaterial({ color: 0x7c4a22, roughness: 0.5, metalness: 0 }));
+    brushHandle.position.y = 0.72; brushHandle.castShadow = true;
+    brushG.add(brushHandle);
+    var brushFerrule = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.42, 18), steelMat);
+    brushFerrule.position.y = 0.5; brushFerrule.castShadow = true;
+    brushG.add(brushFerrule);
+    var tuftMat = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.55 });
+    var tuft = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 16), tuftMat);
+    tuft.rotation.x = Math.PI;            // cone point down at the origin
+    tuft.position.y = 0.17;
+    brushG.add(tuft);
+    function showBrush() {
+      var wide = S.paintTool === "brush";
+      tuft.scale.set(wide ? 1.9 : 0.5, wide ? 1 : 1.25, wide ? 0.55 : 0.5);
+      tuft.position.y = wide ? 0.17 : 0.21;
+      tuftMat.color.set(L.Paint.PALETTE[S.color].hex);
+    }
+
+    var bottleG = new THREE.Group();
+    bottleG.scale.setScalar(1.22);
+    bottleG.visible = false;
+    scene.add(bottleG);
+    var bottleMat = new THREE.MeshStandardMaterial({ color: 0xa9d3e8, roughness: 0.18, metalness: 0.05, transparent: true, opacity: 0.82 });
+    var bBody = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.95, 24), bottleMat);
+    bBody.position.y = 1.12; bBody.castShadow = true; bottleG.add(bBody);
+    var bShoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 0.2, 24), bottleMat);
+    bShoulder.position.y = 0.55; bottleG.add(bShoulder);
+    var bHead = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.38), new THREE.MeshStandardMaterial({ color: 0xe8a33d, roughness: 0.4, metalness: 0.2 }));
+    bHead.position.set(0, 0.34, -0.1); bHead.castShadow = true; bottleG.add(bHead);
+    var bTrigger = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.05), new THREE.MeshStandardMaterial({ color: 0xcf8c2a, roughness: 0.4 }));
+    bTrigger.position.set(0, 0.36, 0.14); bTrigger.rotation.x = -0.35; bottleG.add(bTrigger);
+    var bNozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.2, 14), steelDark);
+    bNozzle.position.set(0, 0.1, -0.2); bNozzle.rotation.x = 0.0; bottleG.add(bNozzle);
+    var liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.7, 20), new THREE.MeshStandardMaterial({ color: 0xf3e4b0, roughness: 0.3, transparent: true, opacity: 0.9 }));
+    liquid.position.y = 1.0; bottleG.add(liquid);
+
+    var activeTool = chisel, shownMode = "cut", shownBrushKey = "";
+    var toolFor = { cut: chisel, paint: brushG, finish: bottleG };
+    function showTool() {
+      if (shownMode !== S.mode) {
+        var next = toolFor[S.mode];
+        next.position.copy(activeTool.position); next.quaternion.copy(activeTool.quaternion);
+        activeTool.visible = false; next.visible = true;
+        activeTool = next; shownMode = S.mode;
+      }
+      if (S.mode === "paint") {
+        var key = S.paintTool + ":" + S.color;
+        if (key !== shownBrushKey) { shownBrushKey = key; showBrush(); }
+      }
+    }
+
     /* ---------------- chips + dust ---------------- */
     var CHIP_N = 420;
     var chipMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.085, 0.02, 0.045), new THREE.MeshStandardMaterial({ color: 0xe6c184, roughness: 0.9 }), CHIP_N);
@@ -406,6 +548,101 @@
       dustGeo.attributes.position.needsUpdate = true;
     }
 
+    /* ---------------- paint drops (flung off the spinning piece) and spray mist ---------------- */
+    var DROP_N = 320;
+    var dropMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0 }), DROP_N);
+    dropMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    dropMesh.frustumCulled = false;
+    scene.add(dropMesh);
+    var drops = [], dropCursor = 0, dropColor = new THREE.Color();
+    for (var dI = 0; dI < DROP_N; dI++) {
+      drops.push({ p: new THREE.Vector3(0, -10, 0), v: new THREE.Vector3(), life: 0, scale: 1 });
+      dropMesh.setColorAt(dI, dropColor.set(0xffffff));
+    }
+    dropMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    function spawnDrops(origin, n) {
+      dropColor.set(L.Paint.PALETTE[S.color].hex);
+      for (var i = 0; i < n; i++) {
+        var d = drops[dropCursor], idx = dropCursor; dropCursor = (dropCursor + 1) % DROP_N;
+        d.p.copy(origin);
+        d.p.x += (Math.random() - 0.5) * 0.12;
+        // a spinning piece throws paint off along the surface's direction of travel, down and out
+        d.v.copy(T3).multiplyScalar(0.8 + Math.random() * 1.8);
+        d.v.addScaledVector(N3, 0.3 + Math.random() * 1.0);
+        d.v.x += (Math.random() - 0.5) * 1.8;
+        d.v.z += 0.2 + Math.random() * 0.6;
+        d.life = 0.5 + Math.random() * 0.6;
+        d.scale = 0.5 + Math.random() * 1.1;
+        dropMesh.setColorAt(idx, dropColor);
+      }
+      dropMesh.instanceColor.needsUpdate = true;
+    }
+    function updateDrops(dt) {
+      for (var i = 0; i < DROP_N; i++) {
+        var d = drops[i];
+        if (d.life > 0) {
+          d.life -= dt;
+          d.v.y -= 4.6 * dt;
+          d.p.addScaledVector(d.v, dt);
+          if (d.p.y < 0.03) { d.p.y = 0.03; d.v.set(0, 0, 0); }
+          var sc = d.scale * Math.min(1, d.life * 4);
+          chipDummy.position.copy(d.p); chipDummy.rotation.set(0, 0, 0);
+          chipDummy.scale.set(sc * (1 + Math.min(0.8, Math.abs(d.v.y) * 0.12)), sc, sc);
+        } else {
+          chipDummy.position.set(0, -10, 0); chipDummy.scale.set(0.001, 0.001, 0.001);
+        }
+        chipDummy.updateMatrix();
+        dropMesh.setMatrixAt(i, chipDummy.matrix);
+      }
+      dropMesh.instanceMatrix.needsUpdate = true;
+    }
+    var MIST_N = 420;
+    var mistPos = new Float32Array(MIST_N * 3), mistDat = [];
+    for (var mI = 0; mI < MIST_N; mI++) { mistDat.push({ life: 0, vx: 0, vy: 0, vz: 0 }); mistPos[mI * 3 + 1] = -10; }
+    var mistGeo = new THREE.BufferGeometry();
+    mistGeo.setAttribute("position", new THREE.BufferAttribute(mistPos, 3).setUsage(THREE.DynamicDrawUsage));
+    var mist = new THREE.Points(mistGeo, new THREE.PointsMaterial({ map: makeChipSprite(), size: 0.2, transparent: true, opacity: 0.55, depthWrite: false, color: 0xe2f2ff, sizeAttenuation: true }));
+    mist.frustumCulled = false;
+    scene.add(mist);
+    var mistCursor = 0;
+    function spawnMist(origin, n) {
+      for (var i = 0; i < n; i++) {
+        var d = mistDat[mistCursor], idx = mistCursor; mistCursor = (mistCursor + 1) % MIST_N;
+        d.life = 0.2 + Math.random() * 0.14;
+        var sp = 1.8 + Math.random() * 1.4;      // leaves the nozzle toward the wood, in a narrow cone
+        d.vx = (Math.random() - 0.5) * 1.1;
+        d.vy = -N3.y * sp + (Math.random() - 0.5) * 0.5; d.vz = -N3.z * sp + (Math.random() - 0.5) * 0.5;
+        mistPos[idx * 3] = origin.x + (Math.random() - 0.5) * 0.04; mistPos[idx * 3 + 1] = origin.y; mistPos[idx * 3 + 2] = origin.z;
+      }
+    }
+    function updateMist(dt) {
+      for (var i = 0; i < MIST_N; i++) {
+        var d = mistDat[i];
+        if (d.life > 0) {
+          d.life -= dt;
+          mistPos[i * 3] += d.vx * dt; mistPos[i * 3 + 1] += d.vy * dt; mistPos[i * 3 + 2] += d.vz * dt;
+          if (d.life <= 0) mistPos[i * 3 + 1] = -10;
+        }
+      }
+      mistGeo.attributes.position.needsUpdate = true;
+    }
+
+    /* ---------------- the finishing lamp: swings along the piece so the gloss catches it ---------------- */
+    var lamp = new THREE.Group();
+    lamp.visible = false;
+    scene.add(lamp);
+    var lampLight = new THREE.PointLight(0xfff0d2, 0, 18, 1.4);
+    lamp.add(lampLight);
+    var lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff6dc }));
+    lamp.add(lampBulb);
+    var lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.5, 0.42, 22, 1, true), new THREE.MeshStandardMaterial({ color: 0x2c3234, roughness: 0.5, metalness: 0.5, side: THREE.DoubleSide }));
+    lampShade.position.y = 0.3; lamp.add(lampShade);
+    var lampRod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 4, 8), ironDark);
+    lampRod.position.y = 2.5; lamp.add(lampRod);
+    var lampGlow = new THREE.Mesh(new THREE.CircleGeometry(0.65, 24), new THREE.MeshBasicMaterial({ map: makeChipSprite(), transparent: true, opacity: 0.0, depthWrite: false, color: 0xfff0c8 }));
+    lampGlow.position.z = 0.0; lamp.add(lampGlow);
+    var lampOn = 0, lampPhase = 0, lampX = 0;
+
     /* ---------------- chisel posing ---------------- */
     var chiselPos = new THREE.Vector3(0.5, CENTER_Y - R0 - 0.35, 1.6);
     var chiselTarget = new THREE.Vector3(), handDir = new THREE.Vector3();
@@ -419,6 +656,8 @@
         // Contact: the tip sits on the wood at the bottom of the cut, so it
         // stays visible and rides down as the cut deepens. Hover: just off it.
         var rr = tool.r + tool.lift;
+        // the spray bottle stands off the wood; the chisel and brush touch it
+        if (S.mode === "finish") rr += 0.5;
         chiselTarget.set(axialX(tool.t), CENTER_Y + CONTACT_N.y * rr, CONTACT_N.z * rr + (tool.mode === "hover" ? 0.25 : 0));
       }
       chiselPos.lerp(chiselTarget, 1 - Math.exp(-dt * 38));
@@ -426,10 +665,10 @@
         chiselPos.x += (Math.random() - 0.5) * 0.02 * S.cutIntensity;
         chiselPos.y += (Math.random() - 0.5) * 0.026 * S.cutIntensity;
       }
-      chisel.position.copy(chiselPos);
+      activeTool.position.copy(chiselPos);
       handDir.set(chiselPos.x * 0.14 + 0.55, chiselPos.y - 2.5, chiselPos.z + 1.85).normalize();
       _q.setFromUnitVectors(YAXIS, handDir);
-      chisel.quaternion.slerp(_q, Math.min(1, dt * 14 + 0.2));
+      activeTool.quaternion.slerp(_q, Math.min(1, dt * 14 + 0.2));
     }
 
     /* ---------------- layout: screen <-> axis ---------------- */
@@ -502,14 +741,38 @@
         spawnChips(contactPoint, amount);
         if (Math.random() < 0.6) spawnDust(contactPoint, 2);
       },
+      onPaint: function (pr, dt) {
+        var t = S.tool.t, r = work.sample(t);
+        contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
+        spawnDrops(contactPoint, Math.floor(pr * dt * 70 + Math.random()));
+      },
+      onSpray: function (pr, dt) {
+        var t = S.tool.t, r = work.sample(t) + 0.45;
+        contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
+        spawnMist(contactPoint, Math.floor(pr * dt * 220 + Math.random()));
+      },
       frame: function (dt) {
         frameN++;
         showTip();
+        showTool();
         syncWork();
+        syncPaint(false);
+        // the lamp lights up for the finish and sweeps end to end so the gloss catches it
+        lampOn += ((S.mode === "finish" ? 1 : 0) - lampOn) * Math.min(1, dt * 5);
+        if (S.mode === "finish") { lampPhase += dt * 0.55; lampX = S.reduceMotion ? 0 : Math.sin(lampPhase) * LOG_LEN * 0.4; }
+        lamp.visible = lampOn > 0.02;
+        if (lamp.visible) {
+          lamp.position.set(lampX, CENTER_Y + 2.35, 2.2);
+          lampLight.intensity = lampOn * 42;
+          lampGlow.material.opacity = lampOn * 0.8;
+          lampGlow.quaternion.copy(camera.quaternion);
+        }
         spinGroup.rotation.x = S.spinAngle;
         poseChisel(dt);
         updateChips(dt);
         updateDust(dt);
+        updateDrops(dt);
+        updateMist(dt);
         if (S.shake > 0 && !S.reduceMotion) {
           camera.position.set(camBase.x + (Math.random() - 0.5) * 0.07 * S.shake, camBase.y + (Math.random() - 0.5) * 0.07 * S.shake, camBase.z);
         } else if (camera.position.x !== camBase.x) {

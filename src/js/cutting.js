@@ -232,6 +232,7 @@
     this.anchorY = 0;
     this.raw = 0;
     this.value = 0;
+    this.catches = true;   // off while painting or spraying: slamming the pressure in is only a catch when cutting
     this._lowT = 0;
   }
   Pressure.prototype.down = function (y, now) {
@@ -247,7 +248,7 @@
     if (y > this.anchorY) this.anchorY = y;
     this.raw = Math.min(1, Math.max(0, (this.anchorY - y) / this.cfg.PRESS_RAMP_PX));
     if (this.raw < 0.15) { this._lowT = now || 0; return false; }
-    if (this.raw >= 0.999 && now != null && now - this._lowT < this.cfg.CATCH_WINDOW) {
+    if (this.catches && this.raw >= 0.999 && now != null && now - this._lowT < this.cfg.CATCH_WINDOW) {
       this.knockBack(y);
       return true;
     }

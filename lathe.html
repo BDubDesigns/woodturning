@@ -28,6 +28,7 @@
   --plate: rgba(20, 15, 11, 0.72);
   --btn-bg: #2a2119;
   --btn-bg-on: #4a2f14;
+  --ok: #b8dc8a;
 }
 @media (prefers-color-scheme: light) {
   :root {
@@ -40,6 +41,7 @@
     --plate: rgba(28, 20, 13, 0.78);
     --btn-bg: #ded0b4;
     --btn-bg-on: #f3cf96;
+    --ok: #3f7a1c;
   }
 }
 * { box-sizing: border-box; }
@@ -308,6 +310,97 @@ footer {
 .act.primary { border-color: var(--amber); background: var(--btn-bg-on); }
 .act.primary .an { color: var(--amber); }
 .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset; }
+
+/* ---------- paint and finish ---------- */
+.mode-group { display: flex; gap: 8px; flex: 0 1 380px; }
+.mode-btn {
+  flex: 1; min-height: 44px; padding: 6px 12px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--btn-bg); color: var(--dim);
+  border: 1px solid var(--chrome-line);
+  font-family: "Barlow Condensed", sans-serif; font-weight: 700;
+  font-size: 17px; letter-spacing: 0.14em;
+  transition: border-color 0.15s, background 0.15s, transform 0.05s;
+}
+.mode-btn:active { transform: scale(0.985); }
+.mode-btn[aria-pressed="true"] {
+  background: var(--btn-bg-on); color: var(--amber); border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber) inset;
+}
+.paint-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; flex: 1 1 100%; }
+.paint-tools .tip-group { flex: 1 1 300px; min-width: 0; }
+.swatches { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 7px; flex: 1 1 300px; max-width: 460px; }
+.swatch {
+  position: relative; aspect-ratio: 1; min-height: 36px; padding: 0; border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.35); background: var(--sw);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  transition: transform 0.08s, box-shadow 0.15s, border-color 0.15s;
+}
+.swatch:active { transform: scale(0.94); }
+.swatch[aria-pressed="true"] { border-color: var(--amber); box-shadow: 0 0 0 2px var(--chrome-bg), 0 0 0 4px var(--amber); transform: scale(1.06); }
+.swatch.needed::after {
+  content: ""; position: absolute; right: -2px; top: -2px; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--amber); border: 2px solid var(--chrome-bg);
+}
+.swatch .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.finish-tools { flex: 1 1 auto; min-width: 250px; }
+.finish-card {
+  display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 14px;
+  background: var(--btn-bg); border: 1px solid var(--chrome-line); border-radius: 8px;
+}
+.finish-card svg { flex: 0 0 auto; }
+.finish-card .tname { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 19px; letter-spacing: 0.08em; line-height: 1; color: var(--amber); }
+.finish-card .tdesc { font-size: 11.5px; color: var(--dim); margin-top: 3px; line-height: 1.25; }
+.finish-text { flex: 1 1 auto; min-width: 0; }
+.gloss-meter { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: 0 0 auto; min-width: 84px; }
+.gloss-meter .gk { font-size: 9.5px; letter-spacing: 0.2em; color: var(--faint); font-weight: 600; }
+.gloss-meter .gbar { width: 84px; height: 7px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); overflow: hidden; box-shadow: 0 0 0 1px rgba(232, 163, 61, 0.3); }
+.gloss-meter .gbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6e5a3c, #fff2c8); }
+.gloss-meter b { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.06em; }
+
+#specBar {
+  display: flex; align-items: stretch; gap: 10px;
+  padding: 6px 14px 7px; background: var(--chrome-bg);
+  border-top: 1px solid var(--chrome-line);
+}
+#specBar .plabel {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-size: 9.5px; letter-spacing: 0.22em; color: var(--faint);
+  display: flex; align-items: center; justify-content: center;
+}
+.spec-canvas-wrap { position: relative; flex: 1 1 auto; min-width: 0; height: 46px; }
+#specCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.spec-row-k {
+  position: absolute; left: 6px; font-size: 8.5px; letter-spacing: 0.2em; font-weight: 700;
+  color: rgba(255, 255, 255, 0.85); text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9); pointer-events: none;
+}
+.spec-row-top { top: 3px; }
+.spec-row-bot { bottom: 3px; }
+.spec-info { flex: 0 0 auto; min-width: 118px; max-width: 168px; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.spec-name { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.06em; line-height: 1.1; color: var(--amber); }
+.spec-line { font-size: 12px; color: var(--dim); line-height: 1.2; }
+.spec-line b { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.spec-sheen.ok { color: var(--ok); }
+#specBar .ctl-btn { align-self: center; min-height: 40px; padding: 6px 11px; font-size: 12px; }
+/* wide screens: the mode switch shares a row with the speed and view controls, the tools get their own row */
+@media (min-width: 721px) {
+  .tip-group, .paint-tools, .finish-tools { order: 2; flex-basis: 100%; }
+  .side-controls { order: 1; margin-left: auto; }
+}
+@media (max-width: 720px) {
+  .mode-group { order: -2; flex-basis: 100%; }
+  .paint-tools, .finish-tools { order: -1; flex-basis: 100%; }
+  .paint-tools .tdesc { display: none; }
+  .paint-tools .tip-btn { min-height: 46px; padding: 6px 12px; }
+  .paint-tools .tip-group { flex-basis: 100%; }
+  .swatches { flex-basis: 100%; max-width: none; }
+  .finish-card { min-height: 52px; }
+}
+@media (max-width: 560px) {
+  .spec-info { min-width: 96px; }
+  #specBar .ctl-btn { padding: 6px 8px; }
+  .mode-btn { letter-spacing: 0.1em; }
+}
 </style>
   </head>
   <body>
@@ -363,8 +456,37 @@ footer {
         <canvas id="profileCanvas" aria-label="Live cross-section profile of the workpiece"></canvas>
       </div>
 
+      <div id="specBar" hidden>
+        <div class="plabel">SPEC</div>
+        <div class="spec-canvas-wrap">
+          <canvas id="specCanvas" aria-label="Paint spec: the target on top, your piece below"></canvas>
+          <span class="spec-row-k spec-row-top">WANTED</span>
+          <span class="spec-row-k spec-row-bot">YOURS</span>
+        </div>
+        <div class="spec-info">
+          <div class="spec-name" id="specName">Solid Crimson</div>
+          <div class="spec-line"><b id="specMatch">0</b><small>% match</small></div>
+          <div class="spec-line spec-sheen" id="specSheen">Wanted: Gloss</div>
+        </div>
+        <button class="ctl-btn" id="specNewBtn" title="Roll a new paint spec">NEW SPEC</button>
+      </div>
+
       <footer>
-        <div class="tip-group" role="group" aria-label="Chisel tip">
+        <div class="mode-group" role="group" aria-label="Lathe tool">
+          <button class="mode-btn" id="modeCut" aria-pressed="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 17 7"/><path d="M14 4l6 6-3 3-6-6z"/></svg>
+            CUT
+          </button>
+          <button class="mode-btn" id="modePaint" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20c0-2 1.2-3 3-3 1.2 0 2 .8 2 2 0 1.6-1.6 2-5 1z"/><path d="M8 17 18 5l2 2-10 12z"/></svg>
+            PAINT
+          </button>
+          <button class="mode-btn" id="modeFinish" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11h6v10H9z"/><path d="M10 11V8h5V6h-5"/><path d="M5 5l-2-1M5 8H3M5 11l-2 1"/></svg>
+            FINISH
+          </button>
+        </div>
+        <div class="tip-group" id="toolsCut" role="group" aria-label="Chisel tip">
           <button class="tip-btn" id="tipGouge" aria-pressed="true">
             <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
               <path d="M4 4 h26 v10 c0 7 -6 12 -13 12 c-7 0 -13 -5 -13 -12 z" fill="none" stroke="#e8a33d" stroke-width="2.4"/>
@@ -379,6 +501,35 @@ footer {
             </svg>
             <span><span class="tname">SKEW</span><div class="tdesc">Narrow, angled flat · crisp grooves &amp; beads</div></span>
           </button>
+        </div>
+        <div class="paint-tools" id="toolsPaint" hidden>
+          <div class="tip-group" role="group" aria-label="Applicator">
+            <button class="tip-btn" id="brushWide" aria-pressed="true">
+              <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
+                <path d="M7 4h20v7H7z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
+                <path d="M9 11c0 6 2 11 8 14 6-3 8-8 8-14" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
+              </svg>
+              <span><span class="tname">BRUSH</span><div class="tdesc">Wide, soft edge · bands &amp; gradients</div></span>
+            </button>
+            <button class="tip-btn" id="brushLiner" aria-pressed="false">
+              <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
+                <path d="M15 3h4v8h-4z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
+                <path d="M15.5 11c0 5 .6 9 1.5 14 .9-5 1.5-9 1.5-14" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
+              </svg>
+              <span><span class="tname">LINER</span><div class="tdesc">Fine, crisp · pinstripes &amp; edges</div></span>
+            </button>
+          </div>
+          <div class="swatches" id="swatches" role="group" aria-label="Paint colour"></div>
+        </div>
+        <div class="finish-tools" id="toolsFinish" hidden>
+          <div class="finish-card">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#e8a33d" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11h6v10H9z"/><path d="M10 11V8h5V6h-5"/><path d="M5 5l-2-1M5 8H3M5 11l-2 1" opacity="0.8"/></svg>
+            <div class="finish-text">
+              <div class="tname">SPRAY BOTTLE</div>
+              <div class="tdesc" id="finishDesc">Nudge up to spray. Sweep slowly to build the sheen evenly.</div>
+            </div>
+            <div class="gloss-meter" aria-label="Sheen on the piece"><span class="gk">SHEEN</span><span class="gbar"><i id="glossFill"></i></span><b id="glossName">Matte</b></div>
+          </div>
         </div>
         <div class="side-controls">
           <div class="speed">
@@ -647,6 +798,7 @@ footer {
     this.anchorY = 0;
     this.raw = 0;
     this.value = 0;
+    this.catches = true;   // off while painting or spraying: slamming the pressure in is only a catch when cutting
     this._lowT = 0;
   }
   Pressure.prototype.down = function (y, now) {
@@ -662,7 +814,7 @@ footer {
     if (y > this.anchorY) this.anchorY = y;
     this.raw = Math.min(1, Math.max(0, (this.anchorY - y) / this.cfg.PRESS_RAMP_PX));
     if (this.raw < 0.15) { this._lowT = now || 0; return false; }
-    if (this.raw >= 0.999 && now != null && now - this._lowT < this.cfg.CATCH_WINDOW) {
+    if (this.catches && this.raw >= 0.999 && now != null && now - this._lowT < this.cfg.CATCH_WINDOW) {
       this.knockBack(y);
       return true;
     }
@@ -706,12 +858,351 @@ footer {
 })(typeof window !== "undefined" ? window : globalThis);
 </script>
     <script>
+/* ============================================================
+   Paint and finish model: pure, renderer-free, testable in Node.
+
+   A turned piece is a surface of revolution, so paint laid on it
+   while it spins is the same all the way round. That means the
+   whole paint job is one coat per slice along the length: a colour,
+   an opacity (how much of the wood is covered) and a gloss (how much
+   finish is on it). Stripes, clean bands and gradients all fall out
+   of that, exactly as they do on a real spinning piece.
+
+   Same feel rules as cutting:
+   - Pressure sets the flow. Slow and steady lays a solid coat; whip
+     across fast and you only leave a thin streak, because each slice
+     only spends a moment under the brush.
+   - Edges are soft for the brush and crisp for the liner.
+   - Cutting wood away takes the paint with it (syncWork).
+
+   A paint spec is plain data, the part of a commission that says
+   what the painting must look like:
+     { name, segments: [{ a, b, paint }], sheen }
+   segments cover 0..1 along the length; paint is a PALETTE key, or
+   null for bare wood. sheen is "matte" | "satin" | "gloss".
+   matchSpec() grades a finished piece against it.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  var CFG = {
+    SEG: 240,          // must match the cutting model
+    LOG_LEN: 6.4,      // world units, same as the cutting model
+    END_MARGIN: 2,
+
+    BRUSH_FLOW: 8,     // coat built per second at full pressure under the middle of the brush
+    FLOW_FLOOR: 0.25,  // share of the flow still left at the lightest touch
+    SPRAY_RATE: 1.6,   // gloss built per second at full pressure under the middle of the mist
+    SPRAY_FLOOR: 0.3,
+
+    WOOD_RGB: [0.71, 0.52, 0.30],   // bare blank, linear 0..1 sRGB-ish, what paint is judged against
+    DIST_FULL: 0.06,   // colour distance still scored as a perfect slice
+    DIST_ZERO: 0.3,    // colour distance scored as a miss
+    EDGE_TOL: 0.012    // fraction of the length a band edge may be off before it costs
+  };
+
+  /* The paints. Spec colours come from this list, and these are the only
+     colours the player can pick, so a spec can always be matched. */
+  var PALETTE = {
+    crimson:   { id: "crimson",   name: "Crimson",   hex: "#c0392b" },
+    tangerine: { id: "tangerine", name: "Tangerine", hex: "#e8772e" },
+    sunflower: { id: "sunflower", name: "Sunflower", hex: "#f0c334" },
+    moss:      { id: "moss",      name: "Moss",      hex: "#5d8a3c" },
+    teal:      { id: "teal",      name: "Teal",      hex: "#2a8c8c" },
+    cobalt:    { id: "cobalt",    name: "Cobalt",    hex: "#2f5fb3" },
+    plum:      { id: "plum",      name: "Plum",      hex: "#7a3b78" },
+    ivory:     { id: "ivory",     name: "Ivory",     hex: "#efe6d0" },
+    ink:       { id: "ink",       name: "Ink",       hex: "#25262b" }
+  };
+  var PALETTE_ORDER = ["crimson", "tangerine", "sunflower", "moss", "teal", "cobalt", "plum", "ivory", "ink"];
+  for (var pk in PALETTE) PALETTE[pk].rgb = hexToRgb(PALETTE[pk].hex);
+  function hexToRgb(h) {
+    return [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
+  }
+
+  /* Applicators. halfWidth in world units, like the chisel tips. */
+  var BRUSHES = {
+    brush: { halfWidth: 0.3,  flow: 1.0, name: "Brush", soft: true },
+    liner: { halfWidth: 0.07, flow: 1.0, name: "Liner", soft: false }
+  };
+  var SPRAY_HALF_WIDTH = 0.95;
+
+  var SHEEN = {
+    matte: { id: "matte", name: "Matte", gloss: 0.08 },
+    satin: { id: "satin", name: "Satin", gloss: 0.5 },
+    gloss: { id: "gloss", name: "Gloss", gloss: 0.92 }
+  };
+  var SHEEN_ORDER = ["matte", "satin", "gloss"];
+
+  function sheenFor(gloss) {
+    return gloss < 0.28 ? "matte" : gloss < 0.72 ? "satin" : "gloss";
+  }
+
+  /* Soft edge for the brush (cosine falloff), flat top with soft shoulder
+     for the liner so a pinstripe stays a clean line. Zero slope at the edge. */
+  function kernel(brushKey, d) {
+    var hw = BRUSHES[brushKey].halfWidth;
+    if (d >= hw) return 0;
+    var u = d / hw;
+    if (brushKey === "brush") { var c = Math.cos(u * Math.PI * 0.5); return c * c; }
+    if (u <= 0.55) return 1;
+    var s = (u - 0.55) / 0.45;
+    return 1 - s * s * (3 - 2 * s);
+  }
+  function sprayKernel(d) {
+    if (d >= SPRAY_HALF_WIDTH) return 0;
+    var c = Math.cos((d / SPRAY_HALF_WIDTH) * Math.PI * 0.5);
+    return c * c;
+  }
+
+  /* ---------------- the coat on the piece ---------------- */
+  function Coating(cfg) {
+    this.cfg = cfg || CFG;
+    var n = this.cfg.SEG;
+    this.color = new Float32Array(n * 3);   // paint colour per slice
+    this.coat = new Float32Array(n);        // 0 bare wood .. 1 solid paint
+    this.gloss = new Float32Array(n);       // 0 matte .. 1 full gloss
+    this._lastR = new Float32Array(n);
+    this._haveR = false;
+    this.dx = this.cfg.LOG_LEN / (n - 1);
+    this.version = 0;                       // bumps whenever anything changes; views redraw on change
+    this.reset();
+  }
+  Coating.prototype.reset = function () {
+    this.color.fill(0); this.coat.fill(0); this.gloss.fill(0);
+    this._haveR = false;
+    this.version++;
+  };
+
+  /* One timestep of painting. t = axial position 0..1, pressure 0..1,
+     colorKey a PALETTE key. Returns the amount laid (sum of alpha added). */
+  Coating.prototype.brush = function (t, pressure, brushKey, colorKey, dt) {
+    var c = this.cfg, n = c.SEG, spec = BRUSHES[brushKey], paint = PALETTE[colorKey];
+    if (!spec || !paint) return 0;
+    var p = Math.min(1, Math.max(0, pressure));
+    if (p < 0.02) return 0;
+    var xc = Math.min(1, Math.max(0, t)) * (n - 1);
+    var hwS = spec.halfWidth / this.dx;
+    var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
+    var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
+    var rate = c.BRUSH_FLOW * spec.flow * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * p);
+    var laid = 0, N = paint.rgb;
+    for (var i = lo; i <= hi; i++) {
+      var w = kernel(brushKey, Math.abs(i - xc) * this.dx);
+      if (w <= 0) continue;
+      var a = Math.min(1, rate * w * dt);          // how much of the new paint lands this step
+      var old = this.coat[i], na = old + (1 - old) * a;
+      if (na - old < 1e-6) continue;
+      // "over" compositing in premultiplied form: the new colour covers a bit, the old shows through
+      for (var k = 0; k < 3; k++) {
+        this.color[i * 3 + k] = (this.color[i * 3 + k] * old * (1 - a) + N[k] * a) / na;
+      }
+      this.coat[i] = na;
+      laid += na - old;
+    }
+    if (laid > 0) this.version++;
+    return laid;
+  };
+
+  /* One timestep of spraying finish. Returns the gloss added. */
+  Coating.prototype.spray = function (t, pressure, dt) {
+    var c = this.cfg, n = c.SEG;
+    var p = Math.min(1, Math.max(0, pressure));
+    if (p < 0.02) return 0;
+    var xc = Math.min(1, Math.max(0, t)) * (n - 1);
+    var hwS = SPRAY_HALF_WIDTH / this.dx;
+    var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
+    var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
+    var rate = c.SPRAY_RATE * (c.SPRAY_FLOOR + (1 - c.SPRAY_FLOOR) * p);
+    var added = 0;
+    for (var i = lo; i <= hi; i++) {
+      var w = sprayKernel(Math.abs(i - xc) * this.dx);
+      if (w <= 0) continue;
+      var old = this.gloss[i], ng = old + (1 - old) * Math.min(1, rate * w * dt);
+      if (ng - old < 1e-6) continue;
+      this.gloss[i] = ng;
+      added += ng - old;
+    }
+    if (added > 0) this.version++;
+    return added;
+  };
+
+  /* Wood cut away takes its paint and finish with it. Call once per
+     frame with the workpiece; it compares against the last radii seen. */
+  Coating.prototype.syncWork = function (work) {
+    var r = work.radius, n = this.cfg.SEG, last = this._lastR, changed = false;
+    if (!this._haveR) { last.set(r); this._haveR = true; return false; }
+    for (var i = 0; i < n; i++) {
+      if (r[i] < last[i] - 1e-5) {
+        if (this.coat[i] > 0 || this.gloss[i] > 0) {
+          this.coat[i] = 0; this.gloss[i] = 0; this.color[i * 3] = this.color[i * 3 + 1] = this.color[i * 3 + 2] = 0;
+          changed = true;
+        }
+      }
+      last[i] = r[i];
+    }
+    if (changed) this.version++;
+    return changed;
+  };
+
+  /* What slice i looks like: the wood with the coat over it. */
+  Coating.prototype.shownColor = function (i, wood, out) {
+    out = out || [0, 0, 0];
+    var a = this.coat[i], w = wood || this.cfg.WOOD_RGB;
+    for (var k = 0; k < 3; k++) out[k] = w[k] * (1 - a) + this.color[i * 3 + k] * a;
+    return out;
+  };
+  Coating.prototype.coverage = function () {
+    var s = 0, n = this.cfg.SEG;
+    for (var i = 0; i < n; i++) s += this.coat[i];
+    return s / n;
+  };
+  Coating.prototype.avgGloss = function () {
+    var s = 0, n = this.cfg.SEG;
+    for (var i = 0; i < n; i++) s += this.gloss[i];
+    return s / n;
+  };
+
+  /* ---------------- specs ---------------- */
+  function rng(seed) {                      // mulberry32: small, seedable, good enough
+    var a = (seed >>> 0) || 1;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function pick(r, list, not) {
+    var choices = list.filter(function (k) { return k !== not; });
+    return choices[Math.floor(r() * choices.length)];
+  }
+
+  /* Generate a paint spec on the fly. Commissions call this (or build
+     their own spec in the same shape). Same seed, same spec. */
+  function generateSpec(seed, opts) {
+    var r = rng(seed == null ? Math.floor(Math.random() * 4294967296) : seed);
+    opts = opts || {};
+    var kinds = ["solid", "banded", "dipped", "pinstripe", "twotone"];
+    var kind = opts.kind || kinds[Math.floor(r() * kinds.length)];
+    var c1 = pick(r, PALETTE_ORDER), c2 = pick(r, PALETTE_ORDER, c1), c3 = pick(r, PALETTE_ORDER, c2);
+    var segs, name;
+    if (kind === "solid") {
+      segs = [{ a: 0, b: 1, paint: c1 }];
+      name = "Solid " + PALETTE[c1].name;
+    } else if (kind === "banded") {
+      segs = [{ a: 0, b: 0.34, paint: c1 }, { a: 0.34, b: 0.66, paint: c2 }, { a: 0.66, b: 1, paint: c3 === c2 ? c1 : c3 }];
+      name = "Three bands";
+    } else if (kind === "dipped") {
+      var cut = r() < 0.5 ? 0.3 : 0.7, left = cut < 0.5;
+      segs = left ? [{ a: 0, b: cut, paint: c1 }, { a: cut, b: 1, paint: null }]
+                  : [{ a: 0, b: cut, paint: null }, { a: cut, b: 1, paint: c1 }];
+      name = "Dipped in " + PALETTE[c1].name;
+    } else if (kind === "pinstripe") {
+      segs = [
+        { a: 0, b: 0.235, paint: c1 }, { a: 0.235, b: 0.265, paint: c2 }, { a: 0.265, b: 0.485, paint: c1 },
+        { a: 0.485, b: 0.515, paint: c2 }, { a: 0.515, b: 0.735, paint: c1 }, { a: 0.735, b: 0.765, paint: c2 },
+        { a: 0.765, b: 1, paint: c1 }
+      ];
+      name = PALETTE[c1].name + " with " + PALETTE[c2].name + " pinstripes";
+    } else {
+      segs = [{ a: 0, b: 0.5, paint: c1 }, { a: 0.5, b: 1, paint: c2 }];
+      name = "Two tone";
+    }
+    var sheen = opts.sheen || SHEEN_ORDER[Math.floor(r() * SHEEN_ORDER.length)];
+    return { name: name, kind: kind, segments: segs, sheen: sheen };
+  }
+
+  function specPaints(spec) {
+    var seen = {}, out = [];
+    spec.segments.forEach(function (s) { if (s.paint && !seen[s.paint]) { seen[s.paint] = true; out.push(s.paint); } });
+    return out;
+  }
+  function describeSpec(spec) {
+    var paints = specPaints(spec).map(function (k) { return PALETTE[k].name; });
+    return spec.name + ". " + (paints.length ? paints.join(", ") + ". " : "Bare wood. ") + SHEEN[spec.sheen].name + " finish.";
+  }
+  function validSpec(spec) {
+    if (!spec || typeof spec !== "object" || !Array.isArray(spec.segments) || !spec.segments.length) return false;
+    if (!SHEEN[spec.sheen]) return false;
+    var at = 0;
+    for (var i = 0; i < spec.segments.length; i++) {
+      var s = spec.segments[i];
+      if (!s || !(s.a >= at - 1e-9) || !(s.b > s.a) || s.b > 1 + 1e-9) return false;
+      if (s.paint != null && !PALETTE[s.paint]) return false;
+      at = s.b;
+    }
+    return true;
+  }
+
+  /* The colour the spec wants at axial position t (RGB 0..1). */
+  function targetAt(spec, t, wood) {
+    for (var i = 0; i < spec.segments.length; i++) {
+      var s = spec.segments[i];
+      if (t >= s.a && (t < s.b || i === spec.segments.length - 1)) return s.paint ? PALETTE[s.paint].rgb : wood;
+    }
+    return wood;
+  }
+  /* Every colour the spec allows at t, with a little slack at band edges so a
+     pinstripe a hair off still counts. */
+  function targetsNear(spec, t, tol, wood) {
+    var out = [];
+    for (var i = 0; i < spec.segments.length; i++) {
+      var s = spec.segments[i];
+      if (t >= s.a - tol && t <= s.b + tol) out.push(s.paint ? PALETTE[s.paint].rgb : wood);
+    }
+    return out.length ? out : [wood];
+  }
+  function dist(a, b) {
+    var dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+  function smooth(e0, e1, x) {
+    var u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+    return u * u * (3 - 2 * u);
+  }
+
+  /* Grade the paint job against a spec. Returns 0..1 scores:
+     color (how much of the length is the right colour), finish
+     (how close the sheen is), and total (colour counts most). */
+  function matchSpec(spec, coating, wood, cfg) {
+    cfg = cfg || CFG;
+    wood = wood || cfg.WOOD_RGB;
+    var n = cfg.SEG, m = cfg.END_MARGIN, sum = 0, cnt = 0, shown = [0, 0, 0];
+    for (var i = m; i < n - m; i++) {
+      var t = i / (n - 1);
+      coating.shownColor(i, wood, shown);
+      var best = Infinity, tg = targetsNear(spec, t, cfg.EDGE_TOL, wood);
+      for (var k = 0; k < tg.length; k++) best = Math.min(best, dist(shown, tg[k]));
+      sum += 1 - smooth(cfg.DIST_FULL, cfg.DIST_ZERO, best);
+      cnt++;
+    }
+    var color = cnt ? sum / cnt : 0;
+    var want = SHEEN[spec.sheen].gloss, have = coating.avgGloss();
+    var finish = 1 - smooth(0.08, 0.5, Math.abs(have - want));
+    return { color: color, finish: finish, total: 0.8 * color + 0.2 * finish, sheen: sheenFor(have) };
+  }
+
+  var api = {
+    CFG: CFG, PALETTE: PALETTE, PALETTE_ORDER: PALETTE_ORDER, BRUSHES: BRUSHES, SHEEN: SHEEN, SHEEN_ORDER: SHEEN_ORDER,
+    SPRAY_HALF_WIDTH: SPRAY_HALF_WIDTH,
+    kernel: kernel, sprayKernel: sprayKernel, sheenFor: sheenFor,
+    Coating: Coating, generateSpec: generateSpec, specPaints: specPaints, describeSpec: describeSpec,
+    validSpec: validSpec, targetAt: targetAt, matchSpec: matchSpec, rng: rng
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  var L = root.Lathe || (root.Lathe = {});
+  L.Paint = api;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+    <script>
 /* Synthesised lathe audio: looped noise through a bandpass for the cut,
    a low sawtooth hum for the motor, a thump for a catch. Starts on the
    first press (browsers block audio until a user gesture). */
 (function (root) {
   "use strict";
-  var audio = { ctx: null, cutGain: null, humGain: null, on: true };
+  var audio = { ctx: null, cutGain: null, humGain: null, on: true, pitch: 1 };   // pitch: 1 cutting, lower for the brush swish, higher for the spray hiss
 
   audio.init = function () {
     if (audio.ctx) { if (audio.ctx.state === "suspended") audio.ctx.resume(); return; }
@@ -756,7 +1247,7 @@ footer {
     var level = Math.max(intensity, contact * 0.06);
     var target = audio.on ? Math.min(0.4, level * 0.55) : 0;
     audio.cutGain.gain.setTargetAtTime(target, now, 0.045);
-    audio.cutFilter.frequency.setTargetAtTime(1100 + rpmNow * 0.45 + intensity * 500, now, 0.1);
+    audio.cutFilter.frequency.setTargetAtTime((1100 + rpmNow * 0.45 + intensity * 500) * audio.pitch, now, 0.1);
     if (audio.humGain) audio.humGain.gain.setTargetAtTime(audio.on ? 0.006 + rpmNow * 0.000008 : 0, now, 0.2);
     if (audio.humOsc) audio.humOsc.frequency.setTargetAtTime(38 + rpmNow * 0.016, now, 0.2);
   };
@@ -820,9 +1311,11 @@ footer {
     renderer.domElement.addEventListener("webglcontextlost", function (e) { e.preventDefault(); onFail(); }, false);
 
     /* ---------------- textures (procedural canvas) ---------------- */
+    var woodCanvas = null, grainCanvas = null;   // base wood, and the grain streaks alone (laid over paint so it shows through)
     function makeWoodTexture() {
       var c = document.createElement("canvas"); c.width = 1024; c.height = 512;
-      var g = c.getContext("2d");
+      var gc = document.createElement("canvas"); gc.width = 1024; gc.height = 512;
+      var g = c.getContext("2d"), gg = gc.getContext("2d");
       var grad = g.createLinearGradient(0, 0, 1024, 0);
       grad.addColorStop(0, "#a9763e"); grad.addColorStop(0.5, "#b5854a"); grad.addColorStop(1, "#a06c36");
       g.fillStyle = grad; g.fillRect(0, 0, 1024, 512);
@@ -831,25 +1324,30 @@ footer {
       for (var i = 0; i < 210; i++) {
         var x = Math.random() * 1024;
         var dark = Math.random() > 0.42;
-        g.strokeStyle = dark ? "rgba(105,62,26," + (0.1 + Math.random() * 0.24) + ")"
-                             : "rgba(238,196,138," + (0.07 + Math.random() * 0.16) + ")";
-        g.lineWidth = 0.6 + Math.random() * 2.4;
-        g.beginPath();
-        g.moveTo(x, -10);
-        var wob = (Math.random() - 0.5) * 14;
-        g.bezierCurveTo(x + wob, 150, x - wob, 340, x + (Math.random() - 0.5) * 8, 522);
-        g.stroke();
+        var style = dark ? "rgba(105,62,26," + (0.1 + Math.random() * 0.24) + ")"
+                         : "rgba(238,196,138," + (0.07 + Math.random() * 0.16) + ")";
+        var lw = 0.6 + Math.random() * 2.4, wob = (Math.random() - 0.5) * 14, endX = x + (Math.random() - 0.5) * 8;
+        [g, gg].forEach(function (cx) {
+          cx.strokeStyle = style; cx.lineWidth = lw;
+          cx.beginPath();
+          cx.moveTo(x, -10);
+          cx.bezierCurveTo(x + wob, 150, x - wob, 340, endX, 522);
+          cx.stroke();
+        });
       }
       for (var k = 0; k < 5; k++) {        // a few knots make the spin readable
         var kx = Math.random() * 1024, ky = Math.random() * 512;
-        for (var r = 9; r > 1; r -= 2) {
-          g.strokeStyle = "rgba(110,66,28," + (0.16 + (9 - r) * 0.03) + ")";
-          g.lineWidth = 1.4;
-          g.beginPath(); g.ellipse(kx, ky, r * 1.5, r, 0.3, 0, Math.PI * 2); g.stroke();
-        }
-        g.fillStyle = "rgba(84,48,20,0.85)";
-        g.beginPath(); g.ellipse(kx, ky, 2.4, 1.7, 0.3, 0, Math.PI * 2); g.fill();
+        [g, gg].forEach(function (cx) {
+          for (var r = 9; r > 1; r -= 2) {
+            cx.strokeStyle = "rgba(110,66,28," + (0.16 + (9 - r) * 0.03) + ")";
+            cx.lineWidth = 1.4;
+            cx.beginPath(); cx.ellipse(kx, ky, r * 1.5, r, 0.3, 0, Math.PI * 2); cx.stroke();
+          }
+          cx.fillStyle = "rgba(84,48,20,0.85)";
+          cx.beginPath(); cx.ellipse(kx, ky, 2.4, 1.7, 0.3, 0, Math.PI * 2); cx.fill();
+        });
       }
+      woodCanvas = c; grainCanvas = gc;
       var tex = new THREE.CanvasTexture(c);
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.anisotropy = 4;
@@ -1010,7 +1508,84 @@ footer {
 
     /* ---------------- the workpiece ---------------- */
     var woodTex = makeWoodTexture();
-    var woodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.72, metalness: 0.0, bumpMap: woodTex, bumpScale: 0.6 });
+
+    /* Paint lives in a second canvas: the bare wood, then each slice's coat over it, then the
+       grain streaks laid back on top of the painted rows so the wood still shows through.
+       On the lathe's UV, V runs along the length (slice 0 at V=0, the bottom of the canvas). */
+    var PAINT_W = 1024, PAINT_H = 512, PNT = L.Paint, coat = S.coat;
+    var paintCanvas = document.createElement("canvas"); paintCanvas.width = PAINT_W; paintCanvas.height = PAINT_H;
+    var pg = paintCanvas.getContext("2d");
+    pg.drawImage(woodCanvas, 0, 0);
+    var paintTex = new THREE.CanvasTexture(paintCanvas);
+    paintTex.wrapS = paintTex.wrapT = THREE.RepeatWrapping;
+    paintTex.anisotropy = 4;
+    paintTex.colorSpace = THREE.SRGBColorSpace;
+
+    /* Roughness per slice: matte wood is rough, a sprayed finish is smooth. One column of
+       texels per slice, so the gloss can differ along the length. */
+    var ROUGH_MATTE = 0.74, ROUGH_GLOSS = 0.1;
+    var roughCanvas = document.createElement("canvas"); roughCanvas.width = 4; roughCanvas.height = SEG;
+    var rg = roughCanvas.getContext("2d");
+    var roughTex = new THREE.CanvasTexture(roughCanvas);
+    roughTex.wrapS = roughTex.wrapT = THREE.ClampToEdgeWrapping;
+
+    /* A bright softbox and a window strip for the finish to reflect. Only the finished wood
+       takes this reflection (envMapIntensity follows the gloss), so unfinished wood is unchanged. */
+    var envCanvas = document.createElement("canvas"); envCanvas.width = 1024; envCanvas.height = 512;
+    (function () {
+      var e = envCanvas.getContext("2d");
+      var bg = e.createLinearGradient(0, 0, 0, 512);
+      bg.addColorStop(0, "#2e2318"); bg.addColorStop(0.5, "#201710"); bg.addColorStop(1, "#0f0a06");
+      e.fillStyle = bg; e.fillRect(0, 0, 1024, 512);
+      function box(x, y, w, h, c) {
+        var gr = e.createLinearGradient(0, y, 0, y + h);
+        gr.addColorStop(0, c); gr.addColorStop(1, "rgba(255,235,190,0.55)");
+        e.fillStyle = gr; e.fillRect(x, y, w, h);
+      }
+      box(560, 92, 300, 70, "#fffaf0");     // softbox above and in front
+      box(900, 150, 70, 150, "#ffe9b8");    // window strip off to the side
+      box(120, 170, 60, 130, "#ffd89a");
+    })();
+    var envTex = new THREE.CanvasTexture(envCanvas);
+    envTex.mapping = THREE.EquirectangularReflectionMapping;
+    envTex.colorSpace = THREE.SRGBColorSpace;
+
+    var woodMat = new THREE.MeshStandardMaterial({ map: paintTex, roughness: 1, roughnessMap: roughTex, metalness: 0.0, bumpMap: woodTex, bumpScale: 0.6, envMap: envTex, envMapIntensity: 0 });
+    var paintSeen = -1, roughSeen = -1, paintFrame = 0;
+    function cssRgb(c) { return "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")"; }
+    function syncPaint(force) {
+      if (!force && coat.version === paintSeen) return;
+      if (!force && (++paintFrame % 2)) return;            // repaint at most every other frame while painting
+      paintSeen = coat.version;
+      pg.globalCompositeOperation = "source-over"; pg.globalAlpha = 1;
+      pg.drawImage(woodCanvas, 0, 0);
+      var step = PAINT_H / (SEG - 1), tmp = [0, 0, 0];
+      for (var j = 0; j < SEG; j++) {
+        var a = coat.coat[j];
+        if (a < 0.01) continue;
+        var y1 = Math.max(0, PAINT_H - (j + 0.5) * step), y2 = Math.min(PAINT_H, PAINT_H - (j - 0.5) * step), h = y2 - y1 + 0.8;
+        tmp[0] = coat.color[j * 3]; tmp[1] = coat.color[j * 3 + 1]; tmp[2] = coat.color[j * 3 + 2];
+        pg.globalAlpha = Math.min(1, a * 1.02);
+        pg.fillStyle = cssRgb(tmp);
+        pg.fillRect(0, y1, PAINT_W, h);
+        pg.globalAlpha = Math.min(1, a) * 0.8;
+        pg.drawImage(grainCanvas, 0, y1, PAINT_W, h, 0, y1, PAINT_W, h);
+      }
+      pg.globalAlpha = 1;
+      paintTex.needsUpdate = true;
+      // roughness map from the gloss
+      var avg = 0;
+      for (var r = 0; r < SEG; r++) {
+        var gl = coat.gloss[r]; avg += gl;
+        var v = Math.round((ROUGH_MATTE + (ROUGH_GLOSS - ROUGH_MATTE) * Math.pow(gl, 0.85)) * 255);
+        rg.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
+        rg.fillRect(0, SEG - 1 - r, 4, 1);
+      }
+      roughTex.needsUpdate = true;
+      woodMat.envMapIntensity = 0.6 * Math.pow(avg / SEG, 0.9);
+      renderer.shadowMap.needsUpdate = true;
+    }
+    syncPaint(true);
     var endMat = new THREE.MeshStandardMaterial({ map: makeEndTexture(), roughness: 0.85 });
 
     var spinGroup = new THREE.Group();
@@ -1102,6 +1677,64 @@ footer {
       blade.scale.x = S.tip === "gouge" ? 1 : 0.92;
     }
 
+    /* ---------------- the brush and the spray bottle ----------------
+       Same convention as the chisel: origin at the working end (bristle tip,
+       nozzle), the body runs up local +Y toward the hand. */
+    var brushG = new THREE.Group();
+    brushG.scale.setScalar(1.22);
+    brushG.visible = false;
+    scene.add(brushG);
+    var brushHandle = new THREE.Mesh(new THREE.LatheGeometry(handleProfile, 22), new THREE.MeshStandardMaterial({ color: 0x7c4a22, roughness: 0.5, metalness: 0 }));
+    brushHandle.position.y = 0.72; brushHandle.castShadow = true;
+    brushG.add(brushHandle);
+    var brushFerrule = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.42, 18), steelMat);
+    brushFerrule.position.y = 0.5; brushFerrule.castShadow = true;
+    brushG.add(brushFerrule);
+    var tuftMat = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.55 });
+    var tuft = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 16), tuftMat);
+    tuft.rotation.x = Math.PI;            // cone point down at the origin
+    tuft.position.y = 0.17;
+    brushG.add(tuft);
+    function showBrush() {
+      var wide = S.paintTool === "brush";
+      tuft.scale.set(wide ? 1.9 : 0.5, wide ? 1 : 1.25, wide ? 0.55 : 0.5);
+      tuft.position.y = wide ? 0.17 : 0.21;
+      tuftMat.color.set(L.Paint.PALETTE[S.color].hex);
+    }
+
+    var bottleG = new THREE.Group();
+    bottleG.scale.setScalar(1.22);
+    bottleG.visible = false;
+    scene.add(bottleG);
+    var bottleMat = new THREE.MeshStandardMaterial({ color: 0xa9d3e8, roughness: 0.18, metalness: 0.05, transparent: true, opacity: 0.82 });
+    var bBody = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.95, 24), bottleMat);
+    bBody.position.y = 1.12; bBody.castShadow = true; bottleG.add(bBody);
+    var bShoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 0.2, 24), bottleMat);
+    bShoulder.position.y = 0.55; bottleG.add(bShoulder);
+    var bHead = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.38), new THREE.MeshStandardMaterial({ color: 0xe8a33d, roughness: 0.4, metalness: 0.2 }));
+    bHead.position.set(0, 0.34, -0.1); bHead.castShadow = true; bottleG.add(bHead);
+    var bTrigger = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.05), new THREE.MeshStandardMaterial({ color: 0xcf8c2a, roughness: 0.4 }));
+    bTrigger.position.set(0, 0.36, 0.14); bTrigger.rotation.x = -0.35; bottleG.add(bTrigger);
+    var bNozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.2, 14), steelDark);
+    bNozzle.position.set(0, 0.1, -0.2); bNozzle.rotation.x = 0.0; bottleG.add(bNozzle);
+    var liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.7, 20), new THREE.MeshStandardMaterial({ color: 0xf3e4b0, roughness: 0.3, transparent: true, opacity: 0.9 }));
+    liquid.position.y = 1.0; bottleG.add(liquid);
+
+    var activeTool = chisel, shownMode = "cut", shownBrushKey = "";
+    var toolFor = { cut: chisel, paint: brushG, finish: bottleG };
+    function showTool() {
+      if (shownMode !== S.mode) {
+        var next = toolFor[S.mode];
+        next.position.copy(activeTool.position); next.quaternion.copy(activeTool.quaternion);
+        activeTool.visible = false; next.visible = true;
+        activeTool = next; shownMode = S.mode;
+      }
+      if (S.mode === "paint") {
+        var key = S.paintTool + ":" + S.color;
+        if (key !== shownBrushKey) { shownBrushKey = key; showBrush(); }
+      }
+    }
+
     /* ---------------- chips + dust ---------------- */
     var CHIP_N = 420;
     var chipMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.085, 0.02, 0.045), new THREE.MeshStandardMaterial({ color: 0xe6c184, roughness: 0.9 }), CHIP_N);
@@ -1181,6 +1814,101 @@ footer {
       dustGeo.attributes.position.needsUpdate = true;
     }
 
+    /* ---------------- paint drops (flung off the spinning piece) and spray mist ---------------- */
+    var DROP_N = 320;
+    var dropMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0 }), DROP_N);
+    dropMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    dropMesh.frustumCulled = false;
+    scene.add(dropMesh);
+    var drops = [], dropCursor = 0, dropColor = new THREE.Color();
+    for (var dI = 0; dI < DROP_N; dI++) {
+      drops.push({ p: new THREE.Vector3(0, -10, 0), v: new THREE.Vector3(), life: 0, scale: 1 });
+      dropMesh.setColorAt(dI, dropColor.set(0xffffff));
+    }
+    dropMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    function spawnDrops(origin, n) {
+      dropColor.set(L.Paint.PALETTE[S.color].hex);
+      for (var i = 0; i < n; i++) {
+        var d = drops[dropCursor], idx = dropCursor; dropCursor = (dropCursor + 1) % DROP_N;
+        d.p.copy(origin);
+        d.p.x += (Math.random() - 0.5) * 0.12;
+        // a spinning piece throws paint off along the surface's direction of travel, down and out
+        d.v.copy(T3).multiplyScalar(0.8 + Math.random() * 1.8);
+        d.v.addScaledVector(N3, 0.3 + Math.random() * 1.0);
+        d.v.x += (Math.random() - 0.5) * 1.8;
+        d.v.z += 0.2 + Math.random() * 0.6;
+        d.life = 0.5 + Math.random() * 0.6;
+        d.scale = 0.5 + Math.random() * 1.1;
+        dropMesh.setColorAt(idx, dropColor);
+      }
+      dropMesh.instanceColor.needsUpdate = true;
+    }
+    function updateDrops(dt) {
+      for (var i = 0; i < DROP_N; i++) {
+        var d = drops[i];
+        if (d.life > 0) {
+          d.life -= dt;
+          d.v.y -= 4.6 * dt;
+          d.p.addScaledVector(d.v, dt);
+          if (d.p.y < 0.03) { d.p.y = 0.03; d.v.set(0, 0, 0); }
+          var sc = d.scale * Math.min(1, d.life * 4);
+          chipDummy.position.copy(d.p); chipDummy.rotation.set(0, 0, 0);
+          chipDummy.scale.set(sc * (1 + Math.min(0.8, Math.abs(d.v.y) * 0.12)), sc, sc);
+        } else {
+          chipDummy.position.set(0, -10, 0); chipDummy.scale.set(0.001, 0.001, 0.001);
+        }
+        chipDummy.updateMatrix();
+        dropMesh.setMatrixAt(i, chipDummy.matrix);
+      }
+      dropMesh.instanceMatrix.needsUpdate = true;
+    }
+    var MIST_N = 420;
+    var mistPos = new Float32Array(MIST_N * 3), mistDat = [];
+    for (var mI = 0; mI < MIST_N; mI++) { mistDat.push({ life: 0, vx: 0, vy: 0, vz: 0 }); mistPos[mI * 3 + 1] = -10; }
+    var mistGeo = new THREE.BufferGeometry();
+    mistGeo.setAttribute("position", new THREE.BufferAttribute(mistPos, 3).setUsage(THREE.DynamicDrawUsage));
+    var mist = new THREE.Points(mistGeo, new THREE.PointsMaterial({ map: makeChipSprite(), size: 0.2, transparent: true, opacity: 0.55, depthWrite: false, color: 0xe2f2ff, sizeAttenuation: true }));
+    mist.frustumCulled = false;
+    scene.add(mist);
+    var mistCursor = 0;
+    function spawnMist(origin, n) {
+      for (var i = 0; i < n; i++) {
+        var d = mistDat[mistCursor], idx = mistCursor; mistCursor = (mistCursor + 1) % MIST_N;
+        d.life = 0.2 + Math.random() * 0.14;
+        var sp = 1.8 + Math.random() * 1.4;      // leaves the nozzle toward the wood, in a narrow cone
+        d.vx = (Math.random() - 0.5) * 1.1;
+        d.vy = -N3.y * sp + (Math.random() - 0.5) * 0.5; d.vz = -N3.z * sp + (Math.random() - 0.5) * 0.5;
+        mistPos[idx * 3] = origin.x + (Math.random() - 0.5) * 0.04; mistPos[idx * 3 + 1] = origin.y; mistPos[idx * 3 + 2] = origin.z;
+      }
+    }
+    function updateMist(dt) {
+      for (var i = 0; i < MIST_N; i++) {
+        var d = mistDat[i];
+        if (d.life > 0) {
+          d.life -= dt;
+          mistPos[i * 3] += d.vx * dt; mistPos[i * 3 + 1] += d.vy * dt; mistPos[i * 3 + 2] += d.vz * dt;
+          if (d.life <= 0) mistPos[i * 3 + 1] = -10;
+        }
+      }
+      mistGeo.attributes.position.needsUpdate = true;
+    }
+
+    /* ---------------- the finishing lamp: swings along the piece so the gloss catches it ---------------- */
+    var lamp = new THREE.Group();
+    lamp.visible = false;
+    scene.add(lamp);
+    var lampLight = new THREE.PointLight(0xfff0d2, 0, 18, 1.4);
+    lamp.add(lampLight);
+    var lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff6dc }));
+    lamp.add(lampBulb);
+    var lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.5, 0.42, 22, 1, true), new THREE.MeshStandardMaterial({ color: 0x2c3234, roughness: 0.5, metalness: 0.5, side: THREE.DoubleSide }));
+    lampShade.position.y = 0.3; lamp.add(lampShade);
+    var lampRod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 4, 8), ironDark);
+    lampRod.position.y = 2.5; lamp.add(lampRod);
+    var lampGlow = new THREE.Mesh(new THREE.CircleGeometry(0.65, 24), new THREE.MeshBasicMaterial({ map: makeChipSprite(), transparent: true, opacity: 0.0, depthWrite: false, color: 0xfff0c8 }));
+    lampGlow.position.z = 0.0; lamp.add(lampGlow);
+    var lampOn = 0, lampPhase = 0, lampX = 0;
+
     /* ---------------- chisel posing ---------------- */
     var chiselPos = new THREE.Vector3(0.5, CENTER_Y - R0 - 0.35, 1.6);
     var chiselTarget = new THREE.Vector3(), handDir = new THREE.Vector3();
@@ -1194,6 +1922,8 @@ footer {
         // Contact: the tip sits on the wood at the bottom of the cut, so it
         // stays visible and rides down as the cut deepens. Hover: just off it.
         var rr = tool.r + tool.lift;
+        // the spray bottle stands off the wood; the chisel and brush touch it
+        if (S.mode === "finish") rr += 0.5;
         chiselTarget.set(axialX(tool.t), CENTER_Y + CONTACT_N.y * rr, CONTACT_N.z * rr + (tool.mode === "hover" ? 0.25 : 0));
       }
       chiselPos.lerp(chiselTarget, 1 - Math.exp(-dt * 38));
@@ -1201,10 +1931,10 @@ footer {
         chiselPos.x += (Math.random() - 0.5) * 0.02 * S.cutIntensity;
         chiselPos.y += (Math.random() - 0.5) * 0.026 * S.cutIntensity;
       }
-      chisel.position.copy(chiselPos);
+      activeTool.position.copy(chiselPos);
       handDir.set(chiselPos.x * 0.14 + 0.55, chiselPos.y - 2.5, chiselPos.z + 1.85).normalize();
       _q.setFromUnitVectors(YAXIS, handDir);
-      chisel.quaternion.slerp(_q, Math.min(1, dt * 14 + 0.2));
+      activeTool.quaternion.slerp(_q, Math.min(1, dt * 14 + 0.2));
     }
 
     /* ---------------- layout: screen <-> axis ---------------- */
@@ -1277,14 +2007,38 @@ footer {
         spawnChips(contactPoint, amount);
         if (Math.random() < 0.6) spawnDust(contactPoint, 2);
       },
+      onPaint: function (pr, dt) {
+        var t = S.tool.t, r = work.sample(t);
+        contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
+        spawnDrops(contactPoint, Math.floor(pr * dt * 70 + Math.random()));
+      },
+      onSpray: function (pr, dt) {
+        var t = S.tool.t, r = work.sample(t) + 0.45;
+        contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
+        spawnMist(contactPoint, Math.floor(pr * dt * 220 + Math.random()));
+      },
       frame: function (dt) {
         frameN++;
         showTip();
+        showTool();
         syncWork();
+        syncPaint(false);
+        // the lamp lights up for the finish and sweeps end to end so the gloss catches it
+        lampOn += ((S.mode === "finish" ? 1 : 0) - lampOn) * Math.min(1, dt * 5);
+        if (S.mode === "finish") { lampPhase += dt * 0.55; lampX = S.reduceMotion ? 0 : Math.sin(lampPhase) * LOG_LEN * 0.4; }
+        lamp.visible = lampOn > 0.02;
+        if (lamp.visible) {
+          lamp.position.set(lampX, CENTER_Y + 2.35, 2.2);
+          lampLight.intensity = lampOn * 42;
+          lampGlow.material.opacity = lampOn * 0.8;
+          lampGlow.quaternion.copy(camera.quaternion);
+        }
         spinGroup.rotation.x = S.spinAngle;
         poseChisel(dt);
         updateChips(dt);
         updateDust(dt);
+        updateDrops(dt);
+        updateMist(dt);
         if (S.shake > 0 && !S.reduceMotion) {
           camera.position.set(camBase.x + (Math.random() - 0.5) * 0.07 * S.shake, camBase.y + (Math.random() - 0.5) * 0.07 * S.shake, camBase.z);
         } else if (camera.position.x !== camBase.x) {
@@ -1368,6 +2122,179 @@ footer {
       }
     }
 
+    /* ---- paint, sheen, lamp, tools ---- */
+    var P = L.Paint, shownTmp = [0, 0, 0];
+    var lampT = 0.5, lampPhase = 0, lampOn = 0;
+    var drops = [];   // flung paint and mist
+
+    function css(c, a) { return "rgba(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + "," + a + ")"; }
+
+    /* Walk the slices in runs of near-identical ones, so a stripe is one rectangle
+       and not a hundred (a software canvas pays for every rect, every frame). */
+    function eachRun(n, same, draw) {
+      var i = 0, j;
+      while (i < n) {
+        j = i;
+        while (j + 1 < n && same(i, j + 1)) j++;
+        draw(i, j);
+        i = j + 1;
+      }
+    }
+
+    /* the coat, with the cylinder shading laid back over it */
+    var shadeGrad = null, shadeKey = "";
+    function drawPaint(Lp, cy, rPx, len) {
+      var coat = S.coat;
+      if (!coat || coat.coverage() < 0.0005) return;
+      var n = SEG, step = len / (n - 1);
+      var key = cy.toFixed(1) + ":" + rPx.toFixed(1);
+      if (key !== shadeKey) {
+        shadeKey = key;
+        shadeGrad = g.createLinearGradient(0, cy - rPx, 0, cy + rPx);
+        shadeGrad.addColorStop(0, "rgba(0,0,0,0.5)"); shadeGrad.addColorStop(0.3, "rgba(0,0,0,0.08)");
+        shadeGrad.addColorStop(0.46, "rgba(255,255,255,0.12)"); shadeGrad.addColorStop(0.62, "rgba(0,0,0,0.04)");
+        shadeGrad.addColorStop(0.85, "rgba(0,0,0,0.34)"); shadeGrad.addColorStop(1, "rgba(0,0,0,0.55)");
+      }
+      var c = coat.coat, col = coat.color;
+      eachRun(n, function (a, b) {
+        if (c[a] < 0.01 || c[b] < 0.01) return false;
+        return Math.abs(c[b] - c[a]) < 0.04 &&
+          Math.abs(col[b * 3] - col[a * 3]) + Math.abs(col[b * 3 + 1] - col[a * 3 + 1]) + Math.abs(col[b * 3 + 2] - col[a * 3 + 2]) < 0.03;
+      }, function (a, b) {
+        if (c[a] < 0.01) return;
+        var m = (a + b) >> 1, x = Lp.left + (a - 0.5) * step, w = (b - a + 1) * step + 0.5;
+        coat.shownColor(m, P.CFG.WOOD_RGB, shownTmp);
+        g.globalAlpha = Math.min(1, c[m] * 1.05);
+        g.fillStyle = css(shownTmp, 1);
+        g.fillRect(x, cy - rPx - 1, w, rPx * 2 + 2);
+        g.globalAlpha = Math.min(1, c[m]);
+        g.fillStyle = shadeGrad;
+        g.fillRect(x, cy - rPx - 1, w, rPx * 2 + 2);
+      });
+      g.globalAlpha = 1;
+    }
+
+    /* the finish: a soft bar of light along the top, as bright as the gloss under it,
+       plus a hot glint where the lamp's light lands */
+    function drawSheen(Lp, cy, rPx, len) {
+      var coat = S.coat, n = SEG, step = len / (n - 1), gl = coat ? coat.gloss : null;
+      eachRun(n, function (a, b) { return gl ? Math.abs(gl[b] - gl[a]) < 0.03 : true; }, function (a, b) {
+        var v = gl ? gl[(a + b) >> 1] : 0, x = Lp.left + (a - 0.5) * step, w = (b - a + 1) * step + 0.5;
+        g.fillStyle = "rgba(255,244,222," + (0.1 + v * 0.42).toFixed(3) + ")";
+        g.fillRect(x, cy - rPx * 0.56, w, rPx * (0.2 + v * 0.06));
+        if (v > 0.05) {
+          g.fillStyle = "rgba(255,255,255," + (v * 0.55).toFixed(3) + ")";
+          g.fillRect(x, cy - rPx * 0.5, w, rPx * 0.07);
+        }
+      });
+      if (lampOn > 0.02 && coat) {
+        var li = Math.max(0, Math.min(n - 1, Math.round(lampT * (n - 1)))), gloss = coat.gloss[li];
+        var lx = Lp.left + lampT * len, ly = cy - rPx * 0.5, rad = rPx * 1.5;
+        var gr = g.createRadialGradient(lx, ly, 0, lx, ly, rad);
+        var k = lampOn * (0.1 + 0.85 * gloss);
+        gr.addColorStop(0, "rgba(255,252,236," + k.toFixed(3) + ")");
+        gr.addColorStop(0.35, "rgba(255,240,205," + (k * 0.4).toFixed(3) + ")");
+        gr.addColorStop(1, "rgba(255,240,205,0)");
+        g.fillStyle = gr; g.fillRect(lx - rad, cy - rPx, rad * 2, rPx * 2);
+      }
+    }
+
+    function drawLamp(Lp, cy, rPx, len) {
+      var lx = Lp.left + lampT * len, top = Math.max(6, cy - rPx * 2.7), by = top + rPx * 0.5;
+      var cone = g.createLinearGradient(0, by, 0, cy);
+      cone.addColorStop(0, "rgba(255,236,190," + (0.2 * lampOn).toFixed(3) + ")"); cone.addColorStop(1, "rgba(255,236,190,0)");
+      g.fillStyle = cone;
+      g.beginPath(); g.moveTo(lx - rPx * 0.35, by); g.lineTo(lx + rPx * 0.35, by); g.lineTo(lx + rPx * 1.5, cy - rPx * 0.4); g.lineTo(lx - rPx * 1.5, cy - rPx * 0.4); g.closePath(); g.fill();
+      var gr = g.createRadialGradient(lx, by, 0, lx, by, rPx * 0.9);
+      gr.addColorStop(0, "rgba(255,246,214," + (0.9 * lampOn).toFixed(3) + ")"); gr.addColorStop(1, "rgba(255,226,160,0)");
+      g.fillStyle = gr; g.fillRect(lx - rPx, by - rPx, rPx * 2, rPx * 2);
+      g.fillStyle = "#2c3234";
+      g.beginPath(); g.moveTo(lx - rPx * 0.42, by); g.lineTo(lx - rPx * 0.18, top); g.lineTo(lx + rPx * 0.18, top); g.lineTo(lx + rPx * 0.42, by); g.closePath(); g.fill();
+      g.fillStyle = "#fff4cf"; g.fillRect(lx - rPx * 0.32, by - 1, rPx * 0.64, 3);
+    }
+
+    function drawChisel(tipX, tipY, dx, dy, rPx) {
+      var bx = tipX + dx * rPx * 1.05, by = tipY + dy * rPx * 1.05;
+      var hx = bx + dx * rPx * 1.8, hy = by + dy * rPx * 1.8;
+      g.strokeStyle = "#d6dde1"; g.lineWidth = Math.max(5, rPx * 0.16);
+      g.beginPath(); g.moveTo(tipX, tipY); g.lineTo(bx, by); g.stroke();
+      g.strokeStyle = "#d9ae4e"; g.lineWidth = Math.max(6, rPx * 0.2);
+      g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.stroke();
+      g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(9, rPx * 0.3);
+      g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
+      g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
+      if (S.tip === "gouge") {
+        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4, 0, Math.PI * 2); g.stroke();
+      } else {
+        g.beginPath(); g.moveTo(tipX - 5, tipY + 3); g.lineTo(tipX + 5, tipY - 4); g.stroke();
+      }
+    }
+
+    function drawBrush(tipX, tipY, dx, dy, rPx) {
+      var rgb = P.PALETTE[S.color].rgb, wide = S.paintTool === "brush";
+      var bw = Math.max(wide ? 12 : 5, rPx * (wide ? 0.42 : 0.16));
+      var tx = tipX + dx * rPx * 0.34, ty = tipY + dy * rPx * 0.34;          // top of the bristles
+      var fx = tx + dx * rPx * 0.28, fy = ty + dy * rPx * 0.28;              // ferrule end
+      var hx = fx + dx * rPx * 1.9, hy = fy + dy * rPx * 1.9;
+      g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(8, rPx * 0.27);
+      g.beginPath(); g.moveTo(fx, fy); g.lineTo(hx, hy); g.stroke();
+      g.strokeStyle = "#c8cfd4"; g.lineWidth = bw + 2;
+      g.beginPath(); g.moveTo(tx, ty); g.lineTo(fx, fy); g.stroke();
+      g.fillStyle = css(rgb, 1);
+      g.beginPath();                                                           // the loaded tuft, tapering to a point
+      g.moveTo(tx - bw / 2, ty); g.quadraticCurveTo(tx - bw / 2, tipY + 1, tipX, tipY - 3);
+      g.quadraticCurveTo(tx + bw / 2, tipY + 1, tx + bw / 2, ty); g.closePath(); g.fill();
+      g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = 1; g.stroke();
+    }
+
+    function drawBottle(tipX, tipY, dx, dy, rPx) {
+      var ox = tipX + dx * rPx * 0.42, oy = tipY + dy * rPx * 0.42;           // nozzle stands off the wood
+      var hx = ox + dx * rPx * 0.5, hy = oy + dy * rPx * 0.5;
+      var bx = hx + dx * rPx * 1.5, by = hy + dy * rPx * 1.5;
+      g.strokeStyle = "#a9c6d6"; g.lineWidth = Math.max(16, rPx * 0.55);        // bottle body
+      g.beginPath(); g.moveTo(hx + dx * rPx * 0.2, hy + dy * rPx * 0.2); g.lineTo(bx, by); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = Math.max(4, rPx * 0.12);
+      g.beginPath(); g.moveTo(hx + dx * rPx * 0.3 - 4, hy + dy * rPx * 0.3); g.lineTo(bx - 4, by); g.stroke();
+      g.strokeStyle = "#e8a33d"; g.lineWidth = Math.max(10, rPx * 0.34);        // trigger head
+      g.beginPath(); g.moveTo(ox, oy); g.lineTo(hx, hy); g.stroke();
+      g.strokeStyle = "#d6dde1"; g.lineWidth = Math.max(4, rPx * 0.1);          // nozzle
+      g.beginPath(); g.moveTo(tipX + dx * rPx * 0.1, tipY + dy * rPx * 0.1); g.lineTo(ox, oy); g.stroke();
+    }
+
+    function stepDrops(dt, floorY) {
+      for (var i = drops.length - 1; i >= 0; i--) {
+        var d = drops[i];
+        d.life -= dt;
+        if (d.life <= 0) { drops.splice(i, 1); continue; }
+        d.vy += d.g * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+        if (d.y > floorY - 1) { d.y = floorY - 1; d.vy = 0; d.vx *= 0.5; }
+        g.fillStyle = d.col.replace("A", Math.min(1, d.life * d.fade).toFixed(2));
+        if (d.mist) { g.beginPath(); g.arc(d.x, d.y, d.s * (1.3 - d.life), 0, Math.PI * 2); g.fill(); }
+        else { g.beginPath(); g.ellipse(d.x, d.y, d.s * (1 + Math.min(1.2, Math.abs(d.vy) / 400)), d.s, 0, 0, Math.PI * 2); g.fill(); }
+      }
+    }
+
+    /* flung paint: a spinning piece throws it off tangentially, down and out */
+    function onPaint(pr, dt) {
+      var tp = tipXY(), rgb = P.PALETTE[S.color].rgb, n = Math.floor(pr * dt * 90 + Math.random());
+      for (var i = 0; i < n; i++) {
+        if (drops.length > 260) drops.shift();
+        var side = Math.random() < 0.5 ? -1 : 1;
+        drops.push({ x: tp.x + (Math.random() - 0.5) * 14, y: tp.y - 2, vx: side * (30 + Math.random() * 150), vy: 30 + Math.random() * 120,
+                     g: 560, life: 0.5 + Math.random() * 0.5, fade: 3, s: 1.2 + Math.random() * 2.2, mist: false, col: css(rgb, "A") });
+      }
+    }
+    /* spray: a fine mist leaving the nozzle toward the wood */
+    function onSpray(pr, dt) {
+      var tp = tipXY(), n = Math.floor(pr * dt * 150 + Math.random());
+      for (var i = 0; i < n; i++) {
+        if (drops.length > 260) drops.shift();
+        var ang = (Math.random() - 0.5) * 0.9, sp = 90 + Math.random() * 130;
+        drops.push({ x: tp.x + (Math.random() - 0.5) * 6, y: tp.y + 8, vx: Math.sin(ang) * sp - 40, vy: -Math.cos(ang) * sp,
+                     g: 0, life: 0.3 + Math.random() * 0.25, fade: 2.2, s: 1.4 + Math.random() * 1.6, mist: true, col: "rgba(225,242,255,A)" });
+      }
+    }
+
     function frame(dt) {
       var w = stage.clientWidth, h = stage.clientHeight;
       if (!w || !h) return;
@@ -1379,6 +2306,11 @@ footer {
       if (S.shake > 0 && !S.reduceMotion) { shx = (Math.random() - 0.5) * 6 * S.shake; shy = (Math.random() - 0.5) * 6 * S.shake; }
       g.setTransform(sc, 0, 0, sc, shx * sc, shy * sc);
       var cy = Lp.cy, rPx = Lp.rPx, len = Lp.len;
+      lampOn += ((S.mode === "finish" ? 1 : 0) - lampOn) * Math.min(1, dt * 6);
+      if (S.mode === "finish") {   // the lamp swings slowly end to end so the gloss catches it; it holds still for reduced motion
+        lampPhase += dt * 0.55;
+        lampT = S.reduceMotion ? 0.5 : 0.5 + 0.42 * Math.sin(lampPhase);
+      }
       var bedY = cy + rPx * 1.62;
       var floorY = Math.min(h - 4, bedY + rPx * 0.9);
       var r = work.radius, i;
@@ -1422,6 +2354,7 @@ footer {
       g.fillStyle = wg; g.fill();
       g.save();
       g.clip();
+      drawPaint(Lp, cy, rPx, len);
       // grain streaks scrolling around the blank = the spin
       var phase = ((S.spinAngle * 0.3) % (Math.PI * 2)) / (Math.PI * 2);
       var spacing = rPx * 0.34, off = phase * spacing * 2;
@@ -1442,8 +2375,7 @@ footer {
         g.beginPath(); g.ellipse(kx, ky, 7, 3.4, 0.2, 0, Math.PI * 2); g.stroke();
         g.beginPath(); g.ellipse(kx, ky, 3.6, 1.7, 0.2, 0, Math.PI * 2); g.stroke();
       }
-      g.fillStyle = "rgba(255,240,210,0.10)";   // sheen band
-      g.fillRect(Lp.left, cy - rPx * 0.52, len, rPx * 0.42);
+      drawSheen(Lp, cy, rPx, len);
       g.restore();
       g.strokeStyle = "rgba(40,24,10,0.55)"; g.lineWidth = 1.2; g.stroke();
 
@@ -1470,28 +2402,21 @@ footer {
       g.fillStyle = "#39423e";
       g.fillRect(Lp.right - len * 0.3, cy + rPx * 1.08, rPx * 0.4, bedY - cy - rPx * 1.08);
 
-      // the chisel, rising from below; its tip rides the bottom of the cut
+      // the tool, rising from below; its tip rides the bottom of the cut
       var tp = tipXY(), tipX = tp.x, tipY = tp.y;
       if (S.cutIntensity > 0.03) {
         tipX += (Math.random() - 0.5) * 3 * S.cutIntensity;
         tipY += (Math.random() - 0.5) * 3.4 * S.cutIntensity;
       }
       var dx = 0.42, dy = 1, dl = Math.sqrt(dx * dx + dy * dy); dx /= dl; dy /= dl;
-      var bx = tipX + dx * rPx * 1.05, by = tipY + dy * rPx * 1.05;
-      var hx = bx + dx * rPx * 1.8, hy = by + dy * rPx * 1.8;
       g.lineCap = "round";
-      g.strokeStyle = "#d6dde1"; g.lineWidth = Math.max(5, rPx * 0.16);
-      g.beginPath(); g.moveTo(tipX, tipY); g.lineTo(bx, by); g.stroke();
-      g.strokeStyle = "#d9ae4e"; g.lineWidth = Math.max(6, rPx * 0.2);
-      g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.stroke();
-      g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(9, rPx * 0.3);
-      g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
-      g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
-      if (S.tip === "gouge") {
-        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4, 0, Math.PI * 2); g.stroke();
-      } else {
-        g.beginPath(); g.moveTo(tipX - 5, tipY + 3); g.lineTo(tipX + 5, tipY - 4); g.stroke();
-      }
+      if (S.mode === "paint") drawBrush(tipX, tipY, dx, dy, rPx);
+      else if (S.mode === "finish") drawBottle(tipX, tipY, dx, dy, rPx);
+      else drawChisel(tipX, tipY, dx, dy, rPx);
+
+      if (S.mode === "finish") drawLamp(Lp, cy, rPx, len);
+
+      stepDrops(dt, floorY);
 
       // chips
       for (var c2 = chips.length - 1; c2 >= 0; c2--) {
@@ -1519,6 +2444,8 @@ footer {
       show: function () { canvas.style.display = "block"; resize(); },
       hide: function () { canvas.style.display = "none"; },
       onCut: onCut,
+      onPaint: onPaint,
+      onSpray: onSpray,
       frame: frame,
       sliceToScreenX: function (i) { var Lp = lay || layout(); return Lp.left + (i / (SEG - 1)) * Lp.len; }
     };
@@ -1553,13 +2480,19 @@ footer {
   setTimeout(boot, 30);
 
   function boot() {
-    var C = L.CFG, audio = L.audio;
+    var C = L.CFG, audio = L.audio, P = L.Paint;
     var stage = document.getElementById("stage");
 
     var S = {
       work: new L.Workpiece(),
+      coat: new P.Coating(),            // paint and finish on the piece (paint.js)
       pressure: new L.Pressure(),
+      mode: "cut",                      // cut | paint | finish
       tip: "gouge",
+      paintTool: "brush",               // brush | liner
+      color: "crimson",                 // a P.PALETTE key
+      spec: null,                       // the paint spec to match (a commission supplies this)
+      flow: 0,                          // brush / spray activity 0..1, drives the sound
       rpm: 1100,
       spinAngle: 0,
       cutIntensity: 0,
@@ -1669,18 +2602,156 @@ footer {
       if (e.key === "2") setTip("skew");
     });
     var hint = document.getElementById("hint");
+    var HINTS = {
+      cut: hint.innerHTML,
+      paint: "<b>Touch below the log, then nudge up</b> to lay paint. Slow and steady gives a solid coat.<br />Whip across fast for a thin streak. Change colour mid-spin to blend a gradient.",
+      finish: "<b>Touch below the log, then nudge up</b> to spray. Sweep slowly for an even sheen.<br />Watch the lamp: gloss catches the light, matte stays flat."
+    };
+    var used = { cut: false, paint: false, finish: false };
     var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
     document.getElementById("newLogBtn").addEventListener("click", function () {
       S.work.reset(); S.lastT = -1;
       statDepth.innerHTML = "0.0<small> mm</small>";
-      hint.classList.remove("gone"); S.everCut = false;
-      drawProfile();
+      hint.classList.remove("gone"); S.everCut = false; used.cut = false;
+      S.coat.reset();
+      drawProfile(); drawSpec(); updateSpecInfo();
     });
     var soundBtn = document.getElementById("soundBtn");
     soundBtn.addEventListener("click", function () {
       audio.setOn(!audio.on);
       soundBtn.setAttribute("aria-pressed", audio.on ? "true" : "false");
     });
+
+    /* ---------------- modes: cut, paint, finish ---------------- */
+    var modeBtns = { cut: document.getElementById("modeCut"), paint: document.getElementById("modePaint"), finish: document.getElementById("modeFinish") };
+    var panels = { cut: document.getElementById("toolsCut"), paint: document.getElementById("toolsPaint"), finish: document.getElementById("toolsFinish") };
+    var profileBar = document.getElementById("profileBar"), specBar = document.getElementById("specBar");
+    var PITCH = { cut: 1, paint: 0.42, finish: 2.6 };   // brush swish is soft and low, the spray a high hiss
+    function setMode(m) {
+      if (!panels[m]) return;
+      S.mode = m;
+      S.pressure.catches = m === "cut";
+      S.flow = 0;
+      for (var k in modeBtns) {
+        modeBtns[k].setAttribute("aria-pressed", k === m ? "true" : "false");
+        panels[k].hidden = k !== m;
+      }
+      profileBar.hidden = m !== "cut";
+      specBar.hidden = m === "cut";
+      audio.pitch = PITCH[m];
+      hint.innerHTML = HINTS[m];
+      hint.classList.toggle("gone", used[m]);
+      root.dispatchEvent(new Event("resize"));   // the footer changed height, so the stage did too
+      drawProfile(); drawSpec(); updateSpecInfo();
+    }
+    modeBtns.cut.addEventListener("click", function () { audio.init(); setMode("cut"); });
+    modeBtns.paint.addEventListener("click", function () { audio.init(); setMode("paint"); });
+    modeBtns.finish.addEventListener("click", function () { audio.init(); setMode("finish"); });
+    root.addEventListener("keydown", function (e) {
+      if (e.key === "3") { setMode("cut"); }
+      else if (e.key === "4") { setMode("paint"); }
+      else if (e.key === "5") { setMode("finish"); }
+    });
+
+    /* paint choices: only palette colours, and the ones the spec needs wear a marker */
+    var swatchWrap = document.getElementById("swatches"), swatchEls = {};
+    P.PALETTE_ORDER.forEach(function (key) {
+      var def = P.PALETTE[key], b = document.createElement("button");
+      b.className = "swatch"; b.type = "button"; b.dataset.color = key;
+      b.style.setProperty("--sw", def.hex);
+      b.setAttribute("aria-label", def.name); b.title = def.name;
+      b.setAttribute("aria-pressed", key === S.color ? "true" : "false");
+      b.addEventListener("click", function () { audio.init(); setColor(key); });
+      swatchWrap.appendChild(b); swatchEls[key] = b;
+    });
+    function setColor(key) {
+      if (!P.PALETTE[key]) return;
+      S.color = key;
+      for (var k in swatchEls) swatchEls[k].setAttribute("aria-pressed", k === key ? "true" : "false");
+    }
+    var brushWideBtn = document.getElementById("brushWide"), brushLinerBtn = document.getElementById("brushLiner");
+    function setBrush(t) {
+      S.paintTool = t;
+      brushWideBtn.setAttribute("aria-pressed", t === "brush" ? "true" : "false");
+      brushLinerBtn.setAttribute("aria-pressed", t === "liner" ? "true" : "false");
+    }
+    brushWideBtn.addEventListener("click", function () { audio.init(); setBrush("brush"); });
+    brushLinerBtn.addEventListener("click", function () { audio.init(); setBrush("liner"); });
+
+    /* the paint spec: what the painting has to look like. A commission supplies one;
+       until commissions land the lathe rolls its own so there is always something to match. */
+    var specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
+    var specCanvas = document.getElementById("specCanvas"), specCtx = specCanvas.getContext("2d");
+    function setSpec(spec) {
+      if (!P.validSpec(spec)) return false;
+      S.spec = spec;
+      var need = P.specPaints(spec);
+      for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
+      specName.textContent = spec.name;
+      drawSpec(); updateSpecInfo();
+      return true;
+    }
+    document.getElementById("specNewBtn").addEventListener("click", function () { setSpec(P.generateSpec()); });
+    function rgbCss(c, a) { return "rgba(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + "," + (a == null ? 1 : a) + ")"; }
+    var specDrawn = { version: -1, spec: null, w: 0 };
+    function drawSpec() {
+      if (specBar.hidden || !S.spec) return;
+      var w = specCanvas.clientWidth, h = specCanvas.clientHeight;
+      if (!w) return;
+      // only repaint when the coat, the spec or the width changed: a canvas redraw is not free
+      if (specDrawn.version === S.coat.version && specDrawn.spec === S.spec && specDrawn.w === w) return;
+      specDrawn.version = S.coat.version; specDrawn.spec = S.spec; specDrawn.w = w;
+      var dpr = Math.min(root.devicePixelRatio || 1, 2);
+      if (specCanvas.width !== Math.round(w * dpr)) { specCanvas.width = Math.round(w * dpr); specCanvas.height = Math.round(h * dpr); }
+      var g = specCtx, n = C.SEG, half = Math.floor(h / 2), i, j;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      var wood = P.CFG.WOOD_RGB, col = [0, 0, 0], cc = S.coat;
+      // wanted (top row): the spec's bands
+      S.spec.segments.forEach(function (sg) {
+        g.fillStyle = rgbCss(sg.paint ? P.PALETTE[sg.paint].rgb : wood);
+        g.fillRect(Math.floor(sg.a * w), 0, Math.ceil((sg.b - sg.a) * w) + 1, half);
+      });
+      // yours (bottom row): the coat over the wood, in runs of near-identical slices
+      i = 0;
+      while (i < n) {
+        cc.shownColor(i, wood, col);
+        j = i;
+        while (j + 1 < n && Math.abs(cc.coat[j + 1] - cc.coat[i]) < 0.03 && Math.abs(cc.color[(j + 1) * 3] - cc.color[i * 3]) + Math.abs(cc.color[(j + 1) * 3 + 1] - cc.color[i * 3 + 1]) + Math.abs(cc.color[(j + 1) * 3 + 2] - cc.color[i * 3 + 2]) < 0.03) j++;
+        g.fillStyle = rgbCss(col);
+        g.fillRect(Math.floor(i / n * w), half, Math.ceil((j + 1) / n * w) - Math.floor(i / n * w), h - half);
+        i = j + 1;
+      }
+      // gloss on yours: a bright streak along the top of the row, as strong as the sheen
+      i = 0;
+      while (i < n) {
+        j = i;
+        while (j + 1 < n && Math.abs(cc.gloss[j + 1] - cc.gloss[i]) < 0.04) j++;
+        if (cc.gloss[i] >= 0.02) {
+          g.fillStyle = "rgba(255,255,255," + (cc.gloss[i] * 0.4).toFixed(3) + ")";
+          g.fillRect(Math.floor(i / n * w), half + 1, Math.ceil((j + 1) / n * w) - Math.floor(i / n * w), Math.max(2, (h - half) * 0.28));
+        }
+        i = j + 1;
+      }
+      g.strokeStyle = "rgba(20,14,8,0.8)"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, half + 0.5); g.lineTo(w, half + 0.5); g.stroke();
+      g.strokeStyle = "rgba(150,125,85,0.6)"; g.strokeRect(0.5, 0.5, w - 1, h - 1);
+    }
+    var lastMatch = null, infoSeen = { version: -1, spec: null };
+    function updateSpecInfo() {
+      if (!S.spec) return;
+      if (infoSeen.version === S.coat.version && infoSeen.spec === S.spec) return;
+      infoSeen.version = S.coat.version; infoSeen.spec = S.spec;
+      var m = P.matchSpec(S.spec, S.coat);
+      lastMatch = m;
+      specMatch.textContent = String(Math.round(m.total * 100));
+      var want = P.SHEEN[S.spec.sheen].name, have = P.SHEEN[m.sheen].name;
+      specSheen.textContent = "Wants " + want.toLowerCase() + " finish, yours " + have.toLowerCase();
+      specSheen.classList.toggle("ok", m.sheen === S.spec.sheen);
+      var avg = S.coat.avgGloss();
+      document.getElementById("glossFill").style.width = Math.round(avg * 100) + "%";
+      document.getElementById("glossName").textContent = have;
+    }
 
     /* ---------------- pressure meter: fills beside the finger ---------------- */
     var pmeter = document.getElementById("pmeter"), pfill = pmeter.firstChild;
@@ -1718,6 +2789,18 @@ footer {
       var grad = g.createLinearGradient(0, 0, 0, h);
       grad.addColorStop(0, "#d9ab6d"); grad.addColorStop(0.5, "#c99a5e"); grad.addColorStop(1, "#a97a42");
       g.fillStyle = grad; g.fill();
+      if (S.coat.coverage() > 0.001) {   // the paint, seen edge on
+        g.save(); g.clip();
+        var wood = P.CFG.WOOD_RGB, pc = [0, 0, 0], sw = iw / (n - 1) + 1;
+        for (var q = 0; q < n; q++) {
+          if (S.coat.coat[q] < 0.01) continue;
+          S.coat.shownColor(q, wood, pc);
+          g.globalAlpha = Math.min(1, S.coat.coat[q] * 1.05);
+          g.fillStyle = "rgb(" + Math.round(pc[0] * 255) + "," + Math.round(pc[1] * 255) + "," + Math.round(pc[2] * 255) + ")";
+          g.fillRect(pad + (q / (n - 1)) * iw - sw / 2, 0, sw, h);
+        }
+        g.restore();
+      }
       g.strokeStyle = "rgba(70,45,20,0.6)"; g.lineWidth = 1; g.stroke();
       if (S.lastT >= 0 && S.pointer.active) {
         var cx = pad + S.lastT * iw;
@@ -1734,7 +2817,7 @@ footer {
       var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
       statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
       statShape.textContent = L.shapeName(S.work);
-      drawProfile();
+      if (S.mode === "cut") drawProfile(); else { drawSpec(); updateSpecInfo(); }
     }
 
     /* ---------------- main loop ---------------- */
@@ -1750,15 +2833,25 @@ footer {
         S.spinAngle += S.rpm * (Math.PI * 2 / 60) * 0.22 * dt;   // slowed so the strobe reads; pitch follows the slider
         S.cutIntensity = Math.max(0, S.cutIntensity - dt * 3.2);
         S.shake = Math.max(0, S.shake - dt * 3.4);
+        S.flow = Math.max(0, S.flow - dt * 3.2);
+        if (S.coat.syncWork(S.work)) { drawProfile(); updateSpecInfo(); }   // wood cut away takes its paint
 
         var p = S.pointer, pr = S.pressure.update(dt);
         if (p.active) {
           S.lastT = p.t;
-          var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1) * CHIP_SCALE;
-          if (removed > 0.00001) {
-            S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
-            view.onCut(removed);
-            if (!S.everCut) { S.everCut = true; hint.classList.add("gone"); }
+          if (S.mode === "cut") {
+            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1) * CHIP_SCALE;
+            if (removed > 0.00001) {
+              S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
+              view.onCut(removed);
+              if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
+            }
+          } else if (pr > 0.04) {
+            var laid;
+            if (S.mode === "paint") { laid = S.coat.brush(p.t, pr, S.paintTool, S.color, dt); view.onPaint(pr, dt, laid); }
+            else { laid = S.coat.spray(p.t, pr, dt); view.onSpray(pr, dt, laid); }
+            S.flow = Math.max(S.flow, 0.12 + 0.3 * pr);
+            if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }
         }
         var tool = S.tool;
@@ -1766,7 +2859,7 @@ footer {
         else if (p.hover) { tool.mode = "hover"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0.12; }
         else tool.mode = "rest";
 
-        audio.update(S.cutIntensity, p.active ? 1 : 0, S.rpm);
+        audio.update(S.mode === "cut" ? S.cutIntensity : S.flow, p.active ? 1 : 0, S.rpm);
         updateStats(dt);
         updateMeter();
         view.frame(dt);
@@ -1774,6 +2867,9 @@ footer {
         showErr(err && err.message ? err.message : err);
       }
     }
+    setSpec(P.generateSpec());
+    S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
+    S.match = function () { return P.matchSpec(S.spec, S.coat); };
     drawProfile();
     requestAnimationFrame(frame);
 
