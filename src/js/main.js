@@ -212,6 +212,7 @@
     var lastFrame = performance.now(), frameN = 0;
     function frame(nowMs) {
       requestAnimationFrame(frame);
+      if (L.hidden) { lastFrame = nowMs; return; }   // the farm is showing: the lathe sleeps
       try {
         var dt = Math.min(0.05, Math.max(0, (nowMs - lastFrame) / 1000)); lastFrame = nowMs;
         frameN++;

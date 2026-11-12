@@ -23,9 +23,18 @@ mine, monetization, distribution, and the one-month bet.
   the log, nudge up) so the finger never covers the cut, and cuts blend into
   smooth turned curves instead of spiky notches.
 
+- Farm (slice 2): plant a pine, oak, or walnut on a land plot and it grows in
+  real time, including while the game is closed (growth is derived from a saved
+  timestamp, never a running timer). Diamonds speed it up, coins buy more land,
+  and a mature tree can be chopped with swipes into the trunk. The log goes to
+  the shed, which is what commissions will read. The chop here is a small
+  stand-in behind `farm.chopHit`; the full Harvest slice replaces the interaction.
+  Saves live in localStorage (`woodturning.save`).
+
 ## Play
 
-Open `lathe.html` in a browser. It is one self-contained file (no network),
+Open `lathe.html` in a browser. The FARM and LATHE tabs switch screens
+(`lathe.html#farm` opens the farm). It is one self-contained file (no network),
 so it can be hosted anywhere or opened in an in-app browser. `?view=2d`
 starts in the flat view.
 
@@ -42,6 +51,9 @@ starts in the flat view.
 src/index.html      dev entry: open directly, no build needed
 src/js/cutting.js   cutting model + pressure mapping (pure, no DOM; tests run in Node)
 src/js/main.js      state, input, frame loop, UI
+src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
+src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
+src/js/farm-ui.js   farm screen, tabs, wallet, swipe input
 src/js/view3d.js    Three.js view
 src/js/view2d.js    Canvas2D view (fallback and first-class view)
 src/js/audio.js     synthesised cut / motor / catch sounds
@@ -54,8 +66,8 @@ Both views draw from the same radius profile; the model never knows which
 view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutting.js`.
 
 ```
-npm test        # model: pressure, rate cap, pass depth, smoothness, mapping
-npm run e2e     # builds, then drives both views in Chromium
+npm test        # cutting model, farm model, save
+npm run e2e     # builds, then drives the lathe (both views) and the farm in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
 

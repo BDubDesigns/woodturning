@@ -175,3 +175,118 @@ footer {
   position: absolute; left: 0; right: 0; bottom: 0; height: 0;
   background: linear-gradient(0deg, #c97b2d, #ffcf7a);
 }
+
+/* ---------- screens and tabs ---------- */
+[hidden] { display: none !important; }
+.screen { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#tabs {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 14px; background: var(--chrome-bg);
+  border-bottom: 1px solid var(--chrome-line); z-index: 5;
+}
+.tab-group { display: flex; gap: 6px; }
+.tab {
+  min-height: 40px; padding: 6px 18px; border-radius: 8px;
+  background: var(--btn-bg); color: var(--dim);
+  border: 1px solid var(--chrome-line);
+  font-family: "Barlow Condensed", sans-serif; font-weight: 700;
+  font-size: 17px; letter-spacing: 0.14em;
+}
+.tab[aria-selected="true"] {
+  background: var(--btn-bg-on); color: var(--amber); border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber) inset;
+}
+.wallet { display: flex; gap: 14px; align-items: center; }
+.coin-chip { display: inline-flex; align-items: center; gap: 6px; }
+.coin-chip b {
+  font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+.coin-chip.bump b { color: var(--amber); }
+
+/* ---------- farm ---------- */
+#field {
+  position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 16px 14px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #3b3a22 0%, #2a2617 50%, #15120b 100%);
+}
+#plots {
+  display: grid; gap: 12px; max-width: 640px; margin: 0 auto;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+}
+.plot {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  aspect-ratio: 1 / 1.12; padding: 4px 4px 8px; overflow: hidden;
+  border-radius: 12px; color: #f3e7d3; text-align: center;
+  background: linear-gradient(180deg, #4a3523 0%, #3a2819 100%);
+  border: 1px solid #6a4d31;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  touch-action: manipulation;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.05s;
+}
+.plot:active { transform: scale(0.985); }
+.plot.selected { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber), 0 4px 18px rgba(232, 163, 61, 0.22); }
+.plot.mature { touch-action: none; cursor: ew-resize; }
+.plot .tree { width: 100%; flex: 1 1 auto; min-height: 0; display: block; pointer-events: none; overflow: visible; }
+.plot.mature .tree { filter: drop-shadow(0 0 7px rgba(255, 214, 120, 0.45)); }
+.plot-name { font-family: "Barlow Condensed", sans-serif; font-weight: 700; letter-spacing: 0.1em; font-size: 15px; line-height: 1; }
+.plot-time { font-size: 12.5px; color: #d9c7a4; margin-top: 3px; font-variant-numeric: tabular-nums; min-height: 15px; }
+.plot.mature .plot-time { color: #ffd98a; font-weight: 600; }
+.plot-bar { align-self: stretch; height: 4px; margin: 6px 6px 0; border-radius: 2px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
+.plot-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7aa84c, #c8dc7a); }
+.plot.empty .plot-bar, .plot.land .plot-bar { visibility: hidden; }
+.plot.land {
+  background: transparent; border: 2px dashed #6a4d31; box-shadow: none;
+  justify-content: center; gap: 4px; color: var(--dim);
+}
+.plot.land .plus { font-size: 34px; line-height: 1; color: var(--amber); font-weight: 300; }
+.plot.land.poor { opacity: 0.6; }
+.plot.hit { animation: chophit 0.22s ease; }
+@keyframes chophit { 0% { transform: translateX(0); } 25% { transform: translateX(-4px) rotate(-1deg); } 60% { transform: translateX(3px) rotate(0.6deg); } 100% { transform: translateX(0); } }
+.plot .ghost {
+  position: absolute; left: 4px; right: 4px; top: 4px; bottom: 36px; z-index: 2; pointer-events: none;
+  transform-origin: 50% 90%; animation: treefall 0.95s cubic-bezier(0.5, 0, 0.9, 0.6) forwards;
+}
+.plot .ghost svg { width: 100%; height: 100%; overflow: visible; display: block; }
+@keyframes treefall {
+  0% { transform: rotate(0); opacity: 1; }
+  25% { transform: rotate(4deg); }
+  80% { transform: rotate(88deg); opacity: 1; }
+  100% { transform: rotate(90deg) translateY(10px); opacity: 0; }
+}
+#toast {
+  position: sticky; bottom: 6px; margin: 12px auto 0; width: fit-content; max-width: 92%;
+  padding: 8px 14px; border-radius: 8px; font-size: 14px; text-align: center;
+  background: var(--plate); color: #f3e7d3; border: 1px solid rgba(232, 163, 61, 0.35);
+  opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+}
+#toast.on { opacity: 1; }
+#farmPanel {
+  flex: 0 0 auto; padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, var(--chrome-bg2), var(--chrome-bg));
+  border-top: 1px solid var(--chrome-line); z-index: 5;
+}
+#shed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; color: var(--dim); min-height: 22px; }
+#shed .k { font-size: 10.5px; letter-spacing: 0.18em; color: var(--faint); font-weight: 600; }
+#shed .log { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+#shed .log i { width: 18px; height: 10px; border-radius: 5px; display: inline-block; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset; }
+#shed .log b { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 17px; font-variant-numeric: tabular-nums; }
+#ctx { margin-top: 10px; }
+#ctx .line { font-size: 14.5px; line-height: 1.4; color: var(--ink); margin-bottom: 8px; }
+#ctx .line b { color: var(--amber); }
+#ctx .row { display: flex; flex-wrap: wrap; gap: 10px; }
+.act {
+  flex: 1 1 140px; min-height: 52px; padding: 8px 14px; text-align: left;
+  background: var(--btn-bg); color: var(--ink);
+  border: 1px solid var(--chrome-line); border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s, transform 0.05s;
+}
+.act:active { transform: scale(0.985); }
+.act:hover { border-color: var(--amber); }
+.act .an { display: block; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.08em; line-height: 1; }
+.act .ad { display: block; font-size: 12px; color: var(--dim); margin-top: 4px; }
+.act[aria-disabled="true"] { opacity: 0.5; }
+.act.primary { border-color: var(--amber); background: var(--btn-bg-on); }
+.act.primary .an { color: var(--amber); }
+.dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset; }

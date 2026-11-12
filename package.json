@@ -4,7 +4,7 @@
   "description": "A cozy woodturning game. Lathe base.",
   "scripts": {
     "build": "node tools/build.mjs",
-    "test": "node --test tests/cutting.test.js",
-    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html"
+    "test": "node --test tests/cutting.test.js tests/farm.test.js",
+    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html && node tests/e2e-farm.mjs lathe.html"
   }
 }
