@@ -37,6 +37,19 @@ mine, monetization, distribution, and the one-month bet.
   blank. Canvas2D only, so it runs in every webview. The farm's quick chop
   stays as it is; wiring a farm tree into the full harvest is a later step.
 
+- Paint and finish (slice 4): the lathe has CUT / PAINT / FINISH modes that
+  share one input (touch below the log, nudge up; pressure is flow). PAINT lays
+  colour on the spinning piece with a wide soft brush or a fine liner, from a
+  nine-colour palette: slow and steady gives a solid coat, a fast whip only a
+  thin streak, and changing colour mid-stroke blends a gradient. FINISH is a
+  spray bottle: mist builds sheen where you aim it, and a lamp sweeps the piece
+  so the gloss catches the light (matte stays flat). Cutting wood away takes its
+  paint with it. A paint spec (bands, pinstripes, a dipped end, a sheen) is shown
+  as a WANTED strip over YOURS with a live match score, and the paints the spec
+  needs are marked in the palette. Until commissions land the lathe rolls its
+  own spec (NEW SPEC); a commission hands one in with `__lathe.setSpec(spec)` or
+  by calling `Lathe.Paint.generateSpec`. Keys: `3` cut, `4` paint, `5` finish.
+
 - Monetization (slice 6): the money model, kept honest. Diamonds are called
   diamonds. The MINE tab trades one finished ad (about 5 seconds, close button
   always there) for exactly 3 diamonds or 1 gem, no randomness. Gems sell for 25
@@ -91,6 +104,7 @@ src/js/cutting.js   cutting model + pressure mapping (pure, no DOM; tests run in
 src/js/harvest.js   harvest model: chop, fall (rigid body), delimb, saw, blank (pure, tested in Node).
                     TREES holds one row of data per wood (trunk taper, branch layout, foliage)
 src/js/harvest-view.js  Canvas2D forest and saw view, input mapping, chips, leaves, shake
+src/js/paint.js     paint, finish and spec model: coat per slice, grading (pure, no DOM)
 src/js/main.js      state, input, frame loop, UI
 src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
 src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
@@ -112,12 +126,12 @@ step), not new drawing code. The trunk outline is the wood that remains, so a
 chopped notch is a hole you can see through; `node tools/harvest-shots.mjs`
 saves pictures of a chopped tree and a log for checking the art.
 
-Both views draw from the same radius profile; the model never knows which
-view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutting.js`.
+Both views draw from the same radius profile and the same coat; the models never
+know which view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutting.js`.
 
 ```
-npm test        # cutting model, farm model, save, harvest model
-npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views) and the farm in Chromium
+npm test        # cutting model, farm model, save, harvest model, paint and finish model
+npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, and paint and finish in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
 

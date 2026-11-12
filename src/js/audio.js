@@ -3,7 +3,7 @@
    first press (browsers block audio until a user gesture). */
 (function (root) {
   "use strict";
-  var audio = { ctx: null, cutGain: null, humGain: null, on: true };
+  var audio = { ctx: null, cutGain: null, humGain: null, on: true, pitch: 1 };   // pitch: 1 cutting, lower for the brush swish, higher for the spray hiss
 
   audio.init = function () {
     if (audio.ctx) { if (audio.ctx.state === "suspended") audio.ctx.resume(); return; }
@@ -136,7 +136,7 @@
     var level = Math.max(intensity, contact * 0.06);
     var target = audio.on ? Math.min(0.4, level * 0.55) : 0;
     audio.cutGain.gain.setTargetAtTime(target, now, 0.045);
-    audio.cutFilter.frequency.setTargetAtTime(1100 + rpmNow * 0.45 + intensity * 500, now, 0.1);
+    audio.cutFilter.frequency.setTargetAtTime((1100 + rpmNow * 0.45 + intensity * 500) * audio.pitch, now, 0.1);
     if (audio.humGain) audio.humGain.gain.setTargetAtTime(audio.on ? 0.006 + rpmNow * 0.000008 : 0, now, 0.2);
     if (audio.humOsc) audio.humOsc.frequency.setTargetAtTime(38 + rpmNow * 0.016, now, 0.2);
   };

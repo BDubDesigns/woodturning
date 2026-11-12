@@ -53,6 +53,179 @@
       }
     }
 
+    /* ---- paint, sheen, lamp, tools ---- */
+    var P = L.Paint, shownTmp = [0, 0, 0];
+    var lampT = 0.5, lampPhase = 0, lampOn = 0;
+    var drops = [];   // flung paint and mist
+
+    function css(c, a) { return "rgba(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + "," + a + ")"; }
+
+    /* Walk the slices in runs of near-identical ones, so a stripe is one rectangle
+       and not a hundred (a software canvas pays for every rect, every frame). */
+    function eachRun(n, same, draw) {
+      var i = 0, j;
+      while (i < n) {
+        j = i;
+        while (j + 1 < n && same(i, j + 1)) j++;
+        draw(i, j);
+        i = j + 1;
+      }
+    }
+
+    /* the coat, with the cylinder shading laid back over it */
+    var shadeGrad = null, shadeKey = "";
+    function drawPaint(Lp, cy, rPx, len) {
+      var coat = S.coat;
+      if (!coat || coat.coverage() < 0.0005) return;
+      var n = SEG, step = len / (n - 1);
+      var key = cy.toFixed(1) + ":" + rPx.toFixed(1);
+      if (key !== shadeKey) {
+        shadeKey = key;
+        shadeGrad = g.createLinearGradient(0, cy - rPx, 0, cy + rPx);
+        shadeGrad.addColorStop(0, "rgba(0,0,0,0.5)"); shadeGrad.addColorStop(0.3, "rgba(0,0,0,0.08)");
+        shadeGrad.addColorStop(0.46, "rgba(255,255,255,0.12)"); shadeGrad.addColorStop(0.62, "rgba(0,0,0,0.04)");
+        shadeGrad.addColorStop(0.85, "rgba(0,0,0,0.34)"); shadeGrad.addColorStop(1, "rgba(0,0,0,0.55)");
+      }
+      var c = coat.coat, col = coat.color;
+      eachRun(n, function (a, b) {
+        if (c[a] < 0.01 || c[b] < 0.01) return false;
+        return Math.abs(c[b] - c[a]) < 0.04 &&
+          Math.abs(col[b * 3] - col[a * 3]) + Math.abs(col[b * 3 + 1] - col[a * 3 + 1]) + Math.abs(col[b * 3 + 2] - col[a * 3 + 2]) < 0.03;
+      }, function (a, b) {
+        if (c[a] < 0.01) return;
+        var m = (a + b) >> 1, x = Lp.left + (a - 0.5) * step, w = (b - a + 1) * step + 0.5;
+        coat.shownColor(m, P.CFG.WOOD_RGB, shownTmp);
+        g.globalAlpha = Math.min(1, c[m] * 1.05);
+        g.fillStyle = css(shownTmp, 1);
+        g.fillRect(x, cy - rPx - 1, w, rPx * 2 + 2);
+        g.globalAlpha = Math.min(1, c[m]);
+        g.fillStyle = shadeGrad;
+        g.fillRect(x, cy - rPx - 1, w, rPx * 2 + 2);
+      });
+      g.globalAlpha = 1;
+    }
+
+    /* the finish: a soft bar of light along the top, as bright as the gloss under it,
+       plus a hot glint where the lamp's light lands */
+    function drawSheen(Lp, cy, rPx, len) {
+      var coat = S.coat, n = SEG, step = len / (n - 1), gl = coat ? coat.gloss : null;
+      eachRun(n, function (a, b) { return gl ? Math.abs(gl[b] - gl[a]) < 0.03 : true; }, function (a, b) {
+        var v = gl ? gl[(a + b) >> 1] : 0, x = Lp.left + (a - 0.5) * step, w = (b - a + 1) * step + 0.5;
+        g.fillStyle = "rgba(255,244,222," + (0.1 + v * 0.42).toFixed(3) + ")";
+        g.fillRect(x, cy - rPx * 0.56, w, rPx * (0.2 + v * 0.06));
+        if (v > 0.05) {
+          g.fillStyle = "rgba(255,255,255," + (v * 0.55).toFixed(3) + ")";
+          g.fillRect(x, cy - rPx * 0.5, w, rPx * 0.07);
+        }
+      });
+      if (lampOn > 0.02 && coat) {
+        var li = Math.max(0, Math.min(n - 1, Math.round(lampT * (n - 1)))), gloss = coat.gloss[li];
+        var lx = Lp.left + lampT * len, ly = cy - rPx * 0.5, rad = rPx * 1.5;
+        var gr = g.createRadialGradient(lx, ly, 0, lx, ly, rad);
+        var k = lampOn * (0.1 + 0.85 * gloss);
+        gr.addColorStop(0, "rgba(255,252,236," + k.toFixed(3) + ")");
+        gr.addColorStop(0.35, "rgba(255,240,205," + (k * 0.4).toFixed(3) + ")");
+        gr.addColorStop(1, "rgba(255,240,205,0)");
+        g.fillStyle = gr; g.fillRect(lx - rad, cy - rPx, rad * 2, rPx * 2);
+      }
+    }
+
+    function drawLamp(Lp, cy, rPx, len) {
+      var lx = Lp.left + lampT * len, top = Math.max(6, cy - rPx * 2.7), by = top + rPx * 0.5;
+      var cone = g.createLinearGradient(0, by, 0, cy);
+      cone.addColorStop(0, "rgba(255,236,190," + (0.2 * lampOn).toFixed(3) + ")"); cone.addColorStop(1, "rgba(255,236,190,0)");
+      g.fillStyle = cone;
+      g.beginPath(); g.moveTo(lx - rPx * 0.35, by); g.lineTo(lx + rPx * 0.35, by); g.lineTo(lx + rPx * 1.5, cy - rPx * 0.4); g.lineTo(lx - rPx * 1.5, cy - rPx * 0.4); g.closePath(); g.fill();
+      var gr = g.createRadialGradient(lx, by, 0, lx, by, rPx * 0.9);
+      gr.addColorStop(0, "rgba(255,246,214," + (0.9 * lampOn).toFixed(3) + ")"); gr.addColorStop(1, "rgba(255,226,160,0)");
+      g.fillStyle = gr; g.fillRect(lx - rPx, by - rPx, rPx * 2, rPx * 2);
+      g.fillStyle = "#2c3234";
+      g.beginPath(); g.moveTo(lx - rPx * 0.42, by); g.lineTo(lx - rPx * 0.18, top); g.lineTo(lx + rPx * 0.18, top); g.lineTo(lx + rPx * 0.42, by); g.closePath(); g.fill();
+      g.fillStyle = "#fff4cf"; g.fillRect(lx - rPx * 0.32, by - 1, rPx * 0.64, 3);
+    }
+
+    function drawChisel(tipX, tipY, dx, dy, rPx) {
+      var bx = tipX + dx * rPx * 1.05, by = tipY + dy * rPx * 1.05;
+      var hx = bx + dx * rPx * 1.8, hy = by + dy * rPx * 1.8;
+      g.strokeStyle = "#d6dde1"; g.lineWidth = Math.max(5, rPx * 0.16);
+      g.beginPath(); g.moveTo(tipX, tipY); g.lineTo(bx, by); g.stroke();
+      g.strokeStyle = "#d9ae4e"; g.lineWidth = Math.max(6, rPx * 0.2);
+      g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.stroke();
+      g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(9, rPx * 0.3);
+      g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
+      g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
+      if (S.tip === "gouge") {
+        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4, 0, Math.PI * 2); g.stroke();
+      } else {
+        g.beginPath(); g.moveTo(tipX - 5, tipY + 3); g.lineTo(tipX + 5, tipY - 4); g.stroke();
+      }
+    }
+
+    function drawBrush(tipX, tipY, dx, dy, rPx) {
+      var rgb = P.PALETTE[S.color].rgb, wide = S.paintTool === "brush";
+      var bw = Math.max(wide ? 12 : 5, rPx * (wide ? 0.42 : 0.16));
+      var tx = tipX + dx * rPx * 0.34, ty = tipY + dy * rPx * 0.34;          // top of the bristles
+      var fx = tx + dx * rPx * 0.28, fy = ty + dy * rPx * 0.28;              // ferrule end
+      var hx = fx + dx * rPx * 1.9, hy = fy + dy * rPx * 1.9;
+      g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(8, rPx * 0.27);
+      g.beginPath(); g.moveTo(fx, fy); g.lineTo(hx, hy); g.stroke();
+      g.strokeStyle = "#c8cfd4"; g.lineWidth = bw + 2;
+      g.beginPath(); g.moveTo(tx, ty); g.lineTo(fx, fy); g.stroke();
+      g.fillStyle = css(rgb, 1);
+      g.beginPath();                                                           // the loaded tuft, tapering to a point
+      g.moveTo(tx - bw / 2, ty); g.quadraticCurveTo(tx - bw / 2, tipY + 1, tipX, tipY - 3);
+      g.quadraticCurveTo(tx + bw / 2, tipY + 1, tx + bw / 2, ty); g.closePath(); g.fill();
+      g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = 1; g.stroke();
+    }
+
+    function drawBottle(tipX, tipY, dx, dy, rPx) {
+      var ox = tipX + dx * rPx * 0.42, oy = tipY + dy * rPx * 0.42;           // nozzle stands off the wood
+      var hx = ox + dx * rPx * 0.5, hy = oy + dy * rPx * 0.5;
+      var bx = hx + dx * rPx * 1.5, by = hy + dy * rPx * 1.5;
+      g.strokeStyle = "#a9c6d6"; g.lineWidth = Math.max(16, rPx * 0.55);        // bottle body
+      g.beginPath(); g.moveTo(hx + dx * rPx * 0.2, hy + dy * rPx * 0.2); g.lineTo(bx, by); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = Math.max(4, rPx * 0.12);
+      g.beginPath(); g.moveTo(hx + dx * rPx * 0.3 - 4, hy + dy * rPx * 0.3); g.lineTo(bx - 4, by); g.stroke();
+      g.strokeStyle = "#e8a33d"; g.lineWidth = Math.max(10, rPx * 0.34);        // trigger head
+      g.beginPath(); g.moveTo(ox, oy); g.lineTo(hx, hy); g.stroke();
+      g.strokeStyle = "#d6dde1"; g.lineWidth = Math.max(4, rPx * 0.1);          // nozzle
+      g.beginPath(); g.moveTo(tipX + dx * rPx * 0.1, tipY + dy * rPx * 0.1); g.lineTo(ox, oy); g.stroke();
+    }
+
+    function stepDrops(dt, floorY) {
+      for (var i = drops.length - 1; i >= 0; i--) {
+        var d = drops[i];
+        d.life -= dt;
+        if (d.life <= 0) { drops.splice(i, 1); continue; }
+        d.vy += d.g * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+        if (d.y > floorY - 1) { d.y = floorY - 1; d.vy = 0; d.vx *= 0.5; }
+        g.fillStyle = d.col.replace("A", Math.min(1, d.life * d.fade).toFixed(2));
+        if (d.mist) { g.beginPath(); g.arc(d.x, d.y, d.s * (1.3 - d.life), 0, Math.PI * 2); g.fill(); }
+        else { g.beginPath(); g.ellipse(d.x, d.y, d.s * (1 + Math.min(1.2, Math.abs(d.vy) / 400)), d.s, 0, 0, Math.PI * 2); g.fill(); }
+      }
+    }
+
+    /* flung paint: a spinning piece throws it off tangentially, down and out */
+    function onPaint(pr, dt) {
+      var tp = tipXY(), rgb = P.PALETTE[S.color].rgb, n = Math.floor(pr * dt * 90 + Math.random());
+      for (var i = 0; i < n; i++) {
+        if (drops.length > 260) drops.shift();
+        var side = Math.random() < 0.5 ? -1 : 1;
+        drops.push({ x: tp.x + (Math.random() - 0.5) * 14, y: tp.y - 2, vx: side * (30 + Math.random() * 150), vy: 30 + Math.random() * 120,
+                     g: 560, life: 0.5 + Math.random() * 0.5, fade: 3, s: 1.2 + Math.random() * 2.2, mist: false, col: css(rgb, "A") });
+      }
+    }
+    /* spray: a fine mist leaving the nozzle toward the wood */
+    function onSpray(pr, dt) {
+      var tp = tipXY(), n = Math.floor(pr * dt * 150 + Math.random());
+      for (var i = 0; i < n; i++) {
+        if (drops.length > 260) drops.shift();
+        var ang = (Math.random() - 0.5) * 0.9, sp = 90 + Math.random() * 130;
+        drops.push({ x: tp.x + (Math.random() - 0.5) * 6, y: tp.y + 8, vx: Math.sin(ang) * sp - 40, vy: -Math.cos(ang) * sp,
+                     g: 0, life: 0.3 + Math.random() * 0.25, fade: 2.2, s: 1.4 + Math.random() * 1.6, mist: true, col: "rgba(225,242,255,A)" });
+      }
+    }
+
     function frame(dt) {
       var w = stage.clientWidth, h = stage.clientHeight;
       if (!w || !h) return;
@@ -64,6 +237,11 @@
       if (S.shake > 0 && !S.reduceMotion) { shx = (Math.random() - 0.5) * 6 * S.shake; shy = (Math.random() - 0.5) * 6 * S.shake; }
       g.setTransform(sc, 0, 0, sc, shx * sc, shy * sc);
       var cy = Lp.cy, rPx = Lp.rPx, len = Lp.len;
+      lampOn += ((S.mode === "finish" ? 1 : 0) - lampOn) * Math.min(1, dt * 6);
+      if (S.mode === "finish") {   // the lamp swings slowly end to end so the gloss catches it; it holds still for reduced motion
+        lampPhase += dt * 0.55;
+        lampT = S.reduceMotion ? 0.5 : 0.5 + 0.42 * Math.sin(lampPhase);
+      }
       var bedY = cy + rPx * 1.62;
       var floorY = Math.min(h - 4, bedY + rPx * 0.9);
       var r = work.radius, i;
@@ -107,6 +285,7 @@
       g.fillStyle = wg; g.fill();
       g.save();
       g.clip();
+      drawPaint(Lp, cy, rPx, len);
       // grain streaks scrolling around the blank = the spin
       var phase = ((S.spinAngle * 0.3) % (Math.PI * 2)) / (Math.PI * 2);
       var spacing = rPx * 0.34, off = phase * spacing * 2;
@@ -127,8 +306,7 @@
         g.beginPath(); g.ellipse(kx, ky, 7, 3.4, 0.2, 0, Math.PI * 2); g.stroke();
         g.beginPath(); g.ellipse(kx, ky, 3.6, 1.7, 0.2, 0, Math.PI * 2); g.stroke();
       }
-      g.fillStyle = "rgba(255,240,210,0.10)";   // sheen band
-      g.fillRect(Lp.left, cy - rPx * 0.52, len, rPx * 0.42);
+      drawSheen(Lp, cy, rPx, len);
       g.restore();
       g.strokeStyle = "rgba(40,24,10,0.55)"; g.lineWidth = 1.2; g.stroke();
 
@@ -155,28 +333,21 @@
       g.fillStyle = "#39423e";
       g.fillRect(Lp.right - len * 0.3, cy + rPx * 1.08, rPx * 0.4, bedY - cy - rPx * 1.08);
 
-      // the chisel, rising from below; its tip rides the bottom of the cut
+      // the tool, rising from below; its tip rides the bottom of the cut
       var tp = tipXY(), tipX = tp.x, tipY = tp.y;
       if (S.cutIntensity > 0.03) {
         tipX += (Math.random() - 0.5) * 3 * S.cutIntensity;
         tipY += (Math.random() - 0.5) * 3.4 * S.cutIntensity;
       }
       var dx = 0.42, dy = 1, dl = Math.sqrt(dx * dx + dy * dy); dx /= dl; dy /= dl;
-      var bx = tipX + dx * rPx * 1.05, by = tipY + dy * rPx * 1.05;
-      var hx = bx + dx * rPx * 1.8, hy = by + dy * rPx * 1.8;
       g.lineCap = "round";
-      g.strokeStyle = "#d6dde1"; g.lineWidth = Math.max(5, rPx * 0.16);
-      g.beginPath(); g.moveTo(tipX, tipY); g.lineTo(bx, by); g.stroke();
-      g.strokeStyle = "#d9ae4e"; g.lineWidth = Math.max(6, rPx * 0.2);
-      g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.stroke();
-      g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(9, rPx * 0.3);
-      g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
-      g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
-      if (S.tip === "gouge") {
-        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4, 0, Math.PI * 2); g.stroke();
-      } else {
-        g.beginPath(); g.moveTo(tipX - 5, tipY + 3); g.lineTo(tipX + 5, tipY - 4); g.stroke();
-      }
+      if (S.mode === "paint") drawBrush(tipX, tipY, dx, dy, rPx);
+      else if (S.mode === "finish") drawBottle(tipX, tipY, dx, dy, rPx);
+      else drawChisel(tipX, tipY, dx, dy, rPx);
+
+      if (S.mode === "finish") drawLamp(Lp, cy, rPx, len);
+
+      stepDrops(dt, floorY);
 
       // chips
       for (var c2 = chips.length - 1; c2 >= 0; c2--) {
@@ -204,6 +375,8 @@
       show: function () { canvas.style.display = "block"; resize(); },
       hide: function () { canvas.style.display = "none"; },
       onCut: onCut,
+      onPaint: onPaint,
+      onSpray: onSpray,
       frame: frame,
       sliceToScreenX: function (i) { var Lp = lay || layout(); return Lp.left + (i / (SEG - 1)) * Lp.len; }
     };

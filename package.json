@@ -1,10 +1,10 @@
 {
   "name": "woodturning",
   "private": true,
-  "description": "A cozy woodturning game. Lathe base, farm, and harvest.",
+  "description": "A cozy woodturning game. Lathe base, farm, harvest, paint and finish, monetization.",
   "scripts": {
     "build": "node tools/build.mjs",
-    "test": "node --test tests/cutting.test.js tests/farm.test.js tests/harvest.test.js tests/monetize.test.js",
-    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html && node tests/e2e-farm.mjs lathe.html && node tests/e2e-mine.mjs lathe.html && node tests/e2e-harvest-look.mjs lathe.html"
+    "test": "node --test tests/cutting.test.js tests/farm.test.js tests/harvest.test.js tests/monetize.test.js tests/paint.test.js",
+    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html && node tests/e2e-farm.mjs lathe.html && node tests/e2e-mine.mjs lathe.html && node tests/e2e-harvest-look.mjs lathe.html && node tests/e2e-paint.mjs lathe.html"
   }
 }
