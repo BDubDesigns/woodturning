@@ -155,15 +155,25 @@ for (const kind of ["3d", "2d"]) {
   const light = (await model()).coat[idx(0.25)];
   check(light > 0.01 && light < firm - 0.1, `a light nudge lays ${light.toFixed(2)}, a firm one ${firm.toFixed(2)}`);
 
-  // a stripe in a second colour, swept along: cobalt on the right half, plus a liner line
+  // Paint the two bands the spec asks for, each one end to end: crimson on the left half, cobalt on the right.
   await page.click("#newLogBtn");
-  await stroke(0.1, { to: 0.45, sweepMs: 3600, hold: 100 });
+  await page.click('.swatch[data-color="crimson"]');
+  await stroke(0.05, { to: 0.45, sweepMs: 3600, hold: 100 });
   await page.click('.swatch[data-color="cobalt"]');
-  await stroke(0.55, { to: 0.9, sweepMs: 3600, hold: 100 });
+  await stroke(0.55, { to: 0.95, sweepMs: 3600, hold: 100 });
   m = await model();
   check(m.coat[idx(0.3)] > 0.5 && m.coat[idx(0.75)] > 0.5, `a sweep lays an even band (${m.coat[idx(0.3)].toFixed(2)} and ${m.coat[idx(0.75)].toFixed(2)} mid-band)`);
   const cr = m.color.slice(idx(0.3) * 3, idx(0.3) * 3 + 3), cb = m.color.slice(idx(0.75) * 3, idx(0.75) * 3 + 3);
   check(cr[0] > cr[2] + 0.3 && cb[2] > cb[0] + 0.3, "red band on the left, blue band on the right");
+  // A first pass can leave wood showing through (the game runs in slow motion below about 20 frames a second,
+  // and this test machine renders at 4 to 6), and the match score rightly marks down a dark paint that is
+  // part bare wood. So go back over each band, as a player does: a second pass builds the coat up.
+  await page.click('.swatch[data-color="crimson"]');
+  await stroke(0.45, { to: 0.05, sweepMs: 3600, hold: 100 });
+  await page.click('.swatch[data-color="cobalt"]');
+  await stroke(0.95, { to: 0.55, sweepMs: 3600, hold: 100 });
+  m = await model();
+  check(m.coat[idx(0.3)] > 0.7 && m.coat[idx(0.75)] > 0.7, `a second pass builds the coat up (${m.coat[idx(0.3)].toFixed(2)} and ${m.coat[idx(0.75)].toFixed(2)} mid-band)`);
   check(m.match.color > 0.4, `a good share of the spec's colour is matched (${(m.match.color * 100).toFixed(0)}%)`);
   await page.click("#brushLiner");
   await page.click('.swatch[data-color="ivory"]');
