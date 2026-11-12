@@ -1,0 +1,10 @@
+{
+  "name": "woodturning",
+  "private": true,
+  "description": "A cozy woodturning game. Lathe base.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/cutting.test.js",
+    "e2e": "node tools/build.mjs && node tests/e2e.mjs lathe.html"
+  }
+}

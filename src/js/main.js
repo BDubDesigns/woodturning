@@ -1,0 +1,251 @@
+/* ============================================================
+   THE LATHE: wiring. Owns the shared state, turns pointer input
+   into (axial position, pressure), steps the cutting model, and
+   hands the result to whichever view is showing.
+
+   Input model (see docs/lathe-feel-fix.md):
+   - Touch down anywhere below the wood: the chisel snaps onto
+     the wood surface at the finger's x. Contact, no cut yet.
+   - Nudge up: the first ~40px of upward travel ramps pressure
+     from zero to full. Pressure sets the depth of the pass.
+   - The tip rides the bottom of the cut, so the finger stays
+     below the wood and the cut is never covered.
+   ============================================================ */
+(function (root) {
+  "use strict";
+  var L = root.Lathe;
+  var errBox = document.getElementById("err");
+  function showErr(msg) { errBox.style.display = "block"; errBox.textContent = "Error: " + msg; }
+  root.addEventListener("error", function (e) { showErr(e.message || e.type); });
+  root.addEventListener("unhandledrejection", function (e) { showErr(e.reason && e.reason.message ? e.reason.message : e.reason); });
+
+  // Boot a tick late so the page shell paints before WebGL/shader setup.
+  setTimeout(boot, 30);
+
+  function boot() {
+    var C = L.CFG, audio = L.audio;
+    var stage = document.getElementById("stage");
+
+    var S = {
+      work: new L.Workpiece(),
+      pressure: new L.Pressure(),
+      tip: "gouge",
+      rpm: 1100,
+      spinAngle: 0,
+      cutIntensity: 0,
+      shake: 0,
+      catchCooldown: 0,
+      everCut: false,
+      reduceMotion: !!(root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches),
+      pointer: { active: false, hover: false, id: null, x: 0, y: 0, t: 0.5 },
+      // what the views draw: rest (parked), hover (mouse over, just off the wood), contact (on the wood)
+      tool: { mode: "rest", t: 0.5, r: C.R0, lift: 0 },
+      lastT: -1
+    };
+    root.__lathe = S; // handy in the console and for the browser tests
+
+    /* ---------------- views ---------------- */
+    var view3d = null, view2d = null, view = null;
+    var viewBtn = document.getElementById("viewBtn");
+    function useView(v) {
+      if (view === v) return;
+      if (view) view.hide();
+      view = v;
+      view.show();
+      viewBtn.textContent = view.kind === "3d" ? "2D VIEW" : "3D VIEW";
+      viewBtn.style.display = view3d ? "" : "none";
+    }
+    function fallBackTo2D() { if (view && view.kind === "3d") useView(view2d); }
+    view2d = L.createView2D(stage, S);
+    try { view3d = L.createView3D(stage, S, fallBackTo2D); } catch (e) { view3d = null; }
+    var forced = /[?&]view=2d\b/.test(location.search);
+    useView(view3d && !forced ? view3d : view2d);
+    viewBtn.addEventListener("click", function () { useView(view.kind === "3d" ? view2d : (view3d || view2d)); });
+    root.addEventListener("resize", function () { view.resize(); });
+
+    /* ---------------- input ---------------- */
+    function now() { return performance.now() / 1000; }
+    function setPointerXY(e) {
+      var rect = stage.getBoundingClientRect();
+      var p = S.pointer;
+      p.x = e.clientX - rect.left; p.y = e.clientY - rect.top;
+      var lay = view.layout(), span = lay.right - lay.left;
+      p.t = Math.min(1, Math.max(0, (p.x - lay.left) / (span || 1)));
+    }
+    stage.addEventListener("pointerdown", function (e) {
+      if (S.pointer.active) return;
+      audio.init();
+      var p = S.pointer;
+      p.active = true; p.id = e.pointerId;
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+      setPointerXY(e);
+      S.pressure.down(p.y, now());
+      S.work.endPass();
+      e.preventDefault();
+    });
+    stage.addEventListener("pointermove", function (e) {
+      var p = S.pointer;
+      if (p.active) {
+        if (e.pointerId !== p.id) return;
+        var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+        if (!evs || !evs.length) evs = [e];
+        for (var i = 0; i < evs.length; i++) {
+          setPointerXY(evs[i]);
+          if (S.pressure.move(p.y, (evs[i].timeStamp || performance.now()) / 1000)) onCatch();
+        }
+      } else if (e.pointerType === "mouse") {
+        p.hover = true;
+        setPointerXY(e);
+      }
+    });
+    function endPointer(e) {
+      var p = S.pointer;
+      if (e.pointerId !== p.id) return;
+      p.active = false; p.id = null;
+      if (e.pointerType !== "mouse") p.hover = false;
+      S.pressure.up();
+      S.work.endPass();
+    }
+    stage.addEventListener("pointerup", endPointer);
+    stage.addEventListener("pointercancel", endPointer);
+    stage.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse" && !S.pointer.active) S.pointer.hover = false; });
+
+    /* A catch: pressure slammed in all at once. The tool digs and gets
+       knocked back off the wood, with a shake and a thump. */
+    var cutflash = document.getElementById("cutflash");
+    function onCatch() {
+      if (S.catchCooldown > 0) return;
+      S.catchCooldown = C.CATCH_COOLDOWN;
+      S.shake = Math.min(1, S.shake + 0.8);
+      cutflash.classList.add("on");
+      setTimeout(function () { cutflash.classList.remove("on"); }, 110);
+      audio.clunk();
+    }
+
+    /* ---------------- UI ---------------- */
+    var rpmSlider = document.getElementById("rpm"), rpmVal = document.getElementById("rpmVal");
+    S.rpm = parseInt(rpmSlider.value, 10);
+    rpmSlider.addEventListener("input", function () { S.rpm = parseInt(rpmSlider.value, 10); rpmVal.textContent = S.rpm + " RPM"; });
+    var tipGougeBtn = document.getElementById("tipGouge"), tipSkewBtn = document.getElementById("tipSkew");
+    function setTip(t) {
+      S.tip = t;
+      tipGougeBtn.setAttribute("aria-pressed", t === "gouge" ? "true" : "false");
+      tipSkewBtn.setAttribute("aria-pressed", t === "skew" ? "true" : "false");
+    }
+    tipGougeBtn.addEventListener("click", function () { audio.init(); setTip("gouge"); });
+    tipSkewBtn.addEventListener("click", function () { audio.init(); setTip("skew"); });
+    root.addEventListener("keydown", function (e) {
+      if (e.key === "1") setTip("gouge");
+      if (e.key === "2") setTip("skew");
+    });
+    var hint = document.getElementById("hint");
+    var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
+    document.getElementById("newLogBtn").addEventListener("click", function () {
+      S.work.reset(); S.lastT = -1;
+      statDepth.innerHTML = "0.0<small> mm</small>";
+      hint.classList.remove("gone"); S.everCut = false;
+      drawProfile();
+    });
+    var soundBtn = document.getElementById("soundBtn");
+    soundBtn.addEventListener("click", function () {
+      audio.setOn(!audio.on);
+      soundBtn.setAttribute("aria-pressed", audio.on ? "true" : "false");
+    });
+
+    /* ---------------- pressure meter: fills beside the finger ---------------- */
+    var pmeter = document.getElementById("pmeter"), pfill = pmeter.firstChild;
+    var meterOn = false;
+    function updateMeter() {
+      var p = S.pointer, on = p.active;
+      if (on !== meterOn) { meterOn = on; pmeter.classList.toggle("on", on); }
+      if (!on) return;
+      var leftSide = p.x > stage.clientWidth - 60;
+      pmeter.style.left = (p.x + (leftSide ? -36 : 28)) + "px";
+      pmeter.style.top = (S.pressure.anchorY - C.PRESS_RAMP_PX) + "px";
+      pfill.style.height = (S.pressure.value * 100).toFixed(1) + "%";
+    }
+
+    /* ---------------- profile strip + stats ---------------- */
+    var profCanvas = document.getElementById("profileCanvas"), profCtx = profCanvas.getContext("2d");
+    function drawProfile() {
+      var w = profCanvas.clientWidth, h = profCanvas.clientHeight;
+      if (!w) return;
+      var dpr = Math.min(root.devicePixelRatio || 1, 2);
+      if (profCanvas.width !== Math.round(w * dpr)) { profCanvas.width = Math.round(w * dpr); profCanvas.height = Math.round(h * dpr); }
+      var g = profCtx, r = S.work.radius, n = r.length;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      var mid = h / 2, pad = 26, iw = w - pad * 2;
+      g.strokeStyle = "rgba(150,125,85,0.5)"; g.setLineDash([3, 5]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(pad - 8, mid); g.lineTo(w - pad + 8, mid); g.stroke(); g.setLineDash([]);
+      g.beginPath();
+      for (var i = 0; i < n; i++) {
+        var x = pad + (i / (n - 1)) * iw, y = mid - (r[i] / C.R0) * (mid - 3);
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      for (var j = n - 1; j >= 0; j--) g.lineTo(pad + (j / (n - 1)) * iw, mid + (r[j] / C.R0) * (mid - 3));
+      g.closePath();
+      var grad = g.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, "#d9ab6d"); grad.addColorStop(0.5, "#c99a5e"); grad.addColorStop(1, "#a97a42");
+      g.fillStyle = grad; g.fill();
+      g.strokeStyle = "rgba(70,45,20,0.6)"; g.lineWidth = 1; g.stroke();
+      if (S.lastT >= 0 && S.pointer.active) {
+        var cx = pad + S.lastT * iw;
+        g.strokeStyle = "#e8a33d"; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(cx, 2); g.lineTo(cx, h - 2); g.stroke();
+      }
+    }
+    var statTick = 0;
+    function updateStats(dt) {
+      statTick += dt;
+      if (statTick < 0.12) return; statTick = 0;
+      var pct = S.work.removedFraction() * 100;
+      statRemoved.innerHTML = pct.toFixed(pct < 10 ? 1 : 0) + "<small>%</small>";
+      var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
+      statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
+      statShape.textContent = L.shapeName(S.work);
+      drawProfile();
+    }
+
+    /* ---------------- main loop ---------------- */
+    var CHIP_SCALE = 120 / C.SEG;   // chip/sound tuning was done at 120 slices
+    var lastFrame = performance.now(), frameN = 0;
+    function frame(nowMs) {
+      requestAnimationFrame(frame);
+      try {
+        var dt = Math.min(0.05, Math.max(0, (nowMs - lastFrame) / 1000)); lastFrame = nowMs;
+        frameN++;
+        if (S.catchCooldown > 0) S.catchCooldown -= dt;
+        S.spinAngle += S.rpm * (Math.PI * 2 / 60) * 0.22 * dt;   // slowed so the strobe reads; pitch follows the slider
+        S.cutIntensity = Math.max(0, S.cutIntensity - dt * 3.2);
+        S.shake = Math.max(0, S.shake - dt * 3.4);
+
+        var p = S.pointer, pr = S.pressure.update(dt);
+        if (p.active) {
+          S.lastT = p.t;
+          var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1) * CHIP_SCALE;
+          if (removed > 0.00001) {
+            S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
+            view.onCut(removed);
+            if (!S.everCut) { S.everCut = true; hint.classList.add("gone"); }
+          }
+        }
+        var tool = S.tool;
+        if (p.active) { tool.mode = "contact"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0; }
+        else if (p.hover) { tool.mode = "hover"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0.12; }
+        else tool.mode = "rest";
+
+        audio.update(S.cutIntensity, p.active ? 1 : 0, S.rpm);
+        updateStats(dt);
+        updateMeter();
+        view.frame(dt);
+      } catch (err) {
+        showErr(err && err.message ? err.message : err);
+      }
+    }
+    drawProfile();
+    requestAnimationFrame(frame);
+
+    S.views = { get current() { return view; }, use2D: function () { useView(view2d); }, use3D: function () { if (view3d) useView(view3d); } };
+  }
+})(window);

@@ -65,3 +65,24 @@ piece (bowls, spindles, walking sticks), not a sawtooth.
 A good base to build the full game on: a lathe that feels right, in this
 repo, with the mapping, pressure, and profile fixes above. The full game
 spec comes after this base playtests well.
+
+## Resolution (prototype 02)
+
+- Issue 1, mirrored 3D: the blank's group was rotated `+PI/2` about Z, which
+  put profile slice 0 at world +X (screen right) while input mapped slice 0 to
+  screen left. Now `-PI/2`, so both views agree. `tests/e2e.mjs` checks that
+  the deepest point is drawn under the finger in each view (it fails on the
+  old rotation).
+- Issue 2, pressure: `Pressure` in `src/js/cutting.js`. Touch-down anchors
+  contact at zero pressure; upward travel over `PRESS_RAMP_PX` (40) ramps to
+  full; moving down re-anchors. Pressure sets the depth of the pass
+  (`PASS_DEPTH` at full) and the tip rides the bottom of the cut. Removal is
+  still rate-capped, MIN_R still guards the core, a slammed-in push is a catch.
+- Issue 3, spiky profile: three causes, three fixes. The old removal had a
+  30% step at the kernel edge (now kernels fall to zero with zero slope); the
+  kernel centre snapped to whole slices (now fractional, and slices went from
+  120 to 240); and each slice cut toward its own height (now the bevel rides
+  the surface under the tip, so passes cut toward a smoothed surface and light
+  passes plane ridges). A rolling-ball round-over (tool nose radius) turns any
+  fin narrower than the nose into a rounded bead. `npm test` checks a seeded
+  roughing sequence leaves no fins (the old model leaves several on the same cuts).
