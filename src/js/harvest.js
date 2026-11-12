@@ -49,7 +49,8 @@
     GROUND: 0.45,         // height of the log's axis when it lies on the ground (about the butt's radius)
     RESTITUTION: 0.2,
 
-    FLUSH: 0.16,          // a stub this short counts as cleanly cut
+    FLUSH: 0.16,          // a stub this short is flush with the log
+    CLEAN: 0.32,          // ...and up to twice that still looks clean, so a stubborn short stub never blocks the saw
     DELIMB_SPEED: 6.0,    // finger speed (units/sec) for a full-power slash
     SLASH_POWER: 0.1,     // thickness one full slash removes
 
@@ -71,11 +72,53 @@
     };
   }
 
-  /* ---------------- the tree ---------------- */
+  /* ---------------- the tree ----------------
+     A tree is data. TREES says what each wood grows into: how the trunk
+     tapers and flares, how the branches are laid out (where they start, how
+     far apart, how steeply they leave the trunk, how long and thick, how they
+     shorten toward the top), and how the twigs and leaves are laid along them.
+     makeTree(seed, wood) rolls one tree from that data and the seed. Colours
+     and leaf style come from the farm's wood data (Game.Farm.WOODS: trunk, leaf,
+     leaf2, shape), looked up by the same wood id, so a new tree is a new entry
+     in each, and neither the model nor the renderer changes.
+
+     Ranges are [min, max]. Angles are radians off the trunk's axis (0 is
+     straight up, about 1.57 is level). Heights run up the bare trunk, which is
+     always TRUNK_H tall, because the chop model (and so how long a log you get)
+     does not depend on the kind of tree. */
+  var TREES = {
+    // a conifer: slim, straight, strongly tapering, many short level boughs, narrow at the top
+    pine: {
+      baseW: [1.1, 1.25], topW: [0.5, 0.6], taper: 1.0, flare: 0.12,
+      branch: { first: [1.7, 1.85], gap: [0.36, 0.46], top: 0.6, a0: [1.25, 1.45], a0Rise: 0.1, a1: [0.9, 1.0],
+                len: 1.8, lenFall: 1.15, lenJit: 0.2, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
+      leader: { len: 1.5, thick: 0.12 },
+      foliage: { twigs: [4, 6], twigLen: [0.35, 0.65], spread: [0.25, 0.6], upward: 0.02, dens: 1.3, densRise: 0.2, size: 0.11, sizeRise: 0, leaderTwigs: 8 }
+    },
+    // a spreading hardwood: broad trunk, long limbs leaving at a wide angle, a round crown
+    oak: {
+      baseW: [1.25, 1.41], topW: [0.78, 0.86], taper: 1.3, flare: 0.2,
+      branch: { first: [1.55, 1.75], gap: [0.55, 0.75], top: 0.5, a0: [0.85, 1.2], a0Rise: -0.35, a1: [0.55, 0.7],
+                len: 1.95, lenFall: 0.9, lenJit: 0.35, thick: 0.17, thickFall: 0.07, thickJit: 0.03 },
+      leader: { len: 1.3, thick: 0.17 },
+      foliage: { twigs: [4, 6], twigLen: [0.4, 0.8], spread: [0.5, 1.0], upward: 0.16, dens: 0.95, densRise: 0.5, size: 0.15, sizeRise: 0.03, leaderTwigs: 7 }
+    },
+    // a stout hardwood: the thickest trunk, fewer heavier limbs, rising more steeply, a full crown
+    walnut: {
+      baseW: [1.4, 1.55], topW: [0.9, 1.0], taper: 1.15, flare: 0.28,
+      branch: { first: [1.5, 1.7], gap: [0.7, 0.95], top: 0.6, a0: [0.6, 0.95], a0Rise: -0.2, a1: [0.5, 0.75],
+                len: 2.1, lenFall: 1.0, lenJit: 0.4, thick: 0.22, thickFall: 0.09, thickJit: 0.03 },
+      leader: { len: 1.2, thick: 0.22 },
+      foliage: { twigs: [4, 5], twigLen: [0.5, 0.9], spread: [0.45, 0.85], upward: 0.2, dens: 1.1, densRise: 0.4, size: 0.17, sizeRise: 0.03, leaderTwigs: 7 }
+    }
+  };
+  var DEFAULT_WOOD = "oak";
+  function treeType(wood) { return TREES[wood] || TREES[DEFAULT_WOOD]; }
+
   function trunkWidth(tree, h) {
     var f = clamp(h / H.TRUNK_H, 0, 1);
-    var w = tree.baseW + (tree.topW - tree.baseW) * Math.pow(f, 1.3);
-    return w + 0.2 * Math.exp(-h * 3.2);       // root flare
+    var w = tree.baseW + (tree.topW - tree.baseW) * Math.pow(f, tree.taper);
+    return w + tree.flare * Math.exp(-h * 3.2);       // root flare
   }
 
   /* A branch curve in its own frame: p out from the trunk, q up along it.
@@ -92,32 +135,34 @@
   }
   function branchThick(b, s) { return b.t0 * (1 - 0.72 * clamp(s / b.len, 0, 1)); }
 
-  function makeTree(seed) {
+  function makeTree(seed, wood) {
+    var kind = TREES[wood] ? wood : DEFAULT_WOOD, T = TREES[kind];
     var r = rng(seed == null ? 1 : seed);
+    function pick(range) { return range[0] + r() * (range[1] - range[0]); }
     var tree = {
-      seed: seed == null ? 1 : seed,
-      baseW: 1.25 + r() * 0.16, topW: 0.78 + r() * 0.08,
+      seed: seed == null ? 1 : seed, wood: kind, type: T,
+      baseW: pick(T.baseW), topW: pick(T.topW), taper: T.taper, flare: T.flare,
       branches: [], dirBias: r() < 0.5 ? -1 : 1
     };
-    var side = r() < 0.5 ? -1 : 1, y = 1.55 + r() * 0.2, id = 0;
-    while (y < H.TRUNK_H - 0.5) {
+    var B = T.branch, side = r() < 0.5 ? -1 : 1, y = pick(B.first), id = 0;
+    while (y < H.TRUNK_H - B.top) {
       var f = y / H.TRUNK_H;                          // 0 low .. 1 high
       var b = {
         id: id++, y: y, s: side,
-        a0: 0.85 + r() * 0.35 - f * 0.35, len: 1.95 - f * 0.9 + r() * 0.35,
-        t0: 0.17 - f * 0.07 + r() * 0.03, leaf: 0.4 + f * 0.1 + r() * 0.18,
+        a0: pick(B.a0) + B.a0Rise * f, len: B.len - B.lenFall * f + r() * B.lenJit,
+        t0: B.thick - B.thickFall * f + r() * B.thickJit,
         leader: false
       };
-      b.a1 = b.a0 * (0.55 + r() * 0.15);
+      b.a1 = b.a0 * pick(B.a1);
       b.p0 = trunkWidth(tree, y) * 0.35;
       tree.branches.push(b);
       side = -side;
-      y += 0.55 + r() * 0.2;
+      y += pick(B.gap);
     }
     // the leader: the trunk carries on into the crown
     var ld = {
-      id: id++, y: H.TRUNK_H, s: 1, a0: 0.1, a1: 0.04, len: H.LEADER_H,
-      t0: 0.17, leaf: 0.7, leader: true, p0: 0
+      id: id++, y: H.TRUNK_H, s: 1, a0: 0.1, a1: 0.04, len: T.leader.len,
+      t0: T.leader.thick, leader: true, p0: 0
     };
     tree.branches.push(ld);
     for (var i = 0; i < tree.branches.length; i++) tree.branches[i].pts = branchCurve(tree.branches[i]);
@@ -237,14 +282,16 @@
   }
 
   /* ---------------- the harvest game ---------------- */
-  function Harvest(seed) {
+  function Harvest(seed, wood) {
     this.events = [];
-    this.reset(seed);
+    this.reset(seed, wood);
   }
 
-  Harvest.prototype.reset = function (seed) {
+  /* A new tree of the given wood (pine, oak, walnut; anything else grows as oak). */
+  Harvest.prototype.reset = function (seed, wood) {
     this.seed = seed == null ? Math.floor(Math.random() * 1e9) : seed;
-    this.tree = makeTree(this.seed);
+    this.wood = TREES[wood] ? wood : (TREES[this.wood] ? this.wood : DEFAULT_WOOD);
+    this.tree = makeTree(this.seed, this.wood);
     this.trunk = new Trunk(this.tree);
     this.phase = "chop";        // chop | crack | fall | delimb | saw | done
     this.swings = 0;
@@ -422,9 +469,12 @@
   };
 
   /* ----- delimb ----- */
+  /* One definition of "clean", used by the counter and the phase gate alike:
+     a limb is done once what is left of it is no longer than CLEAN. */
+  Harvest.prototype.limbClean = function (L) { return L.stub <= H.CLEAN; };
   Harvest.prototype.limbsLeft = function () {
     var n = 0;
-    for (var i = 0; i < this.limbs.length; i++) if (this.limbs[i].alive) n++;
+    for (var i = 0; i < this.limbs.length; i++) if (!this.limbClean(this.limbs[i])) n++;
     return n;
   };
   /* Does the swipe segment P0->P1 cross the branch segment A->B? Decided by which
@@ -461,10 +511,12 @@
         if (!c) continue;
         var arc = A.s + (B.s - A.s) * c.u;
         if (arc >= L.stub - 0.01) continue;
-        // not nearly parallel to the branch
+        // Any swipe that crosses the branch cuts it. A shallow crossing (a swipe
+        // that runs almost along the branch, like a horizontal swipe over the leader
+        // lying along the log) still cuts, just a little less cleanly.
         var bdx = B.x - A.x, bdy = B.y - A.y, bl = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
-        if (Math.abs((x - ax) * bdy - (y - ay) * bdx) / (dist * bl) < 0.3) continue;
-        this._hitLimb(L, arc, power, ax + (x - ax) * c.t, ay + (y - ay) * c.t);
+        var across = Math.abs((x - ax) * bdy - (y - ay) * bdx) / (dist * bl);
+        this._hitLimb(L, arc, power * (0.6 + 0.4 * Math.min(1, across / 0.5)), ax + (x - ax) * c.t, ay + (y - ay) * c.t);
         break;
       }
     }
@@ -481,7 +533,7 @@
     var piece = { id: L.id, b: L.b, from: arc, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: true };
     var wp = L.wp, k, X, Y;
     var cutPt = this._pointAt(L, arc);
-    piece.ox = cutPt.x; piece.oy = cutPt.y;
+    piece.ox = cutPt.x; piece.oy = cutPt.y; piece.ox0 = cutPt.x; piece.oy0 = cutPt.y;
     for (k = 0; k < wp.length; k++) {
       if (wp[k].s <= arc) continue;
       piece.pts.push({ x: wp[k].x - cutPt.x, y: wp[k].y - cutPt.y, s: wp[k].s });
@@ -494,8 +546,8 @@
     this.pieces.push(piece);
     L.stub = arc;
     for (var d = 0; d < L.dmg.length; d++) L.dmg[d] = 0;
-    var clean = arc <= H.FLUSH;
-    if (clean) L.alive = false;
+    var clean = this.limbClean(L);
+    L.alive = !clean;
     this.version++;
     this.emit({ type: "snip", x: hx, y: hy, id: L.id, clean: clean, left: this.limbsLeft() });
     if (this.limbsLeft() === 0) {
@@ -636,7 +688,7 @@
       prof[i] = R0 * chamfer * (0.965 * (rr[i] / mx) + 0.02 * kn);
     }
     return {
-      species: "generic",
+      species: log.tree.wood,
       seed: log.tree.seed,
       profile: prof,
       lengthUnits: lenU,
@@ -648,7 +700,7 @@
   var api = {
     HCFG: H, makeTree: makeTree, Trunk: Trunk, Harvest: Harvest, Log: Log,
     simulateFall: simulateFall, makeBlank: makeBlank, trunkWidth: trunkWidth,
-    branchThick: branchThick, branchCurve: branchCurve
+    branchThick: branchThick, branchCurve: branchCurve, TREES: TREES, treeType: treeType
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var L = root.Lathe || (root.Lathe = {});

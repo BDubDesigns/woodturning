@@ -21,26 +21,54 @@
   function smooth(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
   function rand(a, b) { return a + Math.random() * (b - a); }
 
-  /* ---------- sprites, built once ---------- */
-  function makeLeafSprite(seed) {
-    var c = document.createElement("canvas"); c.width = c.height = 160;
-    var g = c.getContext("2d"), s = seed * 9301 + 49297;
-    function r() { s = (s * 9301 + 49297) % 233280; return s / 233280; }
-    var cols = ["#254a28", "#2f5d2e", "#3d7236", "#52863a", "#6e9c42", "#93b653"];
-    for (var layer = 0; layer < cols.length; layer++) {
-      for (var i = 0; i < 7; i++) {
-        var a = r() * TAU, d = r() * 46 * (1 - layer * 0.07);
-        var x = 80 + Math.cos(a) * d - layer * 2.4, y = 82 + Math.sin(a) * d * 0.9 - layer * 4.5;
-        var rad = 22 + r() * 15 - layer * 1.4;
-        g.fillStyle = cols[layer];
-        g.beginPath(); g.arc(x, y, rad, 0, TAU); g.fill();
+  /* ---------- what a wood looks like ----------
+     Colours and leaf style come from data, not code. The farm's wood table
+     (Game.Farm.WOODS: trunk, leaf, leaf2, shape) says what colour the bark and
+     the foliage are; LEAF_STYLES says what leaves a given shape of tree wears.
+     A new kind of tree needs a row in each and nothing here changes. */
+  var FALLBACK_WOOD = { id: "oak", name: "Oak", shape: "round", trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" };
+  var LEAF_STYLES = {
+    round:   { shapes: [0, 1, 2] },     // broad leaves: ovate, narrow, round
+    conifer: { shapes: [3, 1] }         // needles
+  };
+  function hex2rgb(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
+  function rgb2hex(c) { return "#" + c.map(function (v) { v = Math.round(clamp(v, 0, 255)); return (v < 16 ? "0" : "") + v.toString(16); }).join(""); }
+  /* k below 1 darkens toward black, above 1 lightens toward white. */
+  function shade(h, k) {
+    var c = hex2rgb(h);
+    return rgb2hex(c.map(function (v) { return k <= 1 ? v * k : v + (255 - v) * (k - 1); }));
+  }
+  function mixHex(a, b, t) { var x = hex2rgb(a), y = hex2rgb(b); return rgb2hex(x.map(function (v, i) { return lerp(v, y[i], t); })); }
+
+  function makeLeafSprites(greens, shapes) {
+    var out = [];
+    for (var si = 0; si < shapes.length; si++) {
+      for (var ci = 0; ci < greens.length; ci++) {
+        var shape = shapes[si];
+        var c = document.createElement("canvas"); c.width = 40; c.height = 24;
+        var g = c.getContext("2d");
+        var tip = shape === 2 ? 31 : 37, wid = shape === 1 ? 5.5 : shape === 2 ? 1 : shape === 3 ? 8 : 2.5;
+        g.beginPath(); g.moveTo(4, 12);
+        g.quadraticCurveTo(14, wid, tip, 12); g.quadraticCurveTo(14, 24 - wid, 4, 12); g.closePath();
+        var gr = g.createLinearGradient(0, 2, 0, 22);
+        gr.addColorStop(0, "#ffffff"); gr.addColorStop(0.5, greens[ci]); gr.addColorStop(1, "#12301a");
+        g.fillStyle = greens[ci]; g.fill();
+        g.globalAlpha = 0.32; g.fillStyle = gr; g.fill(); g.globalAlpha = 1;
+        g.strokeStyle = "rgba(14,40,16,0.45)"; g.lineWidth = 1; g.stroke();
+        if (shape !== 3) { g.strokeStyle = "rgba(14,40,16,0.4)"; g.beginPath(); g.moveTo(4, 12); g.lineTo(tip - 4, 12); g.stroke(); }
+        out.push(c);
       }
     }
-    g.fillStyle = "rgba(255,240,170,0.16)";
-    for (var k = 0; k < 14; k++) { g.beginPath(); g.arc(52 + r() * 40, 46 + r() * 34, 2 + r() * 4, 0, TAU); g.fill(); }
-    g.fillStyle = "rgba(12,26,12,0.28)";
-    for (k = 0; k < 10; k++) { g.beginPath(); g.arc(50 + r() * 60, 96 + r() * 30, 3 + r() * 5, 0, TAU); g.fill(); }
-    return c;
+    return out;
+  }
+  function mkRng(seed) {
+    var a = (seed >>> 0) || 1;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   }
 
   function createHarvest(opts) {
@@ -54,8 +82,34 @@
     var stepEls = { chop: document.getElementById("stepChop"), delimb: document.getElementById("stepDelimb"), saw: document.getElementById("stepSaw") };
 
     var seedUrl = /[?&]seed=(\d+)/.exec(root.location.search);
-    var game = new L.Harvest(seedUrl ? parseInt(seedUrl[1], 10) : null);
-    var sprites = [makeLeafSprite(1), makeLeafSprite(2), makeLeafSprite(3)];
+    var order = (root.Game && root.Game.Farm && root.Game.Farm.WOOD_ORDER) || ["pine", "oak", "walnut"];
+    var woodUrl = /[?&]wood=(\w+)/.exec(root.location.search);
+    function pickWood(seed) {
+      if (woodUrl && order.indexOf(woodUrl[1]) >= 0) return woodUrl[1];
+      return seed == null ? order[Math.floor(Math.random() * order.length)] : order[seed % order.length];
+    }
+    var seed0 = seedUrl ? parseInt(seedUrl[1], 10) : null;
+    var game = new L.Harvest(seed0, pickWood(seed0));
+    var foliageCache = {}, foliageSeed = -1, looks = {};
+
+    /* The look of one wood: bark colours and leaf sprites, derived once from the farm's wood data. */
+    function lookOf(woodId) {
+      var k = looks[woodId];
+      if (k) return k;
+      var farmWoods = root.Game && root.Game.Farm && root.Game.Farm.WOODS;
+      var w = (farmWoods && farmWoods[woodId]) || FALLBACK_WOOD;
+      var greens = [], i;
+      for (i = 0; i < 8; i++) greens.push(mixHex(shade(w.leaf, 0.6), shade(w.leaf2, 1.3), i / 7));
+      var style = LEAF_STYLES[w.shape] || LEAF_STYLES.round;
+      k = looks[woodId] = {
+        name: w.name, trunk: w.trunk, shape: w.shape,
+        bark: [shade(w.trunk, 0.3), shade(w.trunk, 0.62), shade(w.trunk, 0.9), shade(w.trunk, 0.66), shade(w.trunk, 0.28)],
+        limb: shade(w.trunk, 0.5), twig: shade(w.trunk, 0.6), limbHi: mixHex(w.trunk, "#ffffff", 0.18),
+        sprites: makeLeafSprites(greens, style.shapes)
+      };
+      return k;
+    }
+    function look() { return lookOf(game.tree.wood); }
 
     var running = false, W = 300, Hh = 300, dpr = 1;
     var T = 0;                         // clock, seconds
@@ -338,55 +392,43 @@
       function m(a) { return a[i] * (1 - f) + a[i + 1] * f; }
       return { W: m(tr.W), l: m(tr.left), r: m(tr.right) };
     }
+    /* The trunk's outline is the wood that is left: each edge is pulled in by the
+       notch cut from it, so a notch is an opening you can see the sky through. */
     function trunkPoly(h0, h1, yoff) {
       var tr = game.trunk, i, e;
       g.beginPath();
-      e = edgeAt(h0); g.moveTo(-e.W / 2, h0 - yoff);
-      for (i = Math.ceil(h0 / tr.dh + 1e-6); i * tr.dh < h1 - 1e-6; i++) g.lineTo(-tr.W[i] / 2, i * tr.dh - yoff);
-      e = edgeAt(h1); g.lineTo(-e.W / 2, h1 - yoff); g.lineTo(e.W / 2, h1 - yoff);
-      for (i = Math.floor(h1 / tr.dh - 1e-6); i * tr.dh > h0 + 1e-6; i--) g.lineTo(tr.W[i] / 2, i * tr.dh - yoff);
-      e = edgeAt(h0); g.lineTo(e.W / 2, h0 - yoff);
+      e = edgeAt(h0); g.moveTo(-e.W / 2 + e.l, h0 - yoff);
+      for (i = Math.ceil(h0 / tr.dh + 1e-6); i * tr.dh < h1 - 1e-6; i++) g.lineTo(-tr.W[i] / 2 + tr.left[i], i * tr.dh - yoff);
+      e = edgeAt(h1); g.lineTo(-e.W / 2 + e.l, h1 - yoff); g.lineTo(e.W / 2 - e.r, h1 - yoff);
+      for (i = Math.floor(h1 / tr.dh - 1e-6); i * tr.dh > h0 + 1e-6; i--) g.lineTo(tr.W[i] / 2 - tr.right[i], i * tr.dh - yoff);
+      e = edgeAt(h0); g.lineTo(e.W / 2 - e.r, h0 - yoff);
       g.closePath();
     }
-    function wedges(h0, h1, yoff) {
-      var tr = game.trunk, side, i, run;
+    /* A thin pale line along the remaining wood where it was cut: the cut face seen edge on. */
+    function notchEdges(h0, h1, yoff) {
+      var tr = game.trunk, side, i, on;
+      g.save(); g.lineCap = "round"; g.lineJoin = "round";
+      g.strokeStyle = "rgba(238,212,158,0.92)"; g.lineWidth = 0.024;
       for (side = -1; side <= 1; side += 2) {
         var arr = side < 0 ? tr.left : tr.right;
-        run = false;
-        var i0 = Math.max(0, Math.floor(h0 / tr.dh)), i1 = Math.min(tr.n - 1, Math.ceil(h1 / tr.dh));
-        for (i = i0; i <= i1 + 1; i++) {
-          var d = i <= i1 ? arr[i] : 0, h = i * tr.dh;
-          var inside = d > 0.004 && h >= h0 - 1e-6 && h <= h1 + 1e-6;
-          if (inside && !run) { run = { a: i, pts: [] }; }
-          if (inside) run.pts.push(i);
-          if (!inside && run) { fillWedge(side, run.pts, arr, yoff); run = false; }
+        on = false; g.beginPath();
+        for (i = Math.max(0, Math.floor(h0 / tr.dh)); i <= Math.min(tr.n - 1, Math.ceil(h1 / tr.dh)); i++) {
+          var h = i * tr.dh;
+          if (arr[i] > 0.004 && h >= h0 - 1e-6 && h <= h1 + 1e-6) {
+            var x = side * (tr.W[i] / 2 - arr[i]) - side * 0.014, y = h - yoff;
+            if (!on) { g.moveTo(x, y); on = true; } else g.lineTo(x, y);
+          } else on = false;
         }
+        g.stroke();
       }
-    }
-    function fillWedge(side, idx, arr, yoff) {
-      var tr = game.trunk, j, e0 = idx[0], e1 = idx[idx.length - 1];
-      var deep = 0;
-      for (j = 0; j < idx.length; j++) deep = Math.max(deep, arr[idx[j]]);
-      g.beginPath();
-      g.moveTo(side * tr.W[e0] / 2, e0 * tr.dh - yoff);
-      for (j = 0; j < idx.length; j++) { var i = idx[j]; g.lineTo(side * (tr.W[i] / 2 - arr[i]), i * tr.dh - yoff); }
-      g.lineTo(side * tr.W[e1] / 2, e1 * tr.dh - yoff);
-      g.closePath();
-      var gx = side * (tr.W[e0] / 2 - deep * 0.5);
-      var gr = g.createLinearGradient(side * tr.W[e0] / 2, 0, gx - side * deep * 0.5, 0);
-      gr.addColorStop(0, "#f0d19a"); gr.addColorStop(0.55, "#d6aa6c"); gr.addColorStop(1, "#8a5f33");
-      g.fillStyle = gr; g.fill();
-      g.strokeStyle = "rgba(52,30,12,0.75)"; g.lineWidth = 0.028;
-      g.beginPath();
-      for (j = 0; j < idx.length; j++) { var k = idx[j], xx = side * (tr.W[k] / 2 - arr[k]), yy = k * tr.dh - yoff; if (j === 0) g.moveTo(xx, yy); else g.lineTo(xx, yy); }
-      g.stroke();
+      g.restore();
     }
     function drawTrunkPart(h0, h1, yoff) {
       if (h1 - h0 < 1e-4) return;
       trunkPoly(h0, h1, yoff);
-      var gr = g.createLinearGradient(-0.62, 0, 0.62, 0);
-      gr.addColorStop(0, "#2c1b0e"); gr.addColorStop(0.22, "#5d3b20"); gr.addColorStop(0.46, "#7f5430");
-      gr.addColorStop(0.7, "#5a3a1f"); gr.addColorStop(1, "#27180c");
+      var gr = g.createLinearGradient(-0.75, 0, 0.75, 0), bk = look().bark;
+      gr.addColorStop(0, bk[0]); gr.addColorStop(0.22, bk[1]); gr.addColorStop(0.46, bk[2]);
+      gr.addColorStop(0.7, bk[3]); gr.addColorStop(1, bk[4]);
       g.fillStyle = gr; g.fill();
       g.save(); g.clip();
       g.lineCap = "round";
@@ -402,10 +444,10 @@
         }
         g.stroke();
       }
-      wedges(h0, h1, yoff);
       g.restore();
       trunkPoly(h0, h1, yoff);
       g.strokeStyle = "rgba(20,11,4,0.7)"; g.lineWidth = 0.03; g.stroke();
+      notchEdges(h0, h1, yoff);
     }
     /* The splintered hinge where the tree let go; `up` is the stump side. */
     function drawSplinter(up, yoff) {
@@ -427,60 +469,135 @@
       var f = clamp(Y / (HC.TRUNK_H + 1), 0, 1.2);
       return swayAmp * Math.pow(f, 1.6) * Math.sin(T * 1.5 + Y * 0.35);
     }
-    function branchCoords(b, k, yoff) { var p = b.pts[k]; return { x: b.s * p.p, y: b.y + p.q - yoff }; }
-    function branchAtArc(b, s) {
-      var pts = b.pts;
-      for (var k = 0; k < pts.length - 1; k++) {
-        if (s <= pts[k + 1].s || k === pts.length - 2) {
-          var f = clamp((s - pts[k].s) / (pts[k + 1].s - pts[k].s), 0, 1);
-          return { x: b.s * lerp(pts[k].p, pts[k + 1].p, f), y: b.y + lerp(pts[k].q, pts[k + 1].q, f) };
-        }
-      }
-      return { x: 0, y: b.y };
+    /* ---------- limbs, twigs and leaves ----------
+       Each branch is the model's main limb (the part you cut) plus twigs that
+       fork off it and small leaves along the twigs. The twigs and leaves are
+       only for the eye: they are generated once per branch from the tree's seed,
+       and they go wherever the limb goes (cut it and everything past the cut
+       leaves with it). Geometry is kept in the tree's local frame (x across,
+       y up), the same frame the trunk is drawn in. */
+    function arcPoint(b, s) {
+      var pts = b.pts, k = 0;
+      while (k < pts.length - 2 && s > pts[k + 1].s) k++;
+      var f = clamp((s - pts[k].s) / (pts[k + 1].s - pts[k].s), 0, 1);
+      var dx = b.s * (pts[k + 1].p - pts[k].p), dy = pts[k + 1].q - pts[k].q;
+      return { x: b.s * lerp(pts[k].p, pts[k + 1].p, f), y: b.y + lerp(pts[k].q, pts[k + 1].q, f), ang: Math.atan2(dy, dx) };
     }
-    function drawBranch(b, stub, yoff, swayOn) {
-      var pts = b.pts, k, a, c;
-      g.lineCap = "round"; g.lineJoin = "round";
-      var segs = [];
-      for (k = 0; k < pts.length; k++) {
-        if (pts[k].s > stub && k > 0) {
-          var f = (stub - pts[k - 1].s) / (pts[k].s - pts[k - 1].s);
-          var A = branchAtArc(b, stub); segs.push({ x: A.x, y: A.y, s: stub }); break;
-        }
-        segs.push({ x: b.s * pts[k].p, y: b.y + pts[k].q, s: pts[k].s });
+    function makeTwig(r, x0, y0, ang, len, w0, s0, dens, size, upward) {
+      var n = 4, pts = [], x = x0, y = y0, i;
+      for (i = 0; i <= n; i++) {
+        pts.push({ x: x, y: y, w: Math.max(0.011, w0 * (1 - 0.85 * i / n)), a: ang });
+        ang += (Math.PI / 2 - ang) * upward + (r() - 0.5) * 0.3;
+        x += Math.cos(ang) * len / n; y += Math.sin(ang) * len / n;
       }
-      if (segs.length < 2) return;
-      for (var pass = 0; pass < 2; pass++) {
-        for (k = 0; k < segs.length - 1; k++) {
-          a = segs[k]; c = segs[k + 1];
-          var th = L.branchThick(b, (a.s + c.s) / 2);
-          g.strokeStyle = pass ? "rgba(150,106,62,0.55)" : "#432b17";
-          g.lineWidth = pass ? th * 0.38 : th;
-          var ax = a.x + (swayOn ? swayX(a.y) : 0), cx2 = c.x + (swayOn ? swayX(c.y) : 0);
-          g.beginPath();
-          g.moveTo(ax, a.y - yoff - (pass ? th * 0.14 : 0)); g.lineTo(cx2, c.y - yoff - (pass ? th * 0.14 : 0)); g.stroke();
-        }
+      var leaves = [], nL = Math.max(3, Math.round(len / 0.085 * dens));
+      for (i = 0; i < nL; i++) {
+        var t = clamp(0.22 + 0.78 * (i + r() * 0.7) / nL, 0, 1), k = Math.min(n - 1, Math.floor(t * n)), f = t * n - k;
+        var px = lerp(pts[k].x, pts[k + 1].x, f), py = lerp(pts[k].y, pts[k + 1].y, f);
+        var side = i % 2 ? 1 : -1, la = pts[k].a + side * (0.45 + r() * 0.75);
+        leaves.push({ x: px, y: py, a: la, size: size * (0.7 + r() * 0.65), u: r() });
       }
-      // the cut end of a stub shows pale wood
-      if (stub < b.len - 0.02) {
-        var e = segs[segs.length - 1], th2 = L.branchThick(b, stub);
+      var end = pts[n];
+      for (i = -1; i <= 1; i++) leaves.push({ x: end.x, y: end.y, a: end.a + i * 0.55 + (r() - 0.5) * 0.3, size: size * (0.8 + r() * 0.5), u: r() });
+      return { s0: s0, pts: pts, leaves: leaves };
+    }
+    function foliage(b) {
+      if (foliageSeed !== game.seed) { foliageCache = {}; foliageSeed = game.seed; }
+      var f = foliageCache[b.id];
+      if (f) return f;
+      var r = mkRng(game.seed * 131 + b.id * 977 + 7), twigs = [], F = game.tree.type.foliage;
+      var hi = clamp(b.y / HC.TRUNK_H, 0, 1);
+      var dens = b.leader ? F.dens * 1.7 : F.dens + F.densRise * hi, size = b.leader ? F.size * 1.3 : F.size + F.sizeRise * hi;
+      var nT = b.leader ? F.leaderTwigs : F.twigs[0] + Math.round((0.5 * hi + 0.5 * r()) * (F.twigs[1] - F.twigs[0]));
+      var i, side = r() < 0.5 ? -1 : 1;
+      function span(range) { return range[0] + r() * (range[1] - range[0]); }
+      for (i = 0; i < nT; i++) {
+        var s0 = b.len * (0.3 + 0.62 * (i + r() * 0.4) / nT), P = arcPoint(b, s0);
+        var len = span(F.twigLen) * (1.15 - 0.4 * s0 / b.len) * (b.leader ? 1.15 : 1);
+        var tw = makeTwig(r, P.x, P.y, P.ang + side * span(F.spread), len, L.branchThick(b, s0) * 0.55, s0, dens, size, F.upward);
+        twigs.push(tw);
+        if (len > 0.42) {                              // a sprig forking off the twig
+          var m = tw.pts[2];
+          twigs.push(makeTwig(r, m.x, m.y, m.a - side * (0.6 + r() * 0.4), 0.2 + r() * 0.12, m.w * 0.7, s0, dens, size * 0.9, F.upward));
+        }
+        side = -side;
+      }
+      var T = arcPoint(b, b.len);                      // the tip forks in two
+      for (i = -1; i <= 1; i += 2) {
+        twigs.push(makeTwig(r, T.x, T.y, T.ang + i * (0.4 + r() * 0.3), 0.32 + r() * 0.28, L.branchThick(b, b.len) * 0.9, b.len, dens, size, F.upward));
+      }
+      f = { twigs: twigs };
+      foliageCache[b.id] = f;
+      return f;
+    }
+    /* A tapered stroke along points that carry a width: limbs and twigs that
+       thin out as they go, not lines of one thickness. */
+    function taperStroke(pts, swayOn, fill, hilite) {
+      var n = pts.length, left = [], right = [], i;
+      for (i = 0; i < n; i++) {
+        var a = pts[Math.max(0, i - 1)], c = pts[Math.min(n - 1, i + 1)];
+        var tx = c.x - a.x, ty = c.y - a.y, tl = Math.sqrt(tx * tx + ty * ty) || 1;
+        var nx = -ty / tl, ny = tx / tl, hw = pts[i].w / 2, sw = swayOn ? swayX(pts[i].y) : 0;
+        left.push([pts[i].x + sw + nx * hw, pts[i].y + ny * hw]);
+        right.push([pts[i].x + sw - nx * hw, pts[i].y - ny * hw]);
+      }
+      g.beginPath(); g.moveTo(left[0][0], left[0][1]);
+      for (i = 1; i < n; i++) g.lineTo(left[i][0], left[i][1]);
+      for (i = n - 1; i >= 0; i--) g.lineTo(right[i][0], right[i][1]);
+      g.closePath(); g.fillStyle = fill; g.fill();
+      if (hilite) {
+        g.beginPath(); g.moveTo(left[0][0], left[0][1]);
+        for (i = 1; i < n; i++) g.lineTo(left[i][0], left[i][1]);
+        g.strokeStyle = hilite; g.lineWidth = 0.014; g.stroke();
+      }
+    }
+    /* The main limb between arcs a0 and a1, as points with widths. */
+    function limbPoints(b, a0, a1) {
+      var out = [], k, P = arcPoint(b, a0);
+      out.push({ x: P.x, y: P.y, w: L.branchThick(b, a0) });
+      for (k = 0; k < b.pts.length; k++) {
+        if (b.pts[k].s <= a0 + 1e-6 || b.pts[k].s >= a1 - 1e-6) continue;
+        out.push({ x: b.s * b.pts[k].p, y: b.y + b.pts[k].q, w: L.branchThick(b, b.pts[k].s) });
+      }
+      P = arcPoint(b, a1);
+      out.push({ x: P.x, y: P.y, w: L.branchThick(b, a1) });
+      return out;
+    }
+    /* Limb and twigs (the brown, behind the trunk) for the part of branch b from
+       arc a0 to a1. yoff slides the local frame so y = 0 is the break plane. */
+    function drawBranch(b, a0, a1, yoff, swayOn) {
+      if (a1 - a0 < 0.02) return;
+      var f = foliage(b), i, tw;
+      g.save(); g.translate(0, -yoff); g.lineJoin = "round";
+      for (i = 0; i < f.twigs.length; i++) {
+        tw = f.twigs[i];
+        if (tw.s0 < a0 - 1e-6 || tw.s0 > a1 + 1e-6) continue;
+        taperStroke(tw.pts, swayOn, look().twig, null);
+      }
+      taperStroke(limbPoints(b, a0, a1), swayOn, look().limb, look().limbHi);
+      if (a1 < b.len - 0.02) {                        // a cut end shows pale wood
+        var e = arcPoint(b, a1);
         g.fillStyle = "#e3c286";
-        g.beginPath(); g.arc(e.x + (swayOn ? swayX(e.y) : 0), e.y - yoff, th2 * 0.5, 0, TAU); g.fill();
+        g.beginPath(); g.arc(e.x + (swayOn ? swayX(e.y) : 0), e.y, L.branchThick(b, a1) * 0.5, 0, TAU); g.fill();
       }
+      g.restore();
     }
-    function drawLeaves(b, stub, yoff, swayOn) {
-      var fr = b.leader ? [1.0, 0.62, 0.3] : b.y > 4.4 ? [1.0, 0.74] : [1.0], i;
-      for (i = 0; i < fr.length; i++) {
-        var s = b.len * fr[i];
-        if (s > stub + 0.02) continue;
-        var p = branchAtArc(b, s), size = b.leaf * (b.leader ? 1.4 : 1.05) * (1 - i * 0.22);
-        var x = p.x + (swayOn ? swayX(p.y) : 0), y = p.y - yoff;
-        g.save(); g.translate(x, y); g.scale(1, -1);
-        g.rotate((b.id * 0.9 + i * 1.7) * 0.3 + (swayOn ? Math.sin(T * 1.3 + b.id) * 0.04 : 0));
-        var spr = sprites[(b.id + i) % 3];
-        g.drawImage(spr, -size, -size, size * 2, size * 2);
-        g.restore();
+    function drawLeaves(b, a0, a1, yoff, swayOn) {
+      if (a1 - a0 < 0.02) return;
+      var f = foliage(b), i, j, tw, lf, spr = look().sprites;
+      g.save(); g.translate(0, -yoff);
+      for (i = 0; i < f.twigs.length; i++) {
+        tw = f.twigs[i];
+        if (tw.s0 < a0 - 1e-6 || tw.s0 > a1 + 1e-6) continue;
+        for (j = 0; j < tw.leaves.length; j++) {
+          lf = tw.leaves[j];
+          var k = lf.size / 32, x = lf.x + (swayOn ? swayX(lf.y) * 1.1 : 0);
+          g.save(); g.translate(x, lf.y); g.scale(1, -1); g.rotate(-lf.a - (swayOn ? Math.sin(T * 2 + j + b.id) * 0.06 : 0));
+          g.drawImage(spr[Math.min(spr.length - 1, Math.floor(lf.u * spr.length))], -4 * k, -12 * k, 40 * k, 24 * k);
+          g.restore();
+        }
       }
+      g.restore();
     }
     function limbStub(b) {
       var ls = game.limbs;
@@ -495,24 +612,24 @@
         for (i = 0; i < br.length; i++) {
           b = br[i];
           if (b.y < hStar || b.crushed) continue;
-          drawBranch(b, withLimbs ? limbStub(b) : b.len, hStar, swayOn);
+          drawBranch(b, 0, withLimbs ? limbStub(b) : b.len, hStar, swayOn);
         }
         drawTrunkPart(hStar, HC.TRUNK_H, hStar);
         if (hStar > 0) drawSplinter(false, hStar);
         for (i = 0; i < br.length; i++) {
           b = br[i];
           if (b.y < hStar || b.crushed) continue;
-          drawLeaves(b, withLimbs ? limbStub(b) : b.len, hStar, swayOn);
+          drawLeaves(b, 0, withLimbs ? limbStub(b) : b.len, hStar, swayOn);
         }
       });
     }
     function drawStump(hStar) {
       var br = game.tree.branches, b, i;
       frame(sx(0), sy(0), 0, function () {
-        for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) drawBranch(b, b.len, 0, false); }
+        for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) drawBranch(b, 0, b.len, 0, false); }
         drawTrunkPart(0, hStar, 0);
         drawSplinter(true, 0);
-        for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) drawLeaves(b, b.len, 0, false); }
+        for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) drawLeaves(b, 0, b.len, 0, false); }
       });
     }
     function drawShadow(x0, x1, y) {
@@ -522,29 +639,20 @@
       gr.addColorStop(0, "rgba(8,5,2,0.55)"); gr.addColorStop(1, "rgba(8,5,2,0)");
       g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill(); g.restore();
     }
+    /* A limb part that has been cut off: drawn in the log's frame, where it grew,
+       then carried by the piece's own motion (moved from where it was cut, and
+       turned about the cut). */
     function drawPieces() {
-      var ps = game.pieces;
+      var ps = game.pieces, lg = game.log;
+      if (!lg) return;
       for (var i = 0; i < ps.length; i++) {
-        var p = ps[i], b = p.b, fade = clamp((2.2 - p.age) / 0.6, 0, 1);
+        var p = ps[i], fade = clamp((2.2 - p.age) / 0.6, 0, 1);
         g.save(); g.globalAlpha = fade;
-        g.translate(sx(p.ox), sy(p.oy)); g.rotate(-p.rot); g.scale(cam.s, -cam.s);
-        g.lineCap = "round";
-        var k;
-        for (k = 0; k < p.pts.length - 1; k++) {
-          g.strokeStyle = "#432b17"; g.lineWidth = L.branchThick(b, (p.pts[k].s + p.pts[k + 1].s) / 2);
-          g.beginPath(); g.moveTo(p.pts[k].x, p.pts[k].y); g.lineTo(p.pts[k + 1].x, p.pts[k + 1].y); g.stroke();
-        }
-        var fr = b.leader ? [1.0, 0.62] : b.y > 4.4 ? [1.0, 0.74] : [1.0];
-        for (k = 0; k < fr.length; k++) {
-          var s = b.len * fr[k];
-          if (s <= p.from) continue;
-          var q = branchAtArc(b, s), a0 = branchAtArc(b, p.from);
-          var wx = (q.x - a0.x) * (game.dir ? 1 : 1), wy = q.y - a0.y;
-          // piece points are stored in world orientation, so place leaves by matching the polyline
-          var idx = Math.min(p.pts.length - 1, Math.max(0, Math.round((s - p.from) / (b.len - p.from + 1e-6) * (p.pts.length - 1))));
-          var P = p.pts[idx], size = b.leaf * 1.05 * (1 - k * 0.22);
-          g.save(); g.translate(P.x, P.y); g.scale(1, -1); g.drawImage(sprites[(b.id + k) % 3], -size, -size, size * 2, size * 2); g.restore();
-        }
+        g.translate(sx(p.ox), sy(p.oy)); g.rotate(-p.rot); g.translate(-sx(p.ox0), -sy(p.oy0));
+        frame(sx(lg.bx), sy(lg.by), lg.dir * Math.PI / 2, function () {
+          drawBranch(p.b, p.from, p.b.len, lg.hStar, false);
+          drawLeaves(p.b, p.from, p.b.len, lg.hStar, false);
+        });
         g.restore();
       }
     }
@@ -689,9 +797,9 @@
       }
       g.closePath();
       if (rise > 0) { g.shadowColor = "rgba(232,163,61,0.8)"; g.shadowBlur = 24 * rise; }
-      var gr = g.createLinearGradient(0, cy - saw.ty * 0.5, 0, cy + saw.ty * 0.5);
-      gr.addColorStop(0, "#3a2414"); gr.addColorStop(0.22, "#6a4326"); gr.addColorStop(0.5, "#8b5d34");
-      gr.addColorStop(0.78, "#5f3d22"); gr.addColorStop(1, "#2f1d0f");
+      var gr = g.createLinearGradient(0, cy - saw.ty * 0.5, 0, cy + saw.ty * 0.5), bk = look().bark;
+      gr.addColorStop(0, bk[0]); gr.addColorStop(0.22, bk[1]); gr.addColorStop(0.5, bk[2]);
+      gr.addColorStop(0.78, bk[3]); gr.addColorStop(1, bk[4]);
       g.fillStyle = gr; g.fill();
       g.shadowBlur = 0;
       g.save(); g.clip();
@@ -777,17 +885,24 @@
       if (uiT > 0.1) { uiT = 0; updateHud(); }
     }
 
-    function render(dt) {
+    /* dbg (tests only): { still, noTree, noParts } skip the shake, the tree, the particles;
+       { flat: "#rrggbb" } paints that one colour instead of the sky and ground, so a test can
+       tell tree pixels from background pixels without depending on what the scenery happens to be. */
+    function render(dt, dbg) {
+      dbg = dbg || {};
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       var shx = 0, shy = 0;
-      if (shake > 0) { shx = (Math.random() - 0.5) * 7 * shake; shy = (Math.random() - 0.5) * 7 * shake; }
+      if (shake > 0 && !dbg.still) { shx = (Math.random() - 0.5) * 7 * shake; shy = (Math.random() - 0.5) * 7 * shake; }
       g.translate(shx, shy);
       g.fillStyle = "#120d09"; g.fillRect(-10, -10, W + 20, Hh + 20);
       var groundPy = sy(0);
       if (sawBlend < 1 || game.phase !== "saw" && game.phase !== "done") {
-        drawSky(groundPy); drawGround(groundPy);
+        if (dbg.flat) { g.fillStyle = dbg.flat; g.fillRect(-10, -10, W + 20, Hh + 20); }
+        else { drawSky(groundPy); drawGround(groundPy); }
         var ph = game.phase;
-        if (ph === "chop") {
+        if (dbg.noTree) {
+          // tests only: the scene without the tree, to see what is behind it
+        } else if (ph === "chop") {
           drawShadow(-1, 1, 0.05);
           drawUpper(0, 0, 0, 0, false);
         } else if (ph === "crack") {
@@ -804,8 +919,7 @@
           drawUpper(lg.bx, lg.by, lg.dir * Math.PI / 2, game.hStar, true);
           drawPieces();
         }
-        drawParts(dt);
-        drawTrail();
+        if (!dbg.noParts) { drawParts(dt); drawTrail(); }
       }
       if (game.phase === "saw" || game.phase === "done") {
         if (sawBlend < 1) { g.save(); drawSaw(smooth(sawBlend)); g.restore(); }
@@ -826,12 +940,12 @@
     }
 
     function begin() {
-      setHint("<b>Swipe into the trunk from the side.</b> Cuts land where your finger is.<br />Quick swipes bite. Keep chopping until it cracks.");
+      setHint(look().name + ". <b>Swipe into the trunk from the side.</b> Cuts land where your finger is.<br />Quick swipes bite. Keep chopping until it cracks.");
       toastEl.classList.remove("on"); toastT = 0;
       parts.length = 0; trail.length = 0; sawBlend = 0; handoff = -1; swayAmp = 0.05; shake = 0;
       cam = camChop(); camStart = camEnd = null; layoutSaw(); updateHud();
     }
-    function reset() { game.reset(); begin(); }
+    function reset() { game.reset(null, pickWood(null)); begin(); }
     function show() {
       if (game.phase === "done") reset();         // that harvest went to the lathe; start a fresh tree
       resize();

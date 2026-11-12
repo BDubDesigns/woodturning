@@ -37,7 +37,7 @@ function chopDown(h, y) {
   while (h.phase === "chop" && n++ < 60) swing(h, -1, y, 1.25);
   return n;
 }
-function newHarvest(seed) { const h = new L.Harvest(seed); clock = 0; return h; }
+function newHarvest(seed, wood) { const h = new L.Harvest(seed, wood); clock = 0; return h; }
 
 /* ---------------- chopping ---------------- */
 
@@ -356,15 +356,17 @@ test("a third kerf start replaces the shallowest unfinished one, never a finishe
 });
 
 test("every tree can be played through to a blank, whichever way it falls", () => {
+  const woods = Object.keys(L.TREES);
   for (let seed = 1; seed <= 12; seed++) {
-    const h = newHarvest(seed);
+    const wood = woods[seed % woods.length];
+    const h = newHarvest(seed, wood);
     const side = seed % 2 ? -1 : 1, y = 0.9 + (seed % 5) * 0.5;
     let n = 0;
     while (h.phase === "chop" && n++ < 60) swing(h, side, y, 1.3);
     assert.equal(h.dir, side, "seed " + seed + " falls toward the cut");
     let t = 0; while (h.phase !== "delimb" && t < 10) { h.step(1 / 60); t += 1 / 60; }
     assert.equal(h.phase, "delimb", "seed " + seed + " lands");
-    assert.ok(h.limbs.length >= 3, "seed " + seed + " has limbs to clear");
+    assert.ok(h.limbs.length >= 3, "seed " + seed + " (" + wood + ") has limbs to clear");
     let g = 0;
     while (h.phase === "delimb" && g++ < 100) {
       const limb = h.limbs.find((l) => l.alive);
@@ -375,6 +377,7 @@ test("every tree can be played through to a blank, whichever way it falls", () =
     rub(h, h.log.len * 0.74, 14, 1.0);
     assert.equal(h.phase, "done", "seed " + seed + " is sawn");
     assert.ok(h.blank.lengthRatio > 0.4 && h.blank.lengthRatio < 0.5);
+    assert.equal(h.blank.species, wood, "the blank remembers its wood");
   }
 });
 
@@ -382,6 +385,189 @@ test("a harvest is deterministic from its seed", () => {
   const a = L.makeTree(99), b = L.makeTree(99), c = L.makeTree(100);
   assert.deepEqual(a.branches.map((x) => x.y), b.branches.map((x) => x.y));
   assert.notDeepEqual(a.branches.map((x) => x.y), c.branches.map((x) => x.y));
+});
+
+/* ---------------- delimb: what counts as clean ---------------- */
+
+/* A swipe across a limb at arc s, `off` radians off the limb's own direction
+   (PI/2 is straight across; small is a shallow crossing). */
+function slashAt(h, limb, s, off, dur) {
+  const p = h._pointAt(limb, s), q = h._pointAt(limb, Math.min(limb.b.len, s + 0.1)), r = h._pointAt(limb, Math.max(0, s - 0.1));
+  const a = Math.atan2(q.y - r.y, q.x - r.x) + off, dx = Math.cos(a) * 0.5, dy = Math.sin(a) * 0.5;
+  gesture(h, [[p.x - dx, p.y - dy], [p.x + dx, p.y + dy]], dur == null ? 0.1 : dur);
+}
+/* The counter and the phase gate agree at every moment. */
+function assertGateMatchesCounter(h, what) {
+  assert.equal(h.limbsLeft() === 0, h.phase !== "delimb", what + ": counter " + h.limbsLeft() + " but phase " + h.phase);
+}
+
+test("clean means one thing: at most 2x FLUSH is left, and 2x FLUSH is the threshold", () => {
+  assert.equal(H.CLEAN, 2 * H.FLUSH);
+  const h = felled(7), limb = h.limbs[0];
+  limb.stub = H.CLEAN;
+  assert.ok(h.limbClean(limb));
+  limb.stub = H.CLEAN + 0.01;
+  assert.ok(!h.limbClean(limb));
+});
+
+test("a limb cut to a short stub (up to 2x FLUSH) counts as clean and the saw triggers", () => {
+  const h = felled(7);
+  let guard = 0, sawShortStub = false;
+  while (h.phase === "delimb" && guard++ < 150) {
+    const limb = h.limbs.find((l) => !h.limbClean(l));
+    // cut each limb where the stub left is longer than FLUSH but within 2x FLUSH
+    for (let k = 0; k < 8 && !h.limbClean(limb); k++) slashAt(h, limb, Math.min(limb.stub * 0.9, H.CLEAN * 0.95), Math.PI / 2);
+    if (limb.stub > H.FLUSH && limb.stub <= H.CLEAN) sawShortStub = true;
+    assertGateMatchesCounter(h, "after a cut");
+  }
+  assert.ok(sawShortStub, "at least one limb was left with a stub between FLUSH and 2x FLUSH");
+  assert.equal(h.phase, "saw", "the saw triggers");
+  assert.equal(h.limbsLeft(), 0);
+});
+
+test("a stub just over 2x FLUSH is not clean yet, and one more cut finishes it", () => {
+  const h = felled(7), limb = h.limbs[0];
+  for (let k = 0; k < 8 && limb.stub === limb.b.len; k++) slashAt(h, limb, H.CLEAN + 0.05, Math.PI / 2);
+  assert.ok(limb.stub > H.CLEAN && !h.limbClean(limb));
+  assert.ok(h.limbsLeft() >= 1);
+  for (let k = 0; k < 8 && !h.limbClean(limb); k++) slashAt(h, limb, Math.min(limb.stub * 0.9, 0.1), Math.PI / 2);
+  assert.ok(h.limbClean(limb));
+});
+
+test("every limb, the leader included, can be cut clean by swipes across it, and the phase reaches saw", () => {
+  for (const off of [Math.PI / 2, 0.9, 0.25]) {       // straight across, diagonal, and a shallow crossing
+    const h = felled(7);
+    assert.ok(h.limbs.some((l) => l.b.leader), "the leader is one of the limbs");
+    let guard = 0;
+    while (h.phase === "delimb" && guard++ < 200) {
+      const limb = h.limbs.find((l) => !h.limbClean(l));
+      slashAt(h, limb, Math.min(limb.stub * 0.9, 0.12), off);
+      assertGateMatchesCounter(h, "off " + off);
+    }
+    assert.equal(h.phase, "saw", "off " + off + ": reaches the saw (limbs left " + h.limbsLeft() + ")");
+    assert.ok(h.limbs.every((l) => l.stub <= H.CLEAN), "every limb is clean, none was skipped");
+    assert.ok(h.limbs.find((l) => l.b.leader).stub <= H.CLEAN, "the leader was cut");
+  }
+});
+
+test("the leader lying along the log is cut by a swipe that runs nearly along it", () => {
+  const h = felled(7), leader = h.limbs.find((l) => l.b.leader);
+  const before = leader.stub;
+  // lying along the log, the leader is close to level: swipe almost level, crossing it at a shallow angle
+  slashAt(h, leader, 0.6, 0.2, 0.14);
+  slashAt(h, leader, 0.6, 0.2, 0.14);
+  slashAt(h, leader, 0.6, 0.2, 0.14);
+  assert.ok(leader.stub < before, "a shallow swipe over the leader cut it, stub " + leader.stub);
+});
+
+test("a swipe that runs alongside a limb without crossing it does nothing", () => {
+  const h = felled(7), limb = h.limbs[0];
+  const p = h._pointAt(limb, limb.b.len * 0.5), q = h._pointAt(limb, limb.b.len * 0.6);
+  gesture(h, [[p.x + 0.4, p.y], [q.x + 0.4, q.y]], 0.1);     // parallel, well beside it
+  assert.equal(limb.stub, limb.b.len);
+});
+
+test("the counter reads 0 exactly when the phase advances, through a whole messy delimb", () => {
+  for (const seed of [3, 7, 11]) {
+    const h = felled(seed);
+    assertGateMatchesCounter(h, "at the start");
+    let guard = 0, left = h.limbsLeft();
+    while (h.phase === "delimb" && guard++ < 300) {
+      const limb = h.limbs.find((l) => !h.limbClean(l));
+      // cut anywhere along the limb, from any side, so stubs of every length turn up
+      slashAt(h, limb, limb.stub * (0.15 + 0.7 * ((guard * 37) % 10) / 10), 0.5 + (guard % 3) * 0.4);
+      assertGateMatchesCounter(h, "seed " + seed + " cut " + guard);
+      assert.ok(h.limbsLeft() <= left, "the counter never goes up");
+      left = h.limbsLeft();
+    }
+    assert.equal(h.phase, "saw", "seed " + seed);
+    assert.equal(h.limbsLeft(), 0);
+  }
+});
+
+test("the snip event reports the same count the counter shows", () => {
+  const h = felled(7); h.drain();
+  let guard = 0;
+  while (h.phase === "delimb" && guard++ < 100) {
+    const limb = h.limbs.find((l) => !h.limbClean(l));
+    slashAt(h, limb, Math.min(limb.stub * 0.9, 0.12), Math.PI / 2);
+    for (const e of h.drain()) if (e.type === "snip") assert.equal(e.left, h.limbsLeft());
+  }
+});
+
+/* ---------------- trees are data, one per wood ---------------- */
+
+function trunkProfile(t) { return [0.5, 1.5, 3, 5, 6.8].map((y) => L.trunkWidth(t, y)); }
+function avg(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
+/* Branch length and angle in the top third of the bare trunk against the bottom third, over many trees. */
+function crownShape(wood) {
+  const lows = [], highs = [], angs = [], counts = [];
+  for (let seed = 1; seed <= 30; seed++) {
+    const t = L.makeTree(seed, wood), br = t.branches.filter((b) => !b.leader);
+    counts.push(br.length);
+    for (const b of br) {
+      angs.push(b.a0);
+      (b.y < H.TRUNK_H / 3 + 0.8 ? lows : b.y > 2 * H.TRUNK_H / 3 ? highs : []).push(b.len);
+    }
+  }
+  return { count: avg(counts), taperRatio: avg(highs) / avg(lows), angle: avg(angs), lenLow: avg(lows) };
+}
+
+test("makeTree takes the wood: pine and oak produce different shapes", () => {
+  const pine = L.makeTree(5, "pine"), oak = L.makeTree(5, "oak");
+  assert.equal(pine.wood, "pine"); assert.equal(oak.wood, "oak");
+  assert.notDeepEqual(trunkProfile(pine), trunkProfile(oak), "different trunk shape");
+  // a pine's trunk is slimmer at the base and tapers harder
+  assert.ok(pine.baseW < oak.baseW, "pine base " + pine.baseW + " vs oak " + oak.baseW);
+  assert.ok(pine.topW / pine.baseW < oak.topW / oak.baseW, "pine tapers more");
+  const P = crownShape("pine"), O = crownShape("oak");
+  assert.ok(P.count > O.count * 1.4, "pine has many more branches: " + P.count.toFixed(1) + " vs " + O.count.toFixed(1));
+  assert.ok(P.angle > O.angle + 0.2, "pine boughs leave nearly level: " + P.angle.toFixed(2) + " vs " + O.angle.toFixed(2));
+  assert.ok(P.taperRatio < O.taperRatio - 0.1, "pine's crown is a cone, shorter boughs near the top: " + P.taperRatio.toFixed(2) + " vs " + O.taperRatio.toFixed(2));
+  assert.notDeepEqual(pine.branches.map((b) => b.y), oak.branches.map((b) => b.y), "different branch layout");
+});
+
+test("walnut is a third shape: the stoutest trunk and the heaviest limbs", () => {
+  const w = crownShape("walnut"), o = crownShape("oak"), p = crownShape("pine");
+  const bw = (wood) => avg([1, 2, 3, 4, 5, 6, 7, 8].map((s) => L.makeTree(s, wood).baseW));
+  assert.ok(bw("walnut") > bw("oak") && bw("oak") > bw("pine"));
+  assert.ok(w.count < o.count && o.count < p.count, "fewer, heavier limbs as the trees get stouter");
+  assert.ok(L.TREES.walnut.branch.thick > L.TREES.oak.branch.thick && L.TREES.oak.branch.thick > L.TREES.pine.branch.thick);
+});
+
+test("each wood grows the same every time for the same seed, and differently for another seed", () => {
+  for (const wood of Object.keys(L.TREES)) {
+    const a = L.makeTree(9, wood), b = L.makeTree(9, wood), c = L.makeTree(10, wood);
+    assert.deepEqual(a.branches.map((x) => [x.y, x.len]), b.branches.map((x) => [x.y, x.len]));
+    assert.notDeepEqual(a.branches.map((x) => x.y), c.branches.map((x) => x.y));
+  }
+});
+
+test("an unknown wood grows as the default tree instead of failing", () => {
+  const t = L.makeTree(4, "mahogany"), o = L.makeTree(4, "oak");
+  assert.equal(t.wood, "oak");
+  assert.deepEqual(trunkProfile(t), trunkProfile(o));
+});
+
+test("the farm's woods and the harvest's trees stay in step: a new wood needs data in both", () => {
+  const F = require("../src/js/farm.js");
+  for (const id of F.WOOD_ORDER) {
+    assert.ok(L.TREES[id], "harvest has a tree for the farm's " + id);
+    assert.ok(F.WOODS[id].trunk && F.WOODS[id].leaf && F.WOODS[id].leaf2 && F.WOODS[id].shape, id + " has the colours and shape the renderer reads");
+  }
+  const shapes = { pine: "conifer", oak: "round", walnut: "round" };
+  for (const id in shapes) assert.equal(F.WOODS[id].shape, shapes[id]);
+  for (const id in L.TREES) assert.ok(F.WOODS[id], "farm has a wood for the harvest's " + id);
+});
+
+test("trees of every wood fall, and chop heights still set the log length", () => {
+  for (const wood of Object.keys(L.TREES)) {
+    const lo = newHarvest(5, wood); chopDown(lo, 0.8);
+    const hi = newHarvest(5, wood); chopDown(hi, 3.0);
+    assert.equal(lo.phase, "crack", wood + " falls");
+    assert.ok(H.TRUNK_H - lo.hStar > H.TRUNK_H - hi.hStar, wood + ": a lower cut leaves a longer log");
+    assert.ok(Math.abs(lo.hStar - 0.8) < 0.25 && Math.abs(hi.hStar - 3.0) < 0.25, wood + ": breaks where it was cut");
+  }
 });
 
 /* ---------------- house rules ---------------- */

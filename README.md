@@ -65,6 +65,10 @@ Harvest, all with a finger or mouse:
 - Delimb: swipe across a branch to cut it right there. The outer part falls
   away and the stub can be cut again. Cut close to the log to finish a limb.
   Thick branches take more than one swipe.
+- Delimb is done when the log looks clean: a limb cut down to a short stub
+  (up to twice the flush length) counts as clean, and the counter and the saw
+  gate use that one definition. Any swipe that crosses a limb cuts it, the
+  crown leader lying along the log included.
 - Saw: top-down on the log. Press where you want a cut and rub back and
   forth across it. One long drag is one stroke; it takes real rubbing. Two
   cuts free the middle piece, which becomes the blank. Cuts will not start
@@ -84,7 +88,8 @@ The lathe:
 ```
 src/index.html      dev entry: open directly, no build needed
 src/js/cutting.js   cutting model + pressure mapping (pure, no DOM; tests run in Node)
-src/js/harvest.js   harvest model: chop, fall (rigid body), delimb, saw, blank (pure, tested in Node)
+src/js/harvest.js   harvest model: chop, fall (rigid body), delimb, saw, blank (pure, tested in Node).
+                    TREES holds one row of data per wood (trunk taper, branch layout, foliage)
 src/js/harvest-view.js  Canvas2D forest and saw view, input mapping, chips, leaves, shake
 src/js/main.js      state, input, frame loop, UI
 src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
@@ -97,6 +102,15 @@ src/vendor/         three.js r186 (bundled build that sets window.THREE)
 tools/build.mjs     inlines src/ into the single-file lathe.html
 tests/              model tests (node --test) and a Playwright browser check
 ```
+
+Trees are data. `makeTree(seed, wood)` in `harvest.js` rolls a tree from the
+`TREES` row for that wood (pine, oak, walnut), and the Canvas2D view draws
+whatever it is given, taking bark and leaf colours and the leaf style from the
+farm's wood table (`Game.Farm.WOODS`: `trunk`, `leaf`, `leaf2`, `shape`). A new
+tree is a new row in `TREES` and in the farm's `WOODS` (a test keeps the two in
+step), not new drawing code. The trunk outline is the wood that remains, so a
+chopped notch is a hole you can see through; `node tools/harvest-shots.mjs`
+saves pictures of a chopped tree and a log for checking the art.
 
 Both views draw from the same radius profile; the model never knows which
 view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutting.js`.
