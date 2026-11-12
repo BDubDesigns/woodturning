@@ -55,14 +55,22 @@ for (const wood of ["oak", "pine", "walnut"]) {
       hole: px(-half + depth * 0.5, 0.9),          // the middle of the cut-away wood
       deepHole: px(-half + depth * 0.2, 0.9),      // close to the bark line, well inside the hole
       wood: px(-half + depth + 0.2, 0.9),          // solid trunk just beyond the notch
-      barkAbove: px(-half + 0.2, 1.75)             // untouched trunk above the notch
+      barkAbove: px(-half + 0.35, 1.75),           // untouched trunk above the notch
+      sky: px(-half - 3.2, 1.75)                   // open air well clear of the trunk
     };
-    const withTree = {}, without = {};
+    const withTree = {}, without = {}, onMagenta = {}, onLime = {};
     v.render(0, dbg);
     for (const key in at) withTree[key] = read(at[key]);
     v.render(0, { still: true, noParts: true, noTree: true });
     for (const key in at) without[key] = read(at[key]);
-    return { depth, half, withTree, without };
+    // The same frame on two flat backgrounds: a pixel the tree draws is identical on both,
+    // a background pixel follows the flat colour. That tells tree from background even
+    // when the bark happens to be close in colour to the scenery behind it.
+    v.render(0, { still: true, noParts: true, flat: "#ff00ff" });
+    for (const key in at) onMagenta[key] = read(at[key]);
+    v.render(0, { still: true, noParts: true, flat: "#00ff00" });
+    for (const key in at) onLime[key] = read(at[key]);
+    return { depth, half, withTree, without, onMagenta, onLime };
   });
   const d = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
   const tan = (p) => [[240, 209, 154], [214, 170, 108], [220, 182, 122], [227, 194, 134]].some((t) => d(p, t) < 40);
@@ -70,8 +78,11 @@ for (const wood of ["oak", "pine", "walnut"]) {
   check(d(r.withTree.hole, r.without.hole) <= 4, `middle of the notch is the background: rgb(${r.withTree.hole}) vs behind the tree rgb(${r.without.hole})`);
   check(d(r.withTree.deepHole, r.without.deepHole) <= 4, `inside the notch near the bark line is the background too: rgb(${r.withTree.deepHole})`);
   check(!tan(r.withTree.hole) && !tan(r.withTree.deepHole), "no tan in the notch");
-  check(d(r.withTree.wood, r.without.wood) > 25, `solid wood beside the notch is drawn: rgb(${r.withTree.wood}) vs background rgb(${r.without.wood})`);
-  check(d(r.withTree.barkAbove, r.without.barkAbove) > 25, "bark above the notch is drawn");
+  const drawn = (key) => d(r.onMagenta[key], r.onLime[key]) <= 2;      // same on both flat backgrounds: the tree put it there
+  const background = (key) => d(r.onMagenta[key], r.onLime[key]) > 100; // follows the flat colour: nothing drawn there
+  check(background("sky") && background("hole") && background("deepHole"), "the method sees open air as background (sky, and the inside of the notch)");
+  check(drawn("wood"), `solid wood beside the notch is drawn: rgb(${r.withTree.wood}), the same on any background`);
+  check(drawn("barkAbove"), `bark above the notch is drawn: rgb(${r.withTree.barkAbove}), the same on any background`);
   await pg.close();
 }
 

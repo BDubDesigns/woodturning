@@ -885,7 +885,9 @@
       if (uiT > 0.1) { uiT = 0; updateHud(); }
     }
 
-    /* dbg (tests only): { still, noTree, noParts } skip the shake, the tree, the particles. */
+    /* dbg (tests only): { still, noTree, noParts } skip the shake, the tree, the particles;
+       { flat: "#rrggbb" } paints that one colour instead of the sky and ground, so a test can
+       tell tree pixels from background pixels without depending on what the scenery happens to be. */
     function render(dt, dbg) {
       dbg = dbg || {};
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -895,7 +897,8 @@
       g.fillStyle = "#120d09"; g.fillRect(-10, -10, W + 20, Hh + 20);
       var groundPy = sy(0);
       if (sawBlend < 1 || game.phase !== "saw" && game.phase !== "done") {
-        drawSky(groundPy); drawGround(groundPy);
+        if (dbg.flat) { g.fillStyle = dbg.flat; g.fillRect(-10, -10, W + 20, Hh + 20); }
+        else { drawSky(groundPy); drawGround(groundPy); }
         var ph = game.phase;
         if (dbg.noTree) {
           // tests only: the scene without the tree, to see what is behind it
