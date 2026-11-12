@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>Woodturning Lathe</title>
+    <title>Woodturning</title>
     <!-- Dev entry: open this file directly. `node tools/build.mjs` inlines
          everything into one self-contained lathe.html for sharing. -->
     <link rel="stylesheet" href="fonts/fonts.css" />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="harvest.css" />
   </head>
   <body>
     <div id="app">
@@ -32,11 +33,26 @@
             <div class="k">SILHOUETTE</div>
           </div>
         </div>
+        <div class="stats" id="harvestStats" style="display:none">
+          <div class="stat">
+            <div class="v" id="hSwings">0</div>
+            <div class="k">SWINGS</div>
+          </div>
+          <div class="stat">
+            <div class="v" id="hLimbs">-</div>
+            <div class="k">LIMBS LEFT</div>
+          </div>
+          <div class="stat hide-sm">
+            <div class="v" id="hCuts">0<small>/2</small></div>
+            <div class="k">SAW CUTS</div>
+          </div>
+        </div>
       </header>
 
       <nav id="tabs" aria-label="Screens">
         <div class="tab-group" role="tablist">
           <button class="tab" id="tabFarm" role="tab" aria-selected="false" aria-controls="farmScreen">FARM</button>
+          <button class="tab" id="tabHarvest" role="tab" aria-selected="false" aria-controls="harvestScreen">HARVEST</button>
           <button class="tab" id="tabLathe" role="tab" aria-selected="true" aria-controls="latheScreen">LATHE</button>
         </div>
         <div class="wallet" aria-label="Wallet">
@@ -88,16 +104,41 @@
             <span class="rpmv" id="rpmVal">1100 RPM</span>
           </div>
           <button class="ctl-btn" id="viewBtn" title="Switch between 3D and flat view">2D VIEW</button>
-          <button class="ctl-btn" id="soundBtn" aria-pressed="true" title="Toggle sound">
+          <button class="ctl-btn" id="soundBtn" data-sound aria-pressed="true" title="Toggle sound">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="snd-waves" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="snd-waves" d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></svg>
             SOUND
           </button>
-          <button class="ctl-btn" id="newLogBtn" title="Mount a fresh blank">
+          <button class="ctl-btn" id="newLogBtn" title="Mount a practice blank">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
             NEW LOG
           </button>
         </div>
       </footer>
+      </div>
+
+      <div id="harvestScreen" class="screen" hidden>
+        <div id="hstage">
+          <canvas id="hcanvas" aria-label="The forest: chop the tree, trim the log, saw the blank"></canvas>
+          <div id="htoast" role="status" aria-live="polite"></div>
+          <div id="hhint"></div>
+        </div>
+        <footer>
+          <ol class="steps" aria-label="Harvest steps">
+            <li class="step now" id="stepChop"><b>1</b><span>CHOP</span></li>
+            <li class="step" id="stepDelimb"><b>2</b><span>DELIMB</span></li>
+            <li class="step" id="stepSaw"><b>3</b><span>SAW</span></li>
+          </ol>
+          <div class="side-controls">
+            <button class="ctl-btn" id="hSoundBtn" data-sound aria-pressed="true" title="Toggle sound">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="snd-waves" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="snd-waves" d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></svg>
+              SOUND
+            </button>
+            <button class="ctl-btn" id="hNewTreeBtn" title="Walk up to a fresh tree">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+              NEW TREE
+            </button>
+          </div>
+        </footer>
       </div>
 
       <div id="farmScreen" class="screen" hidden>
@@ -117,6 +158,8 @@
     <script src="js/audio.js"></script>
     <script src="js/view3d.js"></script>
     <script src="js/view2d.js"></script>
+    <script src="js/harvest.js"></script>
+    <script src="js/harvest-view.js"></script>
     <script src="js/main.js"></script>
     <script src="js/save.js"></script>
     <script src="js/farm.js"></script>

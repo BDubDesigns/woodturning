@@ -31,12 +31,35 @@ mine, monetization, distribution, and the one-month bet.
   stand-in behind `farm.chopHit`; the full Harvest slice replaces the interaction.
   Saves live in localStorage (`woodturning.save`).
 
+- Harvest (slice 1): the HARVEST tab is the forest. Chop a tree where you
+  swipe, watch it crack and fall, clear the limbs with a blade, saw the log
+  in two places, and the middle piece goes straight onto the lathe as the
+  blank. Canvas2D only, so it runs in every webview. The farm's quick chop
+  stays as it is; wiring a farm tree into the full harvest is a later step.
+
 ## Play
 
-Open `lathe.html` in a browser. The FARM and LATHE tabs switch screens
-(`lathe.html#farm` opens the farm). It is one self-contained file (no network),
+Open `lathe.html` in a browser. The FARM, HARVEST and LATHE tabs switch
+screens (`lathe.html#farm` opens the farm, `#harvest` the forest, and
+`?seed=N` picks the harvest's tree). It is one self-contained file (no network),
 so it can be hosted anywhere or opened in an in-app browser. `?view=2d`
 starts in the flat view.
+
+Harvest, all with a finger or mouse:
+
+- Chop: swipe into the trunk from the side. The notch lands where your
+  finger is, as deep as you swipe in (one swing only goes so far), and a
+  quick swing bites where a slow drag only rests on the bark. Keep chopping
+  until the wood cracks. It falls the way you cut.
+- Delimb: swipe across a branch to cut it right there. The outer part falls
+  away and the stub can be cut again. Cut close to the log to finish a limb.
+  Thick branches take more than one swipe.
+- Saw: top-down on the log. Press where you want a cut and rub back and
+  forth across it. One long drag is one stroke; it takes real rubbing. Two
+  cuts free the middle piece, which becomes the blank. Cuts will not start
+  too close to the ends or to each other (the shaded zones).
+
+The lathe:
 
 - Touch or click below the log: the chisel lands on the wood.
 - Nudge up: the first ~40px of push ramps pressure to full (the meter beside
@@ -50,6 +73,8 @@ starts in the flat view.
 ```
 src/index.html      dev entry: open directly, no build needed
 src/js/cutting.js   cutting model + pressure mapping (pure, no DOM; tests run in Node)
+src/js/harvest.js   harvest model: chop, fall (rigid body), delimb, saw, blank (pure, tested in Node)
+src/js/harvest-view.js  Canvas2D forest and saw view, input mapping, chips, leaves, shake
 src/js/main.js      state, input, frame loop, UI
 src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
 src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
@@ -66,8 +91,8 @@ Both views draw from the same radius profile; the model never knows which
 view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutting.js`.
 
 ```
-npm test        # cutting model, farm model, save
-npm run e2e     # builds, then drives the lathe (both views) and the farm in Chromium
+npm test        # cutting model, farm model, save, harvest model
+npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views) and the farm in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
 

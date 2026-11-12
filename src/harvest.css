@@ -1,0 +1,53 @@
+/* Harvest screen: the forest. Shares the lathe's chrome (header, footer,
+   buttons, palette) from style.css; only the stage and the step chips are new. */
+#hstage {
+  position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
+  background: #120d09;
+}
+#hcanvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  touch-action: none;
+}
+#hhint {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  max-width: min(92%, 520px); text-align: center;
+  background: var(--plate); color: #f3e7d3;
+  border: 1px solid rgba(232, 163, 61, 0.35);
+  padding: 9px 16px; border-radius: 6px;
+  font-size: 14.5px; line-height: 1.35; pointer-events: none;
+  transition: opacity 0.6s ease; z-index: 4;
+}
+#hhint b { color: var(--amber); font-weight: 700; }
+#hhint.gone { opacity: 0; }
+#htoast {
+  position: absolute; left: 50%; top: 14px; transform: translate(-50%, -8px);
+  background: rgba(20, 15, 11, 0.86); color: #f3e7d3;
+  border: 1px solid rgba(232, 163, 61, 0.5); border-radius: 999px;
+  padding: 7px 18px; font-weight: 600; font-size: 15px; letter-spacing: 0.03em;
+  opacity: 0; pointer-events: none; white-space: nowrap; max-width: 92%;
+  overflow: hidden; text-overflow: ellipsis;
+  transition: opacity 0.25s ease, transform 0.25s ease; z-index: 5;
+}
+#htoast.on { opacity: 1; transform: translate(-50%, 0); }
+
+.steps { display: flex; gap: 10px; flex: 1 1 auto; min-width: 250px; list-style: none; margin: 0; padding: 0; }
+.step {
+  flex: 1; min-height: 50px; display: flex; align-items: center; gap: 11px;
+  padding: 6px 14px; border: 1px solid var(--chrome-line); border-radius: 8px;
+  background: var(--btn-bg); color: var(--faint);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.step b {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid currentColor; font: 700 13px "Barlow Condensed", sans-serif;
+}
+.step span { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.1em; }
+.step.now { background: var(--btn-bg-on); border-color: var(--amber); color: var(--amber); box-shadow: 0 0 0 1px var(--amber) inset, 0 4px 18px rgba(232, 163, 61, 0.18); }
+.step.done { color: var(--ink); }
+.step.done b { background: var(--amber); border-color: var(--amber); color: #2b1a08; }
+@media (max-width: 720px) {
+  .steps { order: -1; flex-basis: 100%; }
+  .step { padding: 6px 10px; gap: 8px; }
+  .step span { font-size: 16px; }
+}

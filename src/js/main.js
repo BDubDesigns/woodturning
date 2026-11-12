@@ -140,17 +140,21 @@
     });
     var hint = document.getElementById("hint");
     var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
-    document.getElementById("newLogBtn").addEventListener("click", function () {
-      S.work.reset(); S.lastT = -1;
+    /* Mount a blank: the harvested one, or a practice blank when none is given. */
+    var hintPractice = hint.innerHTML;
+    var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
+    function mount(blank) {
+      if (blank) S.work.load(blank); else S.work.reset();
+      S.lastT = -1; S.everCut = false;
+      S.pointer.active = false; S.pointer.id = null; S.pressure.up();
       statDepth.innerHTML = "0.0<small> mm</small>";
-      hint.classList.remove("gone"); S.everCut = false;
+      hint.innerHTML = blank ? hintFresh : hintPractice;
+      hint.classList.remove("gone");
       drawProfile();
-    });
-    var soundBtn = document.getElementById("soundBtn");
-    soundBtn.addEventListener("click", function () {
-      audio.setOn(!audio.on);
-      soundBtn.setAttribute("aria-pressed", audio.on ? "true" : "false");
-    });
+    }
+    L.mountBlank = mount;     // the harvest hands its blank over through this
+    document.getElementById("newLogBtn").addEventListener("click", function () { mount(null); });
+    document.getElementById("soundBtn").addEventListener("click", function () { audio.toggle(); });
 
     /* ---------------- pressure meter: fills beside the finger ---------------- */
     var pmeter = document.getElementById("pmeter"), pfill = pmeter.firstChild;

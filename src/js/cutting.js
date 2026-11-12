@@ -95,6 +95,19 @@
     this.baseRadius.set(this.radius);
     this.passRef.set(this.radius);
     this.startVol = this.volume();
+    this.blank = null;
+    this.version++;
+  };
+  /* Mount a harvested blank: a radius profile of SEG slices, none wider than
+     R0 (see makeBlank in harvest.js). The ends stay under the centres. */
+  Workpiece.prototype.load = function (blank) {
+    var n = this.cfg.SEG, p = blank && blank.profile;
+    if (!p || p.length !== n) throw new Error("blank profile must have " + n + " slices");
+    for (var i = 0; i < n; i++) this.radius[i] = Math.min(this.cfg.R0, Math.max(this.cfg.MIN_R * 2, p[i]));
+    this.baseRadius.set(this.radius);
+    this.passRef.set(this.radius);
+    this.startVol = this.volume();
+    this.blank = blank;
     this.version++;
   };
   Workpiece.prototype.volume = function () {

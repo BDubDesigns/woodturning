@@ -27,9 +27,9 @@
   var ctxSig = "";
 
   /* ---------------- screens ---------------- */
-  var screens = { farm: $("farmScreen"), lathe: $("latheScreen") };
-  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe") };
-  var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats");
+  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen") };
+  var tabs = { farm: $("tabFarm"), harvest: $("tabHarvest"), lathe: $("tabLathe") };
+  var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats"), harvestStatsEl = $("harvestStats");
   var current = null;
   function showScreen(name) {
     if (current === name) return;
@@ -39,22 +39,31 @@
       tabs[k].setAttribute("aria-selected", k === name ? "true" : "false");
     }
     var L = root.Lathe;
-    L.hidden = name !== "lathe";
+    L.hidden = name !== "lathe";            // the lathe sleeps while another screen shows
+    L.audio.lathe(name === "lathe");        // and so does its motor
+    harvestStatsEl.style.display = name === "harvest" ? "" : "none";
+    if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();
     if (name === "farm") {
       titleEl.innerHTML = "THE <em>FARM</em>";
       subEl.textContent = "PLANT · WAIT · CHOP · GROWS WHILE YOU ARE AWAY";
       statsEl.style.display = "none";
       tick();
       if (pendingToast) { toast(pendingToast); pendingToast = ""; }
+    } else if (name === "harvest") {
+      titleEl.innerHTML = "THE <em>FOREST</em>";
+      subEl.textContent = "HARVEST · CHOP, DELIMB, SAW";
+      statsEl.style.display = "none";
     } else {
       titleEl.innerHTML = "THE <em>LATHE</em>";
       subEl.textContent = "PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING";
       statsEl.style.display = "";
       root.dispatchEvent(new Event("resize"));   // the lathe views size themselves to the stage
     }
-    try { history.replaceState(null, "", name === "farm" ? "#farm" : location.pathname + location.search); } catch (e) {}
+    try { history.replaceState(null, "", name === "lathe" ? location.pathname + location.search : "#" + name); } catch (e) {}
   }
+  G.showScreen = showScreen;
   tabs.farm.addEventListener("click", function () { showScreen("farm"); });
+  tabs.harvest.addEventListener("click", function () { showScreen("harvest"); });
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
 
   /* ---------------- wallet ---------------- */
@@ -356,7 +365,7 @@
   layoutPlots();
   renderWallet();
   persist();
-  showScreen(/#farm\b/.test(location.hash) ? "farm" : "lathe");
+  showScreen(/#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : "lathe");
   if (grew.length) {
     var names = grew.map(function (g) { return WOODS[g.wood].name.toLowerCase(); });
     pendingToast = grew.length === 1 ? "While you were away, your " + names[0] + " finished growing." : "While you were away, " + grew.length + " trees finished growing.";
