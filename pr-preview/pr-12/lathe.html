@@ -628,6 +628,66 @@ footer {
 .g-pick small { color: #bfae8f; font-size: 12px; }
 .g-pick .n { display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; }
 #profileBar .plabel b { display: block; color: var(--amber); font-size: 11px; letter-spacing: 0.08em; margin-top: 4px; }
+
+/* more than two chisels on the rack: a compact row, names only */
+.tip-group.many { display: grid; gap: 8px; }
+.tip-group.many .tip-btn { min-width: 0; min-height: 46px; padding: 6px 10px; gap: 8px; }
+.tip-group.many .tdesc { display: none; }
+.tip-group.many .tip-btn .tname { font-size: 15px; }
+.tip-group.many .tip-btn svg { width: 26px; height: 24px; }
+.tip-btn[hidden] { display: none; }
+
+/* ---------- Arbor Freight, the tool store ---------- */
+#shopScreen { overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #22302a 0%, #18201c 50%, #0e1210 100%); }
+#shopBody { width: 100%; max-width: 680px; margin: 0 auto; padding: 14px 14px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.af-banner {
+  position: relative; overflow: hidden; padding: 14px 16px 12px; border-radius: 12px;
+  background: linear-gradient(135deg, #1f4d2e 0%, #173a23 60%, #10281a 100%); border: 2px solid #f2c230;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.af-logo { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 34px; letter-spacing: 0.08em; line-height: 1; color: #f2c230; text-shadow: 0 2px 0 #0b1a10; }
+.af-logo b { color: #fff4cf; font-weight: 700; }
+.af-tag { margin-top: 4px; font-size: 13.5px; color: #d8e8d2; }
+.af-sale {
+  position: absolute; right: -34px; top: 14px; transform: rotate(32deg); padding: 3px 40px;
+  background: #c0392b; color: #fff; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.12em;
+}
+.af-line { padding: 12px 14px 14px; border-radius: 12px; color: #f3e7d3; background: rgba(14, 18, 16, 0.78); border: 1px solid #355a43; }
+.af-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.af-head h2 { margin: 0; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.16em; color: #f2c230; }
+.af-head p { margin: 2px 0 0; font-size: 13px; color: #b8c8b2; line-height: 1.35; }
+.af-head > div { flex: 1; min-width: 0; }
+.af-icon { flex: none; width: 40px; height: 40px; border-radius: 9px; background: #e9e3cf; display: flex; align-items: center; justify-content: center; }
+.af-icon svg { width: 30px; height: 30px; }
+.af-step { flex: none; font-size: 12px; color: #b8c8b2; font-variant-numeric: tabular-nums; padding-top: 3px; }
+.af-k { display: block; font-size: 10px; letter-spacing: 0.2em; font-weight: 700; color: #8fae93; margin-bottom: 2px; }
+.af-now { padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); margin-bottom: 10px; display: flex; flex-direction: column; }
+.af-now b, .af-item b { font-size: 15px; font-weight: 600; }
+.af-now small, .af-item small { font-size: 12.5px; color: #bfae8f; line-height: 1.35; margin-top: 2px; }
+.af-item { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.af-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.af-price {
+  flex: none; position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 18px;
+  background: #f2c230; color: #1b1405; border-radius: 4px 10px 10px 4px; transform: rotate(-4deg); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+.af-price::before { content: ""; position: absolute; left: 6px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: #10281a; }
+.af-price b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+.af-line .act { width: 100%; background: #2a2119; color: #f3e7d3; border-color: #5a4630; }
+.af-line .act.primary { background: #3d3410; border-color: #f2c230; }
+.af-line .act.primary .an { color: #f2c230; }
+.af-line .act .ad { color: #d9c7a4; }
+.af-line .act[aria-disabled="true"] { opacity: 0.6; }
+.af-later { margin: 8px 0 0; font-size: 12.5px; color: #8fae93; }
+.af-later b { color: #f2c230; font-variant-numeric: tabular-nums; }
+.af-top { margin: 0; font-size: 13.5px; color: var(--ok); }
+.af-foot { margin: 0; text-align: center; font-size: 12px; color: #6f8a73; }
+#stoast {
+  position: sticky; bottom: 10px; margin: 0 auto 10px; width: fit-content; max-width: 92%;
+  padding: 8px 14px; border-radius: 8px; font-size: 14px; text-align: center;
+  background: var(--plate); color: #f3e7d3; border: 1px solid rgba(242, 194, 48, 0.5);
+  opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+}
+#stoast.on { opacity: 1; }
 </style>
     <style>
 /* Harvest screen: the forest. Shares the lathe's chrome (header, footer,
@@ -727,7 +787,8 @@ footer {
           <button class="tab" id="tabFarm" role="tab" aria-selected="false" aria-controls="farmScreen">FARM</button>
           <button class="tab" id="tabLathe" role="tab" aria-selected="true" aria-controls="latheScreen">LATHE</button>
           <button class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="mineScreen">MINE</button>
-          <button class="tab" id="tabOrders" role="tab" aria-selected="false" aria-controls="ordersScreen">COMMISSIONS</button>
+          <button class="tab" id="tabOrders" role="tab" aria-selected="false" aria-controls="ordersScreen">ORDERS</button>
+          <button class="tab" id="tabShop" role="tab" aria-selected="false" aria-controls="shopScreen">SHOP</button>
         </div>
         <div class="wallet" aria-label="Wallet">
           <span class="coin-chip" title="Coins">
@@ -789,14 +850,14 @@ footer {
           </button>
         </div>
         <div class="tip-group" id="toolsCut" role="group" aria-label="Chisel tip">
-          <button class="tip-btn" id="tipGouge" aria-pressed="true">
+          <button class="tip-btn" id="tipGouge" data-tip="gouge" aria-pressed="true">
             <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
               <path d="M4 4 h26 v10 c0 7 -6 12 -13 12 c-7 0 -13 -5 -13 -12 z" fill="none" stroke="#e8a33d" stroke-width="2.4"/>
               <path d="M9 9 v5 c0 4.4 3.6 8 8 8 c4.4 0 8 -3.6 8 -8 v-5" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/>
             </svg>
             <span><span class="tname">GOUGE</span><div class="tdesc">Wide, rounded scoop · roughing &amp; curves</div></span>
           </button>
-          <button class="tip-btn" id="tipSkew" aria-pressed="false">
+          <button class="tip-btn" id="tipSkew" data-tip="skew" aria-pressed="false">
             <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
               <path d="M6 22 L28 6 v16 L6 26 z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
               <path d="M10 22.6 L28 10" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/>
@@ -898,6 +959,11 @@ footer {
           <div id="boardFoot"></div>
         </div>
         <div id="otoast" role="status" aria-live="polite"></div>
+      </div>
+
+      <div id="shopScreen" class="screen" hidden>
+        <div id="shopBody"></div>
+        <div id="stoast" role="status" aria-live="polite"></div>
       </div>
 
       <div id="mineScreen" class="screen" hidden>
@@ -1365,9 +1431,16 @@ footer {
   var TIPS = {
     // halfWidth in world units; rate = max units/sec removed at the kernel centre
     // (before RATE_SCALE, RPM and pressure; see removalRate)
-    gouge: { halfWidth: 0.5, rate: 0.16, name: "Gouge" },
-    skew:  { halfWidth: 0.19, rate: 0.22, name: "Skew" }
+    // shape: "round" is a rounded trough (cos^2), "flat" a flat bottom (to `flat` of the half
+    // width) with rounded shoulders. look/size: how the views draw the tip. The first two are
+    // on the rack from the start; the rest are sold at Arbor Freight (shop.js).
+    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    desc: "Wide, rounded scoop · roughing & curves" },
+    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, desc: "Narrow, angled flat · crisp grooves & beads" },
+    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, desc: "Thin and deep · handles & shoulders" },
+    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, desc: "Small and round · tight beads & coves" },
+    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, desc: "Big and wide · takes a log round fast" }
   };
+  var TIP_ORDER = ["gouge", "skew", "parting", "detail", "roughing"];
 
   function rpmFactor(rpm, cfg) {
     cfg = cfg || CFG;
@@ -1388,15 +1461,16 @@ footer {
   /* Cut kernel: weight 0..1 by distance from the tip centre (world units).
      Both shapes reach 0 with zero slope at the edge, so no step is ever cut. */
   function kernel(tipKey, d) {
-    var hw = TIPS[tipKey].halfWidth;
+    var tip = TIPS[tipKey], hw = tip.halfWidth;
     if (d >= hw) return 0;
     var u = d / hw;
-    if (tipKey === "gouge") {             // wide rounded trough
+    if (tip.shape === "round") {          // a rounded trough
       var c = Math.cos(u * Math.PI * 0.5);
       return c * c;
     }
-    if (u <= 0.45) return 1;              // skew: flat bottom, rounded shoulders
-    var s = (u - 0.45) / 0.55;
+    var f = tip.flat;                     // a flat bottom with rounded shoulders
+    if (u <= f) return 1;
+    var s = (u - f) / (1 - f);
     return 1 - s * s * (3 - 2 * s);
   }
 
@@ -1629,7 +1703,7 @@ footer {
     return "Cylinder";
   }
 
-  var api = { CFG: CFG, TIPS: TIPS, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
+  var api = { CFG: CFG, TIPS: TIPS, TIP_ORDER: TIP_ORDER, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var L = root.Lathe || (root.Lathe = {});
   for (var key in api) L[key] = api[key];
@@ -2320,6 +2394,131 @@ footer {
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});
   G.Commissions = api;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+    <script>
+/* ============================================================
+   Arbor Freight: the workshop's tool store. Pure, renderer-free,
+   testable in Node.
+
+   The store sells upgrades in lines (lighting, motor, chisels).
+   Each line is a ladder of tiers bought in order; tier 0 is what
+   the workshop starts with. Every rung costs a good deal more than
+   the last (about four times), so there is always a next thing to
+   save up for, and a top of the line that takes real work to reach.
+
+   What a tier does is data on the tier, read by the lathe:
+     light   S.lightLevel, the work light hung over the lathe (view3d WORK_LIGHTS)
+     motor   cutBoost, a multiplier on how fast wood comes off
+     chisels the chisel tips on the rack (cutting.js TIPS)
+
+   The model owns the shop section of the save:
+     game.shop { owned: { light: 0, motor: 0, chisels: 0 }, spent }
+   Coins go through the shared wallet (state.js).
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  var Game = root.Game || {};
+  var State = Game.State || require("./state.js");
+
+  var LINES = {
+    light: {
+      name: "Lighting", blurb: "See what you are cutting. Each lamp hangs over the lathe.",
+      tiers: [
+        { name: "Bare bulb", price: 0, blurb: "A 60 watt bulb on a flex. It came with the shed.", level: 0 },
+        { name: "Halogen work light", price: 150, blurb: "The yellow box every garage has. Bright, warm and a bit hot.", level: 1 },
+        { name: "LED shop panel", price: 600, blurb: "A long cool-white panel on chains. No more squinting at the coves.", level: 2 },
+        { name: "Studio light bar", price: 2400, blurb: "Twin panels, daylight white. Every bead and cove in plain view.", level: 3 }
+      ]
+    },
+    motor: {
+      name: "Motor", blurb: "More power at the spindle takes wood off faster.",
+      tiers: [
+        { name: "Half horse motor", price: 0, blurb: "It turns. Mostly.", boost: 1 },
+        { name: "One horse motor", price: 300, blurb: "Cuts about a quarter faster, and bogs down less.", boost: 1.25 },
+        { name: "Horse and a half", price: 1100, blurb: "Half again as fast. Roughing out is no longer a chore.", boost: 1.55 },
+        { name: "Two horse, variable speed", price: 4000, blurb: "Nearly twice the stock motor. The shed lights dim when it starts.", boost: 1.9 }
+      ]
+    },
+    chisels: {
+      name: "Chisels", blurb: "New tips for new shapes. Each one goes on the rack by the lathe.",
+      tiers: [
+        { name: "Gouge and skew", price: 0, blurb: "The two you started with.", tips: ["gouge", "skew"] },
+        { name: "Parting tool", price: 200, blurb: "A thin blade that cuts narrow, deep grooves: crisp handles and shoulders.", tips: ["parting"] },
+        { name: "Detail gouge", price: 700, blurb: "A small rounded gouge for tight beads and coves.", tips: ["detail"] },
+        { name: "Roughing gouge", price: 2500, blurb: "A big wide gouge that takes a log round in a few passes.", tips: ["roughing"] }
+      ]
+    }
+  };
+  var LINE_ORDER = ["light", "motor", "chisels"];
+
+  function defaultShop() {
+    var owned = {};
+    LINE_ORDER.forEach(function (k) { owned[k] = 0; });
+    return { owned: owned, spent: 0 };
+  }
+  function normalizeShop(s) {
+    var out = defaultShop();
+    if (!s || typeof s !== "object") return out;
+    if (s.owned && typeof s.owned === "object") {
+      LINE_ORDER.forEach(function (k) {
+        var v = s.owned[k];
+        if (typeof v === "number" && isFinite(v)) out.owned[k] = Math.max(0, Math.min(LINES[k].tiers.length - 1, Math.floor(v)));
+      });
+    }
+    if (typeof s.spent === "number" && isFinite(s.spent) && s.spent >= 0) out.spent = Math.floor(s.spent);
+    return out;
+  }
+
+  /* game: the save object.
+     opts.state: the shared state (state.js).
+     opts.onChange: called after any change worth saving. */
+  function createShop(game, opts) {
+    opts = opts || {};
+    var onChange = opts.onChange || function () {};
+    var state = opts.state || State.createState(game, { onChange: onChange });
+    game.shop = normalizeShop(game.shop);
+    var S = game.shop;
+
+    function line(k) { return LINES[k] || null; }
+    function level(k) { return line(k) ? S.owned[k] : 0; }
+    function current(k) { var l = line(k); return l ? l.tiers[level(k)] : null; }
+    /* The next tier for sale in a line, or null at the top of the line. */
+    function next(k) { var l = line(k); return l && level(k) + 1 < l.tiers.length ? l.tiers[level(k) + 1] : null; }
+    function canAfford(k) { var n = next(k); return !!n && state.wallet.balance("coins") >= n.price; }
+    /* Buy the next tier of a line: the coins go, the upgrade is installed. */
+    function buy(k) {
+      var n = next(k);
+      if (!line(k)) return { ok: false, reason: "no such line" };
+      if (!n) return { ok: false, reason: "top of the line" };
+      var paid = state.wallet.spend("coins", n.price);
+      if (!paid.ok) return { ok: false, reason: "not enough coins", need: n.price, have: state.wallet.balance("coins") };
+      S.owned[k]++; S.spent += n.price;
+      onChange();
+      return { ok: true, line: k, tier: n, level: S.owned[k] };
+    }
+
+    /* ---- what the upgrades do, for the lathe ---- */
+    function lightLevel() { return current("light").level; }
+    function cutBoost() { return current("motor").boost; }
+    /* Every chisel tip on the rack: each chisels tier owned adds its tips. */
+    function tips() {
+      var out = [], t = LINES.chisels.tiers;
+      for (var i = 0; i <= level("chisels"); i++) out = out.concat(t[i].tips);
+      return out;
+    }
+
+    return {
+      state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
+      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips
+    };
+  }
+
+  var api = { LINES: LINES, LINE_ORDER: LINE_ORDER, defaultShop: defaultShop, normalizeShop: normalizeShop, createShop: createShop };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  var G = root.Game || (root.Game = {});
+  G.Shop = api;
 })(typeof window !== "undefined" ? window : globalThis);
 </script>
     <script>
@@ -3061,9 +3260,11 @@ footer {
     function showTip() {
       if (shownTip === S.tip) return;
       shownTip = S.tip;
-      gougeTip.visible = S.tip === "gouge";
-      skewTip.visible = S.tip === "skew";
-      blade.scale.x = S.tip === "gouge" ? 1 : 0.92;
+      var tip = L.TIPS[S.tip] || L.TIPS.gouge, z = tip.size || 1;   // the look of the tip, at its size
+      gougeTip.visible = tip.look === "gouge";
+      skewTip.visible = tip.look === "skew";
+      gougeTip.scale.set(z, 1, z); skewTip.scale.set(z, 1, 1);
+      blade.scale.x = (tip.look === "gouge" ? 1 : 0.92) * Math.max(0.5, Math.min(1.3, z));
     }
 
     /* ---------------- the brush and the spray bottle ----------------
@@ -3641,10 +3842,11 @@ footer {
       g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(9, rPx * 0.3);
       g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
       g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
-      if (S.tip === "gouge") {
-        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4, 0, Math.PI * 2); g.stroke();
+      var tip = L.TIPS[S.tip] || L.TIPS.gouge, z = tip.size || 1;
+      if (tip.look === "gouge") {
+        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4 * z, 0, Math.PI * 2); g.stroke();
       } else {
-        g.beginPath(); g.moveTo(tipX - 5, tipY + 3); g.lineTo(tipX + 5, tipY - 4); g.stroke();
+        g.beginPath(); g.moveTo(tipX - 5 * z, tipY + 3 * z); g.lineTo(tipX + 5 * z, tipY - 4 * z); g.stroke();
       }
     }
 
@@ -6030,18 +6232,55 @@ footer {
     var rpmSlider = document.getElementById("rpm"), rpmVal = document.getElementById("rpmVal");
     S.rpm = parseInt(rpmSlider.value, 10);
     rpmSlider.addEventListener("input", function () { S.rpm = parseInt(rpmSlider.value, 10); rpmVal.textContent = S.rpm + " RPM"; });
-    var tipGougeBtn = document.getElementById("tipGouge"), tipSkewBtn = document.getElementById("tipSkew");
+    /* The chisel rack: one button per tip the workshop owns. Gouge and skew are in
+       the page; tips bought at Arbor Freight (shop.js) get a button here. */
+    var tipGroup = document.getElementById("toolsCut");
+    var TIP_ICON = {
+      parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+      detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
+      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>'
+    };
+    S.tips = ["gouge", "skew"];
+    function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
     function setTip(t) {
+      if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
-      tipGougeBtn.setAttribute("aria-pressed", t === "gouge" ? "true" : "false");
-      tipSkewBtn.setAttribute("aria-pressed", t === "skew" ? "true" : "false");
+      tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
     }
-    tipGougeBtn.addEventListener("click", function () { audio.init(); setTip("gouge"); });
-    tipSkewBtn.addEventListener("click", function () { audio.init(); setTip("skew"); });
+    function setTips(list) {
+      S.tips = L.TIP_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
+      S.tips.forEach(function (k) {
+        if (tipGroup.querySelector('[data-tip="' + k + '"]')) return;
+        var tp = L.TIPS[k], b = document.createElement("button");
+        b.className = "tip-btn"; b.type = "button"; b.id = "tip" + k.charAt(0).toUpperCase() + k.slice(1);
+        b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
+        b.innerHTML = (TIP_ICON[k] || "") + '<span><span class="tname">' + tp.name.toUpperCase() + '</span><div class="tdesc">' + tp.desc + "</div></span>";
+        tipGroup.appendChild(b);
+      });
+      tipButtons().forEach(function (b) { b.hidden = S.tips.indexOf(b.getAttribute("data-tip")) < 0; });
+      tipGroup.classList.toggle("many", S.tips.length > 2);
+      tipGroup.style.gridTemplateColumns = S.tips.length > 2 ? "repeat(" + (S.tips.length > 4 ? 3 : 2) + ", 1fr)" : "";
+      if (S.tips.indexOf(S.tip) < 0) setTip("gouge"); else setTip(S.tip);
+    }
+    tipGroup.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-tip]") : null;
+      if (b) { audio.init(); setTip(b.getAttribute("data-tip")); }
+    });
     root.addEventListener("keydown", function (e) {
-      if (e.key === "1") setTip("gouge");
+      if (e.key === "1") setTip("gouge");        // 3, 4 and 5 switch modes, so only the first two tips have keys
       if (e.key === "2") setTip("skew");
     });
+    /* What the workshop has bought at Arbor Freight: the light over the lathe,
+       the motor (how fast wood comes off) and the chisels on the rack. */
+    S.cutBoost = 1;
+    function applyUpgrades() {
+      var shop = root.Game && root.Game.shop;
+      if (!shop) return;
+      S.lightLevel = shop.lightLevel();
+      S.cutBoost = shop.cutBoost();
+      setTips(shop.tips());
+    }
+    L.applyUpgrades = applyUpgrades;
     var hint = document.getElementById("hint");
     var HINTS = {
       cut: hint.innerHTML,
@@ -6467,7 +6706,7 @@ footer {
         if (p.active) {
           S.lastT = p.t;
           if (S.mode === "cut") {
-            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1, S.rpm) * CHIP_SCALE;
+            var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);
@@ -6496,7 +6735,8 @@ footer {
     }
     setSpec(P.generateSpec());
     syncOrder();
-    S.syncOrder = syncOrder; S.takeOrder = takeOrder;
+    applyUpgrades();
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;
@@ -7912,9 +8152,9 @@ footer {
   var ctxSig = "";
 
   /* ---------------- screens ---------------- */
-  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen"), orders: $("ordersScreen") };
+  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen"), orders: $("ordersScreen"), shop: $("shopScreen") };
   // no HARVEST tab: the forest opens only from a grown tree on the farm
-  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine"), orders: $("tabOrders") };
+  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine"), orders: $("tabOrders"), shop: $("tabShop") };
   var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats"), harvestStatsEl = $("harvestStats");
   var current = null;
   /* Is there a grown tree for the forest to fell? Without one the forest
@@ -7938,6 +8178,7 @@ footer {
     if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();
     if (name !== "mine" && root.MineUI) root.MineUI.hide();   // the mine scene sleeps too
     if (name !== "orders" && G.OrdersUI) G.OrdersUI.hide();
+    if (name !== "shop" && G.ShopUI) G.ShopUI.hide();
     if (name === "farm") {
       titleEl.innerHTML = "THE <em>FARM</em>";
       subEl.textContent = "PLANT · WAIT · HARVEST · GROWS WHILE YOU ARE AWAY";
@@ -7948,6 +8189,11 @@ footer {
       titleEl.innerHTML = "THE <em>FOREST</em>";
       subEl.textContent = "HARVEST · CHOP, DELIMB, SAW";
       statsEl.style.display = "none";
+    } else if (name === "shop") {
+      titleEl.innerHTML = "ARBOR <em>FREIGHT</em>";
+      subEl.textContent = "TOOLS · LIGHTS · MOTORS · PRICES THAT ONLY GO UP";
+      statsEl.style.display = "none";
+      if (G.ShopUI) G.ShopUI.show();
     } else if (name === "orders") {
       titleEl.innerHTML = "THE <em>BOARD</em>";
       subEl.textContent = "COMMISSIONS · TURN IT · PAINT IT · GET PAID";
@@ -7972,6 +8218,7 @@ footer {
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
   tabs.mine.addEventListener("click", function () { showScreen("mine"); });
   tabs.orders.addEventListener("click", function () { showScreen("orders"); });
+  tabs.shop.addEventListener("click", function () { showScreen("shop"); });
 
   /* ---------------- wallet ---------------- */
   /* One chip per registered currency: each <b data-currency="id"> shows that balance. */
@@ -8245,8 +8492,12 @@ footer {
   var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff });
   G.commissions = board;
   root.__farm.board = board;
+  /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */
+  var shop = G.Shop.createShop(game, { state: state, onChange: persist });
+  G.shop = shop;
+  root.__farm.shop = shop;
 
-  var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : "lathe";
+  var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : /#shop\b/.test(location.hash) ? "shop" : "lathe";
   G.startScreen = startScreen;
   showScreen(startScreen);
   if (grew.length) {
@@ -8494,6 +8745,99 @@ footer {
   G.OrdersUI = api;
   root.__orders = { board: board, ui: api };
   if (G.startScreen === "orders") api.show();
+})(window);
+</script>
+    <script>
+/* ============================================================
+   Arbor Freight, the store screen (the SHOP tab). Draws the
+   lines from the shop model (shop.js), takes BUY taps, and tells
+   the lathe to put the upgrade to work. The model never knows
+   the DOM exists.
+
+   A line's card shows what is installed, the next rung for sale
+   with its price tag and a BUY button, and the rungs after it, so
+   the player can see what they are saving toward.
+   ============================================================ */
+(function (root) {
+  "use strict";
+  var G = root.Game, Sh = G.Shop;
+  var host = root.__farm, shop = G.shop, state = host.state;
+  function $(id) { return document.getElementById(id); }
+  var bodyEl = $("shopBody"), toastEl = $("stoast");
+  var shown = false, sig = "";
+
+  var COIN = '<svg class="coin" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>';
+  var ICON = {
+    light: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2v6" stroke="#222" stroke-width="2"/><path d="M11 8h10l2 6H9z" fill="#3a3a3a"/><circle cx="16" cy="19" r="6" fill="#ffe2a8"/><path d="M8 26l-3 3M24 26l3 3M16 28v3" stroke="#f2c230" stroke-width="2" stroke-linecap="round"/></svg>',
+    motor: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="9" width="18" height="15" rx="3" fill="#46625a"/><path d="M7 12v9M10 12v9M13 12v9M16 12v9M19 12v9" stroke="#2b3532" stroke-width="1.4"/><rect x="22" y="14" width="6" height="5" rx="1" fill="#99a1a6"/><rect x="6" y="24" width="14" height="3" fill="#2b3532"/></svg>',
+    chisels: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 3l3 0 0 14-1.5 3-1.5-3z" fill="#d6dde1"/><rect x="7.5" y="20" width="4" height="10" rx="1.5" fill="#7c4a22"/><path d="M19 3h5v12c0 2-1.2 3.5-2.5 3.5S19 17 19 15z" fill="#d6dde1"/><rect x="19.5" y="19" width="4" height="11" rx="1.5" fill="#7c4a22"/></svg>'
+  };
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  var toastTimer = 0;
+  function toast(msg) {
+    toastEl.textContent = msg; toastEl.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("on"); }, 3400);
+  }
+
+  function signature() {
+    return JSON.stringify([shop.state.owned, state.wallet.balance("coins")]);
+  }
+  function render(force) {
+    if (!shown) return;
+    var s = signature();
+    if (!force && s === sig) return;
+    sig = s;
+    var coins = state.wallet.balance("coins");
+    var h = '<div class="af-banner"><div class="af-logo">ARBOR <b>FREIGHT</b></div>' +
+      '<div class="af-tag">Tools for people who turn wood, and a profit.</div>' +
+      '<div class="af-sale">EVERYDAY LOW-ISH PRICES</div></div>';
+    Sh.LINE_ORDER.forEach(function (k) {
+      var ln = Sh.LINES[k], lv = shop.level(k), cur = shop.current(k), nx = shop.next(k);
+      h += '<section class="af-line" data-line="' + k + '">';
+      h += '<div class="af-head"><span class="af-icon">' + ICON[k] + '</span><div><h2>' + ln.name.toUpperCase() + "</h2><p>" + esc(ln.blurb) + '</p></div><span class="af-step">' + (lv + 1) + " / " + ln.tiers.length + "</span></div>";
+      h += '<div class="af-now"><span class="af-k">INSTALLED</span><b>' + esc(cur.name) + "</b><small>" + esc(cur.blurb) + "</small></div>";
+      if (nx) {
+        var ok = coins >= nx.price;
+        h += '<div class="af-item"><div class="af-text"><span class="af-k">NEXT UP</span><b>' + esc(nx.name) + "</b><small>" + esc(nx.blurb) + '</small></div><div class="af-price" aria-label="' + nx.price + ' coins">' + COIN + "<b>" + nx.price + "</b></div></div>";
+        h += '<button type="button" class="act primary af-buy" data-buy="' + k + '"' + (ok ? "" : ' aria-disabled="true"') + '><span class="an">' + (ok ? "BUY IT" : "SAVE UP") + '</span><span class="ad">' +
+          (ok ? nx.price + " coins. You have " + coins + "." : "You need " + (nx.price - coins) + " more coins. Orders pay.") + "</span></button>";
+        var later = ln.tiers.slice(lv + 2);
+        if (later.length) h += '<p class="af-later">Then: ' + later.map(function (t) { return esc(t.name) + " <b>" + t.price + "</b>"; }).join(" · ") + "</p>";
+      } else {
+        h += '<p class="af-top">Top of the line. Nothing bigger in the catalogue.</p>';
+      }
+      h += "</section>";
+    });
+    h += '<p class="af-foot">All sales final. Prices go up as you go up the line, because of course they do.</p>';
+    bodyEl.innerHTML = h;
+  }
+
+  var WHERE = {
+    light: "Go and see it hanging over the lathe.",
+    motor: "The lathe cuts faster now.",
+    chisels: "It is on the rack by the lathe, with the other chisels."
+  };
+  bodyEl.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;
+    if (!b) return;
+    var k = b.getAttribute("data-buy"), r = shop.buy(k);
+    if (!r.ok) {
+      if (r.reason === "not enough coins") toast("That is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
+      return;
+    }
+    toast("Installed: " + r.tier.name + ". " + WHERE[k]);
+    if (root.Lathe.applyUpgrades) root.Lathe.applyUpgrades();
+    host.renderWallet();
+    render(true);
+  });
+  setInterval(function () { if (shown) render(false); }, 1000);
+
+  var api = { show: function () { shown = true; render(true); }, hide: function () { shown = false; }, render: render, toast: toast };
+  G.ShopUI = api;
+  root.__shop = { shop: shop, ui: api };
+  if (G.startScreen === "shop") api.show();
 })(window);
 </script>
     <script>
