@@ -89,7 +89,7 @@
   var TREES = {
     // a conifer: slim, straight, strongly tapering, many short level boughs, narrow at the top
     pine: {
-      baseW: [0.7, 0.8], topW: [0.32, 0.38], taper: 1.0, flare: 0.1, spire: 1.5,
+      baseW: [0.88, 0.98], topW: [0.36, 0.42], taper: 1.0, flare: 0.1, spire: 1.5,
       branch: { first: [2.0, 2.2], gap: [0.34, 0.44], top: 0.2, a0: [1.35, 1.6], a0Rise: 0.05, a1: [1.08, 1.25],
                 len: 2.5, lenFall: 1.9, lenJit: 0.25, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
       leader: { len: 2.0, thick: 0.14 },
