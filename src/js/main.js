@@ -600,12 +600,33 @@
     /* ---------------- main loop ---------------- */
     var CHIP_SCALE = (120 / C.SEG) * 2.8;   // chip/sound tuning was done at 120 slices and the old, ~3x faster removal rate
     var lastFrame = performance.now(), frameN = 0;
+    /* ?testclock (browser tests only): the simulation does not follow the wall clock.
+       Time only moves, and frames only draw, when a test calls S.advance(seconds),
+       in fixed 1/60 s steps (then one frame is drawn), so a held push cuts the same on any machine at any
+       frame rate, and a three-second hold takes milliseconds. */
+    var testClock = /[?&]testclock\b/.test(location.search);
+    S.testClock = testClock;
     function frame(nowMs) {
       requestAnimationFrame(frame);
-      if (L.hidden) { lastFrame = nowMs; return; }   // the farm is showing: the lathe sleeps
+      if (L.hidden || testClock) { lastFrame = nowMs; return; }   // the farm is showing: the lathe sleeps (on the test clock it only draws in advance())
       try {
         var dt = Math.min(0.05, Math.max(0, (nowMs - lastFrame) / 1000)); lastFrame = nowMs;
         frameN++;
+        step(dt);
+        view.frame(dt);
+      } catch (err) {
+        showErr(err && err.message ? err.message : err);
+      }
+    }
+    S.advance = function (seconds) {
+      var n = Math.max(1, Math.round(seconds * 60));
+      for (var k = 0; k < n; k++) step(1 / 60);
+      updateStats(1); drawProfile(); drawSpec(); updateSpecInfo();
+      view.frame(1 / 60);
+      return n;
+    };
+    /* One tick of the lathe: spin, pressure, cutting, paint and spray, the tool, sound, stats. */
+    function step(dt) {
         if (S.catchCooldown > 0) S.catchCooldown -= dt;
         S.spinAngle += S.rpm * (Math.PI * 2 / 60) * 0.22 * dt;   // slowed so the strobe reads; pitch follows the slider
         S.cutIntensity = Math.max(0, S.cutIntensity - dt * 3.2);
@@ -639,10 +660,6 @@
         audio.update(S.mode === "cut" ? S.cutIntensity : S.flow, p.active ? 1 : 0, S.rpm);
         updateStats(dt);
         updateMeter();
-        view.frame(dt);
-      } catch (err) {
-        showErr(err && err.message ? err.message : err);
-      }
     }
     setSpec(P.generateSpec());
     syncOrder();

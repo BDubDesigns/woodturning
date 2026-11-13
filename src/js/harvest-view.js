@@ -1155,10 +1155,14 @@
     }
 
     var last = 0;
+    // ?testclock (browser tests only): time moves only when a test calls advance(seconds), in
+    // fixed 1/60 s steps, so falls and swings play out the same on any machine (see main.js)
+    var testClock = /[?&]testclock\b/.test(root.location.search);
     function loop(ts) {
       if (!running) return;
       root.requestAnimationFrame(loop);
       var dt = Math.min(0.05, Math.max(0, (ts - last) / 1000)); last = ts;
+      if (testClock) dt = 0;
       try { update(dt); render(dt); }
       catch (err) { var eb = document.getElementById("err"); if (eb) { eb.style.display = "block"; eb.textContent = "Error: " + (err && err.message ? err.message : err); } }
     }
@@ -1187,7 +1191,9 @@
     begin();
 
     return { show: show, hide: hide, reset: reset, refresh: refresh, resize: resize, game: game, get source() { return src; }, get cam() { return cam; }, get saw() { return saw; },
-      get running() { return running; }, update: update, render: render };
+      get running() { return running; }, update: update, render: render,
+      // the test clock's tick: step the forest `seconds` forward at a fixed 1/60, then draw once
+      advance: function (seconds) { var n = Math.max(1, Math.round(seconds * 60)); for (var k = 0; k < n; k++) update(1 / 60); render(1 / 60); return n; } };
   }
 
   L.createHarvest = createHarvest;

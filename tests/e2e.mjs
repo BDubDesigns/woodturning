@@ -11,6 +11,10 @@
 //      - the cut lands where the finger is (input mapping)
 //      - the deepest point is DRAWN under the finger (catches a mirrored view)
 //      - the finger never had to go over the wood
+//    The lathe runs on its test clock (?testclock): time moves only when the test
+//    calls __lathe.advance(seconds), so a held push cuts the same depth on any
+//    machine, and a three-second hold takes milliseconds. The flat 2D view gets
+//    every check; the 3D view (slow without a GPU) gets one cut as a smoke test.
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import { resolve } from "node:path";
@@ -42,7 +46,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
   console.log(`\nHARVEST ${label} (${viewport.width}x${viewport.height}, seed ${seed}, farm ${farmWood})`);
   const pg = await plain.newPage({ viewport });
   wire(pg, label);
-  await pg.goto(`file://${page_}#farm`);
+  await pg.goto(`file://${page_}?view=2d#farm`);
   await pg.waitForFunction(() => window.__farm);
   // through the page's own state: leaving the page saves it, so a hand-written save would be overwritten
   await pg.evaluate((wood) => {
@@ -52,7 +56,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
     window.__farm.persist();
   }, farmWood);
   // a #harvest link with nothing picked lands on the farm: there is no practice tree
-  await pg.goto(`file://${page_}?seed=${seed}#harvest`);
+  await pg.goto(`file://${page_}?view=2d&seed=${seed}#harvest`);
   await pg.waitForFunction(() => window.__farm);
   const landed = await pg.evaluate(() => ({ f: !document.getElementById("farmScreen").hidden, h: document.getElementById("harvestScreen").hidden, tab: !!document.getElementById("tabHarvest"), btn: !!document.getElementById("hNewTreeBtn") }));
   check(landed.f && landed.h, "#harvest with no tree picked shows the farm, not the forest");
@@ -249,8 +253,9 @@ console.log("\nLATHE");
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
 wire(page, "lathe");
-await page.goto("file://" + page_);
-await page.waitForFunction(() => window.__lathe && window.__lathe.views && window.__lathe.views.current);
+await page.goto("file://" + page_ + "?testclock");
+await page.waitForFunction(() => window.__lathe && window.__lathe.views && window.__lathe.views.current && window.__lathe.advance);
+const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);
 await page.waitForTimeout(400);
 
 async function carve(t, opts = {}) {
@@ -264,10 +269,10 @@ async function carve(t, opts = {}) {
   await page.mouse.down();
   const push = opts.push ?? 40, steps = 12;
   let minY = y0;
-  for (let i = 1; i <= steps; i++) { const y = y0 - (push * i) / steps; minY = Math.min(minY, y); await page.mouse.move(info.x, y); await page.waitForTimeout(25); }
-  await page.waitForTimeout(opts.hold ?? 1200);
+  for (let i = 1; i <= steps; i++) { const y = y0 - (push * i) / steps; minY = Math.min(minY, y); await page.mouse.move(info.x, y); await tick(0.025); }
+  await tick((opts.hold ?? 1200) / 1000);
   await page.mouse.up();
-  await page.waitForTimeout(60);
+  await tick(0.06);
   return { ...info, minY };
 }
 
@@ -287,8 +292,8 @@ for (const kind of ["3d", "2d"]) {
   const actual = await page.evaluate(() => window.__lathe.views.current.kind);
   console.log(`\n${kind.toUpperCase()} view (showing: ${actual})`);
   if (actual !== kind) { check(kind === "2d", "3D unavailable in this browser, skipped"); continue; }
-  const full = [];
-  for (const t of [0.25, 0.75]) {
+  const full = [], smoke = kind === "3d";
+  for (const t of smoke ? [0.25] : [0.25, 0.75]) {
     await page.click("#newLogBtn");
     await page.waitForTimeout(100);
     const c = await carve(t, { hold: 3000 });   // a full pass at the default RPM takes a couple of seconds
@@ -296,9 +301,14 @@ for (const kind of ["3d", "2d"]) {
     check(Math.abs(m.centreT - t) < 0.02, `cut at t=${m.centreT.toFixed(3)}, finger at t=${t}`);
     check(Math.abs(m.drawnX - c.x) < 18, `deepest point drawn at x=${m.drawnX.toFixed(0)}, finger x=${c.x.toFixed(0)}`);
     check(c.minY > c.woodBottom, `finger stayed below the wood (lowest wood ${c.woodBottom.toFixed(0)}, finger reached ${c.minY.toFixed(0)})`);
-    // the stock motor is weak on purpose (shop.js LINES.motor), so a held full push cuts a real but modest groove
-    check(m.depth > 0.03 && m.depth <= 0.45, `40px nudge + hold cut ${(m.depth * 40).toFixed(1)} mm deep`);
+    // the stock motor is weak on purpose (shop.js LINES.motor): on the test clock a 3 s full push cuts about 7 mm
+    check(m.depth > 0.1 && m.depth <= 0.36 + 1e-6, `40px nudge + hold cut ${(m.depth * 40).toFixed(1)} mm deep`);
     full.push(m.depth);
+  }
+  if (smoke) {
+    const both = await page.evaluate(() => window.__lathe.views.current.kind);
+    check(both === "3d", "the 3D view draws and cuts (smoke test; the 2D view gets every check)");
+    continue;
   }
   // shallow nudge: cuts, but less
   await page.click("#newLogBtn");

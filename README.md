@@ -182,6 +182,15 @@ npm run e2e     # builds, then plays the harvest into the lathe, drives the lath
 npm run build   # rebuild lathe.html after editing src/
 ```
 
+The browser checks drive the lathe on a test clock: `lathe.html?testclock` stops
+the lathe following the wall clock, and a test moves time with
+`__lathe.advance(seconds)` in fixed 1/60 s steps (the forest has
+`__harvest.advance` too). A held push then cuts the same depth on any machine,
+GPU or not, and a three-second hold takes milliseconds. Most checks use the flat
+2D view (`?view=2d`), which renders quickly without a GPU; the 3D view gets a
+short smoke test. GitHub Actions (`.github/workflows/test.yml`) runs `npm test`
+and every browser check, each in its own job, on every pull request.
+
 ## Build order
 
 Lathe feel first: a smooth profile and a satisfying cut. Then the rest of the
