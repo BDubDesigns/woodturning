@@ -92,23 +92,25 @@ test("finer wood pays more for the same piece", () => {
 
 /* ---------------- grading ---------------- */
 
-test("a perfect piece scores full marks and earns the whole reward", () => {
+test("a perfect piece scores full marks and earns the whole reward plus the bonus", () => {
   for (const kind of C.PIECE_ORDER) {
     const o = C.makeOrder(11, { kind });
     const g = C.grade(o, perfectPiece(o));
     assert.ok(g.shape > 0.99, kind + " shape " + g.shape);
     assert.ok(g.paint > 0.95, kind + " paint " + g.paint);
     assert.ok(g.total > 0.95 && g.stars === 3, kind + " total " + g.total);
-    assert.equal(g.pay, o.reward);
+    assert.equal(g.pay, Math.round(o.reward * (1 + C.CFG.BONUS)));
+    assert.ok(g.accepted && g.bonus);
   }
 });
 
-test("an untouched blank scores nothing for shape and earns only the floor", () => {
+test("an untouched blank scores nothing for shape, and the customer turns it down", () => {
   const o = C.makeOrder(11, { kind: "rolling_pin" });
   const g = C.grade(o, blankPiece(o.wood));
   assert.ok(g.shape < 0.05, "shape " + g.shape);
   assert.ok(g.stars === 0);
-  assert.ok(g.pay < o.reward * 0.3, "pay " + g.pay + " of " + o.reward);
+  assert.equal(g.accepted, false);
+  assert.equal(g.pay, 0, "a turned-down piece pays nothing");
 });
 
 test("the closer the shape, the higher the grade", () => {
@@ -229,7 +231,7 @@ test("delivering pays coins, takes the piece from the shed, and clears the order
   assert.ok(s.state.inventory.get(wrong.id), "a refused piece stays in the shed");
   const r = s.board.deliver(o.id, piece.id);
   assert.ok(r.ok);
-  assert.equal(s.state.wallet.balance("coins"), before + o.reward);
+  assert.equal(s.state.wallet.balance("coins"), before + Math.round(o.reward * (1 + C.CFG.BONUS)));
   assert.equal(s.state.inventory.get(piece.id), null);
   assert.equal(s.board.get(o.id), null);
   assert.equal(s.board.active(), null);
@@ -256,4 +258,42 @@ test("the board section survives a save round trip", () => {
   const b2 = C.createBoard(game2, { state: St.createState(game2, { now: s.now }), now: s.now });
   assert.deepEqual(b2.state.orders, s.board.state.orders);
   assert.equal(b2.active().id, s.board.state.orders[1].id);
+});
+
+test("pay follows the spec: nothing below PASS, rising to all of it at FULL, a bonus above", () => {
+  const r = 100, { PASS, FULL, MIN_PAY, BONUS } = C.CFG;
+  assert.equal(C.payFor(r, PASS - 0.01), 0);
+  assert.equal(C.payFor(r, PASS), Math.round(r * MIN_PAY));
+  assert.equal(C.payFor(r, FULL), Math.round(r * (1 + BONUS)));
+  assert.equal(C.payFor(r, 1), Math.round(r * (1 + BONUS)));
+  let last = -1;
+  for (let g = PASS; g < FULL; g += 0.02) { const p = C.payFor(r, g); assert.ok(p >= last, "pay never drops as the grade rises"); last = p; }
+  assert.ok(C.payFor(r, FULL - 0.001) <= r, "just under FULL pays at most the reward");
+});
+
+test("a piece the customer turns down stays in the shed and the order stays open", () => {
+  const s = setup();
+  const o = s.board.state.orders[0];
+  const piece = s.state.inventory.add("piece", Object.assign({ shape: "Cylinder", from: "log" }, blankPiece(o.wood)));
+  const coins = s.state.wallet.balance("coins");
+  const r = s.board.deliver(o.id, piece.id);
+  assert.equal(r.ok, false); assert.equal(r.reason, "rejected");
+  assert.ok(s.state.inventory.get(piece.id), "the piece is kept");
+  assert.ok(s.board.get(o.id), "the order is still on the board");
+  assert.equal(s.state.wallet.balance("coins"), coins, "no coins");
+});
+
+test("an empty slot can be filled now for a diamond, or waits NEW_ORDER_MS", () => {
+  const s = setup();
+  assert.equal(C.CFG.NEW_ORDER_MS, 3 * MIN);
+  assert.equal(s.board.rushNext().reason, "board is full");
+  s.board.decline(s.board.state.orders[0].id);
+  const d = s.state.wallet.balance("diamonds");
+  const r = s.board.rushNext();
+  assert.ok(r.ok && r.order);
+  assert.equal(s.board.state.orders.length, C.CFG.BOARD_SIZE);
+  assert.equal(s.state.wallet.balance("diamonds"), d - C.CFG.RUSH_DIAMONDS);
+  s.board.decline(s.board.state.orders[0].id);
+  s.state.wallet.spend("diamonds", s.state.wallet.balance("diamonds"));
+  assert.equal(s.board.rushNext().reason, "not enough diamonds");
 });

@@ -67,14 +67,19 @@ mine, monetization, distribution, and the one-month bet.
   spec and a sheen, and pays coins: finer wood pays more. TAKE IT puts the
   order on the lathe, mounting that wood from the shed if there is some: the
   target is a ghost outline on the piece and in the profile strip, with a live
-  SHAPE score, and its paint spec is on the spec card. DONE grades the piece
-  (shape 55%, paint 35%, sheen 10%) and offers it to the order: DELIVER pays a
-  share of the reward that grows with the grade (one to three stars), or KEEP IT
-  for another try. Only the named wood can be delivered; turned pieces already
-  in the shed can be delivered from the board. A declined or delivered order is
-  replaced after four minutes, worked out from the saved clock, so orders come
-  in while the game is closed. Model in `src/js/commissions.js`, screen in
-  `src/js/commissions-ui.js`; the save section is `commissions`.
+  SHAPE score, and its paint spec is on the spec card. With none of that wood,
+  the card offers PRACTISE IT instead, and the lathe says plainly (a red banner
+  and the spec card) that the piece is practice only and cannot be delivered.
+  DONE grades the piece (shape 55%, paint 35%, sheen 10%). Under 50% the
+  customer turns it down: no pay, and the piece stays in the shed. From 50% to
+  90% the pay rises from 30% to all of the reward, and at 90% and up it is the
+  full reward plus a 10% bonus (one to three stars). DELIVER or KEEP IT. Only
+  the named wood can be delivered; turned pieces already in the shed can be
+  delivered from the board. A declined or delivered order is replaced after
+  three minutes, worked out from the saved clock, so orders come in while the
+  game is closed; GET ONE NOW on the empty slot posts one at once for a
+  diamond. Model in `src/js/commissions.js`, screen in
+`src/js/commissions-ui.js`; the save section is `commissions`.
 
 - Arbor Freight (the SHOP tab): the workshop's tool store, where coins from
   orders buy upgrades. Three lines, each a ladder bought in order, every rung

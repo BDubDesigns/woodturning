@@ -37,6 +37,8 @@ const first = await page.evaluate(() => window.__orders.board.state.orders[0]);
 check(first.wood === "pine", "the first order is pine, the quickest wood to grow");
 check(await page.locator(".order[data-order] .o-shape").count() === 3, "every order shows its target shape");
 check(/No pine in the shed/.test(await page.locator(".order[data-order]").first().textContent()), "it says when the shed has none of that wood");
+check(/PRACTISE IT/.test(await page.locator('.order[data-order] [data-act="take"]').first().textContent()) && /Practice only/.test(await page.locator('.order[data-order] [data-act="take"]').first().textContent()),
+  "with none of the wood, the button says PRACTISE IT and that it cannot be delivered");
 if (shots) await page.screenshot({ path: `${shots}/board.png` });
 
 console.log("\nTAKE IT");
@@ -56,6 +58,7 @@ check(st.stock && st.stock.kind === "log" && st.wood === "pine", "the pine log f
 check(st.spec === st.wantSpec, "the spec card shows the order's paint spec");
 check(st.btn === "BOARD", "NEW SPEC becomes BOARD while an order is on");
 check(/COMMISSION/.test(await page.locator("#specTag").textContent()), "the spec card says it is a commission");
+check(await page.locator("#orderNote").isHidden(), "the order's own wood is mounted: no practice warning");
 check(/SHAPE\s*\d+%/.test(st.label), `the profile strip shows a live shape score (${st.label})`);
 
 // the ghost is drawn in the 2D view: a pixel on the dashed target line is pale
@@ -111,7 +114,8 @@ const pieceId = await page.evaluate(() => window.__farm.state.inventory.list("pi
 await page.locator('#gradeOverlay [data-act="give"]').click();
 await tick(0.3);
 const coins1 = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
-check(coins1 === coins0 + first.reward, `DELIVER pays the full ${first.reward} coins (${coins0} -> ${coins1})`);
+const bonusPay = Math.round(first.reward * 1.1);
+check(coins1 === coins0 + bonusPay, `a 90%+ piece pays the full ${first.reward} coins plus the 10% bonus (${coins0} -> ${coins1})`);
 check((await page.locator("#walletCoins").textContent()) === String(coins1), "the wallet shows it");
 check(await page.evaluate((id) => !window.__farm.state.inventory.get(id), pieceId), "the piece left the shed");
 check(await page.evaluate((id) => !window.__orders.board.get(id), first.id), "the order left the board");
@@ -136,10 +140,28 @@ await page.locator(`.order[data-order="${oak.id}"] [data-act="take"]`).click();
 await tick(0.3);
 // turn a pine log against an order for another wood
 await page.evaluate(() => { window.__lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 20; i < 60; i++) S.work.radius[i] *= 0.7; S.work.version++; });
+await tick(0.1);
+check(!(await page.locator("#orderNote").isHidden()) && /Practice only/.test(await page.locator("#orderNote").textContent()) && /needs oak/.test(await page.locator("#orderNote").textContent()),
+  "pine against an oak order: the lathe says plainly it is practice only and needs oak");
+check(/PRACTICE ONLY/.test(await page.locator("#specTag").textContent()), "and so does the spec card");
 await page.click("#doneBtn");
 await tick(0.3);
 check(await page.locator("#gradeOverlay").isHidden(), "the wrong wood is not offered to the order");
 check(/cannot go to them/.test(await page.locator("#ltoast").textContent()), "and the toast says why");
+
+// the right wood but a poor job: the customer turns it down, the piece is kept
+await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "oak" }, 1); window.__lathe.takeOrder(); });
+await tick(0.1);
+check(await page.evaluate(() => window.__lathe.wood) === "oak" && await page.locator("#orderNote").isHidden(), "with oak mounted the warning goes");
+await page.evaluate(() => { const S = window.__lathe; for (let i = 100; i < 140; i++) S.work.radius[i] *= 0.97; S.work.version++; });
+await tick(0.1);
+const piecesBefore = await page.evaluate(() => window.__farm.state.inventory.count("piece"));
+await page.click("#doneBtn");
+await tick(0.2);
+check(!(await page.locator("#gradeOverlay").isHidden()) && /won.t take it/.test(await page.locator("#gradeOverlay").textContent()), "a piece under 50% is turned down");
+check(await page.locator('#gradeOverlay [data-act="give"]').count() === 0, "and cannot be delivered");
+check(await page.evaluate(() => window.__farm.state.inventory.count("piece")) === piecesBefore + 1, "it stays in the shed");
+await page.locator('#gradeOverlay [data-act="keep"]').click();
 await page.evaluate(() => window.Game.showScreen("orders"));
 await tick(0.3);
 const n0 = await page.evaluate(() => window.__orders.board.state.orders.length);
@@ -151,6 +173,11 @@ await tick(0.2);
 check(await page.evaluate((id) => !window.__orders.board.get(id), oak.id), "DECLINE takes the order off the board");
 check(await page.evaluate(() => window.__orders.board.state.orders.length) === n0 - 1, "and leaves the slot to fill later");
 check(await page.evaluate(() => !window.__lathe.order), "a declined order leaves the lathe too");
+const dia0 = await page.evaluate(() => window.__farm.state.wallet.balance("diamonds"));
+await page.locator('.order.empty [data-act="rush"]').first().click();
+await tick(0.2);
+check(await page.evaluate(() => window.__orders.board.state.orders.length) === n0 && await page.evaluate(() => window.__farm.state.wallet.balance("diamonds")) === dia0 - 1,
+  "GET ONE NOW posts a new order straight away for a diamond");
 
 console.log("\nSAVED");
 const ids = await page.evaluate(() => { window.__farm.persist(); return window.__orders.board.state.orders.map((o) => o.id); });

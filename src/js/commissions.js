@@ -12,11 +12,14 @@
    The board holds up to BOARD_SIZE orders. A new one arrives every
    NEW_ORDER_MS while there is room, worked out from the saved clock
    like the farm's trees, so orders come in while the game is closed.
-   One order at a time is active: the one on the lathe.
+   rushNext() posts one at once for a diamond. One order at a time is
+   active: the one on the lathe.
 
-   Grading a turned piece (gradePiece) scores the shape against the
-   target, the paint against the spec, and the sheen, and pays a share
-   of the reward. Only the wood the order names can be delivered.
+   Grading a turned piece (grade) scores the shape against the target,
+   the paint against the spec, and the sheen. Below CFG.PASS the customer
+   turns it down and pays nothing; above it the pay rises with the grade,
+   with a bonus at CFG.FULL and up. Any wood can be turned against an
+   order for practice, but only the wood the order names can be delivered.
 
    The model owns the commissions section of the save:
      game.commissions { orders: [...], active, nextId, nextAt, seed, done, history }
@@ -37,7 +40,8 @@
 
   var CFG = {
     BOARD_SIZE: 3,
-    NEW_ORDER_MS: 4 * MIN,     // one new order this often while the board has room
+    NEW_ORDER_MS: 3 * MIN,     // one new order this often while the board has room
+    RUSH_DIAMONDS: 1,          // ...or one straight away, for this many diamonds
     HISTORY: 12,               // delivered orders remembered for the board
     // the target never asks for more wood than any blank has, nor for a stick too thin to hold
     R_MAX: 0.66, R_MIN: 0.24,  // fractions of the lathe's blank radius R0
@@ -47,8 +51,10 @@
     EDGE: 0.03,                // the ends sit in the centres and are not graded
     // how the grade is made up
     W_SHAPE: 0.55, W_PAINT: 0.35, W_SHEEN: 0.1,
-    PAY_FLOOR: 0.15,           // even a rough attempt in the right wood earns something
-    STARS: [0.5, 0.72, 0.88]   // grade needed for one, two, three stars
+    // pay: below PASS the customer turns the piece down (no pay, the piece stays in the shed);
+    // from PASS to FULL pay rises from MIN_PAY to all of the reward; at FULL and above, all of it plus BONUS
+    PASS: 0.5, FULL: 0.9, MIN_PAY: 0.3, BONUS: 0.1,
+    STARS: [0.5, 0.72, 0.9]    // grade needed for one, two, three stars
   };
 
   /* The kinds of piece. base: coins for a perfect pine one. shape(t, r):
@@ -202,12 +208,18 @@
     var coating = work.coat instanceof P.Coating ? work.coat : coatingOf(work.coat);
     var m = P.matchSpec(order.spec, coating);
     var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish;
-    var woodOk = work.wood === order.wood;
-    var pay = woodOk ? Math.round(order.reward * (CFG.PAY_FLOOR + (1 - CFG.PAY_FLOOR) * Math.pow(g, 1.4))) : 0;
+    var woodOk = work.wood === order.wood, accepted = woodOk && g >= CFG.PASS;
     return {
       shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen,
-      total: g, stars: starsFor(g), woodOk: woodOk, pay: pay
+      total: g, stars: starsFor(g), woodOk: woodOk, accepted: accepted,
+      pay: accepted ? payFor(order.reward, g) : 0, bonus: accepted && g >= CFG.FULL
     };
+  }
+  /* What a grade earns on a reward, when the piece is accepted (see CFG.PASS..BONUS). */
+  function payFor(reward, g) {
+    if (g < CFG.PASS) return 0;
+    if (g >= CFG.FULL) return Math.round(reward * (1 + CFG.BONUS));
+    return Math.round(reward * (CFG.MIN_PAY + (1 - CFG.MIN_PAY) * (g - CFG.PASS) / (CFG.FULL - CFG.PASS)));
   }
 
   /* ---------------- the board ---------------- */
@@ -312,6 +324,7 @@
       if (!it || it.kind !== "piece") return { ok: false, reason: "no such piece" };
       var g = grade(o, it);
       if (!g.woodOk) return { ok: false, reason: "wrong wood", grade: g };
+      if (!g.accepted) return { ok: false, reason: "rejected", grade: g };   // the piece stays in the shed
       if (!state.inventory.take("piece", pieceId)) return { ok: false, reason: "no such piece" };
       if (g.pay > 0) state.wallet.earn("coins", g.pay);
       B.orders.splice(B.orders.indexOf(o), 1);
@@ -324,17 +337,28 @@
       return { ok: true, grade: g, order: o, pay: g.pay };
     }
 
+    /* Don't wait for the next order: post one now for RUSH_DIAMONDS diamonds. */
+    function rushNext() {
+      if (B.orders.length >= CFG.BOARD_SIZE) return { ok: false, reason: "board is full" };
+      var paid = state.wallet.spend("diamonds", CFG.RUSH_DIAMONDS);
+      if (!paid.ok) return { ok: false, reason: "not enough diamonds", need: CFG.RUSH_DIAMONDS, have: state.wallet.balance("diamonds") };
+      var o = post();
+      if (B.orders.length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
+      onChange();
+      return { ok: true, order: o };
+    }
+
     refill();
     return {
       state: B, refill: refill, get: get, active: active, accept: accept, release: release, decline: decline,
-      candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext,
+      candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
       grade: grade, targetProfile: targetProfile
     };
   }
 
   var api = {
     CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
-    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor,
+    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor, payFor: payFor,
     defaultBoard: defaultBoard, normalizeBoard: normalizeBoard, createBoard: createBoard
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
