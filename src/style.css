@@ -688,3 +688,23 @@ footer {
 .settings-card .act.danger.armed .an { color: #fff; }
 #latheStats, #harvestStats { margin-left: auto; }
 header .gear-btn { margin-left: 4px; }
+
+/* ---------- orders: practice, rush, turned down ---------- */
+.order .act.practice { border-style: dashed; border-color: #b8893a; background: #2a2119; }
+.order .act.practice .an { color: #e0b07a; }
+.order .act.short { opacity: 0.6; }
+.order.empty .row { justify-content: center; margin-top: 10px; }
+.order.empty .act { flex: 0 1 240px; text-align: center; }
+.g-reject { margin: 8px 0 14px; padding: 9px 12px; border-radius: 8px; background: rgba(192, 57, 43, 0.18); border: 1px solid #a33; color: #ffcfc6; font-size: 14px; line-height: 1.4; }
+.g-bonus { margin-left: 6px; padding: 1px 7px; border-radius: 5px; background: #f2c230; color: #1b1405; font-weight: 700; font-size: 12px; }
+.g-pick.no { opacity: 0.55; cursor: default; }
+.spec-tag.warn { color: #ff9b8a; }
+#orderNote {
+  position: absolute; left: 12px; right: 12px; top: 10px; margin: 0 auto; width: fit-content; z-index: 4; max-width: 560px;
+  padding: 7px 14px; border-radius: 8px; text-align: center; font-size: 14px; line-height: 1.35;
+  background: rgba(60, 18, 12, 0.88); color: #ffe0d8; border: 1px solid #c0392b; pointer-events: none;
+}
+#orderNote b { color: #ff9b8a; }
+#orderNote[hidden] { display: none; }
+/* the practice-only banner sits at the top of the stage; the lathe's toasts drop below it */
+#stage.has-note #ltoast { top: 78px; }

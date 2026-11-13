@@ -242,6 +242,7 @@
       } else S.stock = null;
       stockLabel.textContent = stockName(S.stock).toUpperCase();
       doneBtn.setAttribute("aria-disabled", S.stock ? "false" : "true");
+      if (typeof updateOrderNote === "function") updateOrderNote();
     }
     /* Mount something from the shed. Nothing leaves the shed until DONE. */
     function mountStock(st) {
@@ -404,8 +405,7 @@
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
       specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
       // with no commission on the lathe the spec is only for practice: say so, so it is never taken for an order
-      specTag.textContent = S.order ? "COMMISSION · " + S.order.client.toUpperCase() : "PRACTICE · NO ORDER";
-      specTag.classList.toggle("order", !!S.order);
+      updateOrderNote();
       drawSpec(); updateSpecInfo();
       return true;
     }
@@ -447,6 +447,30 @@
       else toast("No " + woodName(o.wood).toLowerCase() + " in the shed. Grow one on the farm. You can practise the shape meanwhile.");
     }
     L.takeOrder = takeOrder;
+    /* Practise an order on a free practice blank: its shape and spec are on, the wood stays in the shed. */
+    function practiseOrder() {
+      syncOrder();
+      if (!S.order) return;
+      mount(null);
+      toast("Practice blank on the lathe. Turn it to the line; it can't be delivered.");
+    }
+    L.practiseOrder = practiseOrder;
+    /* With an order on, say plainly whether what is mounted can be delivered: any wood
+       can be turned to the order's shape for practice, but only its own wood is accepted. */
+    var orderNote = document.getElementById("orderNote");
+    function deliverable() { return !!S.order && !!S.stock && S.wood === S.order.wood; }
+    function updateOrderNote() {
+      if (!orderNote || !specTag) return;   // early in boot, before these are found
+      var o = S.order, ok = deliverable();
+      if (!o) { specTag.textContent = "PRACTICE · NO ORDER"; specTag.className = "spec-tag"; orderNote.hidden = true; stage.classList.remove("has-note"); return; }
+      var want = woodName(o.wood).toLowerCase();
+      specTag.textContent = ok ? "COMMISSION · " + o.client.toUpperCase() : "PRACTICE ONLY · NEEDS " + want.toUpperCase();
+      specTag.className = "spec-tag " + (ok ? "order" : "warn");
+      orderNote.hidden = ok;
+      stage.classList.toggle("has-note", !ok);
+      if (!ok) orderNote.innerHTML = "<b>Practice only.</b> " + (S.stock ? "This is " + woodName(S.wood).toLowerCase() : "This is a practice blank") +
+        ", so it can't be delivered. " + o.client + " needs " + want + ".";
+    }
     var shapeShown = -1;
     function updateShape() {
       if (!S.target || !G.Commissions) { profileLabel.textContent = "PROFILE"; return; }
@@ -664,7 +688,7 @@
     setSpec(P.generateSpec());
     syncOrder();
     applyUpgrades();
-    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;

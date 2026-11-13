@@ -113,14 +113,19 @@
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
-        h += act("TAKE IT", st.blanks || st.logs ? "Put the " + woodName(o.wood).toLowerCase() + " on the lathe" : "Practise the shape on the lathe", "primary", "take");
+        if (st.blanks || st.logs) {
+          h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
+          h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
+        } else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
         h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
       if (st.pieces) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
       h += "</div></article>";
     });
     for (var k = B.orders.length; k < C.CFG.BOARD_SIZE; k++) {
-      h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p></article>";
+      var dia = state.wallet.balance("diamonds"), cost = C.CFG.RUSH_DIAMONDS;
+      h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p>" +
+        '<div class="row">' + act("GET ONE NOW", cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + dia + ".", dia >= cost ? "" : "short", "rush") + "</div></article>";
     }
     listEl.innerHTML = h;
     var f = "", recent = B.history.slice(-5).reverse();
@@ -149,6 +154,10 @@
       board.accept(id);
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();
+    } else if (what === "practise") {        // the order's shape and spec on a free practice blank, the real wood kept
+      board.accept(id);
+      G.showScreen("lathe");
+      if (root.Lathe.practiseOrder) root.Lathe.practiseOrder();
     } else if (what === "lathe") {
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();
@@ -163,6 +172,15 @@
     } else if (what === "deliver") {
       choose(o);
     }
+  });
+  function o0(id) { var o = board.get(id); return o ? esc(o.client) : "The customer"; }
+  // GET ONE NOW on an empty slot: a diamond posts the next order straight away
+  listEl.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-act="rush"]') : null;
+    if (!b) return;
+    var r = board.rushNext();
+    if (r.ok) { toast("New order from " + r.order.client + "."); host.renderWallet(); render(true); }
+    else if (r.reason === "not enough diamonds") toast("That takes " + r.need + (r.need === 1 ? " diamond" : " diamonds") + ". You have " + r.have + ". The mine has more.");
   });
 
   /* ---------------- handing a piece over ---------------- */
@@ -186,10 +204,15 @@
     if (!o || !g) return;
     var h = '<div class="grade-card"><h2 id="gradeTitle">' + esc(pieceName(o)) + " for " + esc(o.client) + "</h2>";
     h += gradeHtml(o, g);
-    h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + "</p>";
-    h += '<div class="row">' + act("DELIVER", "Hand it over for " + g.pay + " coins", "primary", "give") + act("KEEP IT", "It stays in the shed. Try again", "", "keep") + "</div></div>";
+    if (g.accepted) {
+      h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
+      h += '<div class="row">' + act("DELIVER", "Hand it over for " + g.pay + " coins", "primary", "give") + act("KEEP IT", "It stays in the shed. Try again", "", "keep") + "</div></div>";
+    } else {
+      h += '<p class="g-reject">' + esc(o.client) + " won't take it. A piece needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted; this one is " + Math.round(g.total * 100) + "%. It stays in the shed.</p>";
+      h += '<div class="row">' + act("KEEP IT", "Try another one", "primary", "keep") + "</div></div>";
+    }
     overlay.innerHTML = h; overlay.hidden = false;
-    overlay.querySelector('[data-act="give"]').addEventListener("click", function () { give(orderId, pieceId); });
+    if (g.accepted) overlay.querySelector('[data-act="give"]').addEventListener("click", function () { give(orderId, pieceId); });
     overlay.querySelector('[data-act="keep"]').addEventListener("click", function () { closeOverlay(); });
   }
   /* DELIVER on the board: pick which piece from the shed. */
@@ -199,7 +222,8 @@
     var h = '<div class="grade-card"><h2 id="gradeTitle">Deliver ' + article(pieceName(o)) + " " + esc(pieceName(o).toLowerCase()) + "</h2><p class=\"g-note\">Pick the piece to hand to " + esc(o.client) + ".</p><div class=\"g-list\">";
     list.slice().reverse().forEach(function (it) {
       var g = board.preview(o.id, it.id);
-      h += '<button type="button" class="g-pick" data-piece="' + it.id + '">' + starsHtml(g.stars) + "<span><b>" + esc(woodName(it.wood)) + " " + esc((it.shape || "piece").toLowerCase()) + "</b><small>Shape " + Math.round(g.shape * 100) + "% · paint " + Math.round(g.paint * 100) + "%</small></span><span class=\"n\">" + COIN + g.pay + "</span></button>";
+      h += '<button type="button" class="g-pick' + (g.accepted ? "" : " no") + '" data-piece="' + it.id + '"' + (g.accepted ? "" : ' aria-disabled="true"') + ">" + starsHtml(g.stars) + "<span><b>" + esc(woodName(it.wood)) + " " + esc((it.shape || "piece").toLowerCase()) + "</b><small>" +
+        (g.accepted ? "Shape " + Math.round(g.shape * 100) + "% · paint " + Math.round(g.paint * 100) + "%" : "Turned down: under " + Math.round(C.CFG.PASS * 100) + "%") + '</small></span><span class="n">' + (g.accepted ? COIN + g.pay : "") + "</span></button>";
     });
     h += '</div><div class="row">' + act("CANCEL", "Keep them all", "", "keep") + "</div></div>";
     overlay.innerHTML = h; overlay.hidden = false;
@@ -210,11 +234,15 @@
   }
   function give(orderId, pieceId) {
     var r = board.deliver(orderId, pieceId);
-    if (!r.ok) { closeOverlay(); toast(r.reason === "wrong wood" ? "That piece is the wrong wood for this order." : "That piece is no longer in the shed."); return; }
+    if (!r.ok) {
+      closeOverlay();
+      toast(r.reason === "wrong wood" ? "That piece is the wrong wood for this order." : r.reason === "rejected" ? o0(orderId) + " won't take that one. It needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted." : "That piece is no longer in the shed.");
+      return;
+    }
     var o = r.order, g = r.grade;
     var h = '<div class="grade-card done"><h2 id="gradeTitle">Delivered!</h2><div class="g-stars">' + starsHtml(g.stars) + "</div>";
     h += '<p class="g-pay big">+' + COIN + "<b>" + r.pay + "</b></p>";
-    h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : g.stars >= 1 ? " takes the " : " grumbles, but pays for the ") + esc(pieceName(o).toLowerCase()) + ".</p>";
+    h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : " takes the ") + esc(pieceName(o).toLowerCase()) + (g.bonus ? ", and adds a " + Math.round(C.CFG.BONUS * 100) + "% bonus" : "") + ".</p>";
     h += '<div class="row">' + act("BOARD", "See the other orders", "primary", "board") + act("OK", "Back to work", "", "keep") + "</div></div>";
     overlay.innerHTML = h; overlay.hidden = false;
     overlay.querySelector('[data-act="board"]').addEventListener("click", function () { closeOverlay(); G.showScreen("orders"); });
