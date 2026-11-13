@@ -670,3 +670,21 @@ footer {
   opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
 }
 #stoast.on { opacity: 1; }
+
+/* ---------- settings ---------- */
+.gear-btn {
+  flex: none; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1px solid var(--chrome-line); background: var(--btn-bg); color: var(--dim);
+}
+.gear-btn:hover { color: var(--amber); border-color: var(--amber); }
+#settingsOverlay {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  padding: 18px; background: rgba(8, 6, 4, 0.82);
+}
+#settingsOverlay[hidden] { display: none !important; }
+.settings-card .act.danger { border-color: #a33; background: #3a1712; }
+.settings-card .act.danger .an { color: #ff9b8a; }
+.settings-card .act.danger.armed { background: #7a1f14; border-color: #ff6b55; }
+.settings-card .act.danger.armed .an { color: #fff; }
+#latheStats, #harvestStats { margin-left: auto; }
+header .gear-btn { margin-left: 4px; }

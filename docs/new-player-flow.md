@@ -1,6 +1,6 @@
 # New player flow: a guided first session
 
-Status: planned, not started. This is the brief for the session that builds it.
+Status: planned and decided, not started. This is the brief for the session that builds it.
 
 ## The problem
 
@@ -116,15 +116,23 @@ player should touch next.
   skipped (a `?tutorial=off` flag or a seeded save) so they keep testing what
   they test.
 
-## Open questions for Brandon
+## Decisions (answered by Brandon)
 
-1. **Which wood is the second order?** The brief says "the next tier up" and
-   also "they have no walnut". The next tier after pine is **oak** (8 minutes to
-   grow; walnut is 15). Default: oak, since it is the next tier, and 5 diamonds
-   (each skips 2 minutes) cover its 8-minute grow with one to spare. Walnut
-   would need 8.
-2. **"Gems" are diamonds now.** Gems were removed earlier; diamonds are the
-   premium currency. Default: grant 5 diamonds.
-3. **Plant prices** (pine 10, oak 40, walnut 120 suggested) and whether the full
-   unlock makes planting free.
-4. **When do SHOP and MINE unlock?** Default: both at graduation (step 11).
+1. **The second order is oak.** Oak is tier 2, walnut tier 3. Five diamonds
+   (each skips 2 minutes) cover oak's 8-minute grow with one to spare.
+2. **Gems mean diamonds.** Grant 5 diamonds at the speed-up step.
+3. **Plant prices: pine 10, oak 40, walnut 120 coins**, on the condition that a
+   dearer wood always pays more for the same job. That already holds for
+   commissions (`WOOD_PAY`: pine 1, oak 1.6, walnut 2.4); keep it true as prices
+   are tuned, and check the cheapest order of each wood still pays well over its
+   plant price.
+4. **SHOP and MINE unlock at graduation** (step 11).
+
+## Already in place for testing it
+
+- **Reset profile**: the gear button in the header opens Settings, and RESET
+  PROFILE (tap twice) wipes the save and reloads as a brand-new player. Use it to
+  play the flow from the start. `?reset` on the URL does the same.
+- **The stock motor is weak on purpose** and each motor upgrade cuts noticeably
+  faster (`LINES.motor` in `shop.js`), so the motor is a real reason to visit
+  Arbor Freight. The tutorial's practice cut should feel fine at the stock rate.

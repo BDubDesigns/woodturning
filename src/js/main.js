@@ -183,7 +183,7 @@
     });
     /* What the workshop has bought at Arbor Freight: the light over the lathe,
        the motor (how fast wood comes off) and the chisels on the rack. */
-    S.cutBoost = 1;
+    S.cutBoost = 1;                     // set from the motor the workshop owns (shop.js); 1 only before the shop loads
     function applyUpgrades() {
       var shop = root.Game && root.Game.shop;
       if (!shop) return;

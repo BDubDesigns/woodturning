@@ -79,7 +79,7 @@ await page.evaluate(() => window.Game.showScreen("shop"));
 await page.click('[data-buy="motor"]');
 await page.evaluate(() => window.Game.showScreen("lathe"));
 await page.waitForTimeout(200);
-check(await page.evaluate(() => window.__lathe.cutBoost) > 1, "the one horse motor is installed");
+check(await page.evaluate(() => window.__lathe.cutBoost) > 0.5, "the one horse motor is installed");
 const after = await pass();
 check(after > before, `the same pass takes more off with the bigger motor (${(before * 100).toFixed(2)}% -> ${(after * 100).toFixed(2)}%)`);
 if (shots) await page.screenshot({ path: `${shots}/lathe-upgraded.png` });
@@ -90,7 +90,23 @@ await page.reload();
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 await page.waitForTimeout(200);
 const kept = await page.evaluate(() => ({ light: window.__lathe.lightLevel, tips: window.__lathe.tips, boost: window.__lathe.cutBoost }));
-check(kept.light === 1 && kept.tips.includes("parting") && kept.boost > 1, "after a reload the lamp, the chisel and the motor are still there");
+check(kept.light === 1 && kept.tips.includes("parting") && kept.boost > 0.5, "after a reload the lamp, the chisel and the motor are still there");
+
+console.log("\nRESET PROFILE");
+await page.click("#settingsBtn");
+check(!(await page.locator("#settingsOverlay").isHidden()), "the gear opens Settings");
+await page.locator('#settingsOverlay [data-act="reset"]').click();
+check(/TAP AGAIN/.test(await page.locator('#settingsOverlay [data-act="reset"]').textContent()) && await page.evaluate(() => window.__shop.shop.level("light")) === 1, "one tap only arms it: nothing is wiped yet");
+await Promise.all([page.waitForNavigation(), page.locator('#settingsOverlay [data-act="reset"]').click()]);
+await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
+await page.waitForTimeout(200);
+const fresh = await page.evaluate(() => ({ coins: window.__farm.state.wallet.balance("coins"), light: window.__shop.shop.level("light"), motor: window.__shop.shop.level("motor"), tips: window.__lathe.tips, done: window.__orders.board.state.done }));
+check(fresh.coins === 250 && fresh.light === 0 && fresh.motor === 0 && fresh.tips.length === 2, `the second tap starts over as a new player (${JSON.stringify(fresh)})`);
+await page.evaluate(() => { window.__farm.state.wallet.earn("coins", 77); window.__farm.persist(); });
+await page.goto(`file://${file}?view=2d&reset`);
+await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
+check(await page.evaluate(() => window.__farm.state.wallet.balance("coins")) === 250, "?reset on the URL starts over too");
+check(!/reset/.test(await page.evaluate(() => location.search)), "and drops itself from the URL, so a reload does not wipe again");
 
 console.log("\nLAYOUT");
 for (const w of [360, 412]) {
