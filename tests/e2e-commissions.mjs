@@ -126,8 +126,10 @@ check(await page.evaluate(() => getComputedStyle(document.querySelector("#boardF
 check(/PRACTICE/.test(await page.locator("#specTag").textContent()), "with no order on, the lathe's spec card says it is practice");
 
 console.log("\nWRONG WOOD AND DECLINE");
+// the board is random: make one order an oak one, so this never depends on what was rolled
 const oak = await page.evaluate(() => {
-  const b = window.__orders.board, o = b.state.orders.find((x) => x.wood !== "pine") || b.state.orders[0];
+  const b = window.__orders.board, o = b.state.orders[b.state.orders.length - 1];
+  o.wood = "oak"; window.__orders.ui.render(true);
   return o;
 });
 await page.locator(`.order[data-order="${oak.id}"] [data-act="take"]`).click();
@@ -136,10 +138,8 @@ await tick(0.3);
 await page.evaluate(() => { window.__lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 20; i < 60; i++) S.work.radius[i] *= 0.7; S.work.version++; });
 await page.click("#doneBtn");
 await tick(0.3);
-if (oak.wood !== "pine") {
-  check(await page.locator("#gradeOverlay").isHidden(), "the wrong wood is not offered to the order");
-  check(/cannot go to them/.test(await page.locator("#ltoast").textContent()), "and the toast says why");
-}
+check(await page.locator("#gradeOverlay").isHidden(), "the wrong wood is not offered to the order");
+check(/cannot go to them/.test(await page.locator("#ltoast").textContent()), "and the toast says why");
 await page.evaluate(() => window.Game.showScreen("orders"));
 await tick(0.3);
 const n0 = await page.evaluate(() => window.__orders.board.state.orders.length);
