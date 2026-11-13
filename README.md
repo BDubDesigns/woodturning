@@ -51,15 +51,24 @@ mine, monetization, distribution, and the one-month bet.
   by calling `Lathe.Paint.generateSpec`. Keys: `3` cut, `4` paint, `5` finish.
 
 - Monetization (slice 6): the money model, kept honest. Diamonds are called
-  diamonds. The MINE tab trades one finished ad (about 5 seconds, close button
-  always there) for exactly 3 diamonds or 1 gem, no randomness. Gems sell for 25
-  coins. Diamonds skip growing time, grow a tree now, or buy land. The full
+  diamonds, and they are the only premium currency. One finished ad lets you
+  into the mine (below), no randomness. Diamonds skip growing time, grow a tree now, or buy land. The full
   unlock ($5, one constant in `src/js/monetize.js`) removes every ad and every
-  timer. The free game is complete: the core loop never asks for diamonds, gems,
+  timer. The free game is complete: the core loop never asks for diamonds,
   an ad, or the unlock. Ads and payments are two seams (`MineUI.adProvider`,
   `MineUI.payProvider`) with a labelled house ad and a no-charge preview
   purchase until the Play Store slice wires AdMob and Play Billing. Play Pass
   notes are in `docs/play-pass.md` (open question, not applied for).
+
+- The mine: the MINE tab's ad no longer pays out directly. One finished ad
+  (about 5 seconds, close button always there) lets you into the mine: a
+  timbered shaft with a diamond vein in the middle. Swipe the pick across it;
+  fast swings bite, slow drags just tink. Each strike throws rock chunks, dust
+  and sparks and opens a crack where it landed, and the old cracks creep. When
+  it breaks the diamonds tumble out and fly to the wallet: exactly 5, every
+  time. Leaving halfway keeps the visit. The full unlock walks straight in.
+  Model in `src/js/vein.js`, scene in `src/js/mine-scene.js`, and the payout is
+  one function, `awardVein` in `src/js/monetize-ui.js`.
 
 ## Play
 
