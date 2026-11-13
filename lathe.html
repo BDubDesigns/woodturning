@@ -4715,16 +4715,22 @@ footer {
          biggest in the middle, so it reads as a feathery spray with sky and
          trunk showing between boughs. Only tufts on the stretch a0..a1. */
       function tier(b, a0, a1, jit) {
-        var tf = [], start = Math.max(0.36, b.len * 0.12), step = F.tuft * 0.55, k = 0, s;
+        var tf = [], start = 0, step = F.tuft * 0.5, k = 0, s;
         for (s = start; s <= b.len + 1e-6; s += step, k++) {
           if (s < a0 - 1e-6 || s > a1 + 1e-6) continue;
-          var P = arcPoint(b, s), u = (s - start) / Math.max(0.01, b.len - start);
-          var rx = F.tuft * (0.6 + 0.55 * Math.sin(Math.PI * Math.min(0.92, u * 0.8 + 0.2))) * (0.8 + 0.4 * J(jit, k));
+          var P = arcPoint(b, s), u = s / Math.max(0.01, b.len);
+          // fullest next to the trunk, thinning toward the tip, so the tree is thick through its middle
+          var rx = F.tuft * (1.05 - 0.6 * Math.pow(u, 0.9)) * (0.85 + 0.3 * J(jit, k));
           var ta = P.ang + (J(jit, k + 30) - 0.5) * 0.5;
-          tf.push({ x: P.x, y: P.y - rx * 0.12, a: ta, rx: rx, ry: rx * 0.62 });
-          // the spray is deep, not a single row: smaller tufts above and hanging below the bough
-          if (J(jit, k + 50) < 0.8) tf.push({ x: P.x + Math.cos(ta) * rx * 0.3, y: P.y + rx * 0.38, a: ta + b.s * 0.3, rx: rx * 0.62, ry: rx * 0.4 });
-          if (J(jit, k + 60) < 0.85) tf.push({ x: P.x + Math.cos(ta) * rx * 0.2, y: P.y - rx * 0.55, a: ta - b.s * 0.35, rx: rx * 0.72, ry: rx * 0.42 });
+          tf.push({ x: P.x, y: P.y - rx * 0.1, a: ta, rx: rx, ry: rx * 0.72 });
+          // the spray is deep, not a single row: tufts above and hanging below the bough
+          if (J(jit, k + 50) < 0.75) tf.push({ x: P.x + Math.cos(ta) * rx * 0.3, y: P.y + rx * 0.5, a: ta + b.s * 0.3, rx: rx * 0.7, ry: rx * 0.5 });
+          if (J(jit, k + 60) < 0.8) tf.push({ x: P.x + Math.cos(ta) * rx * 0.2, y: P.y - rx * 0.6, a: ta - b.s * 0.35, rx: rx * 0.75, ry: rx * 0.48 });
+        }
+        if (a0 < 0.02 && a1 > b.len * 0.5) {                  // a core mass over the trunk, so its centre never shows through
+          var Q = arcPoint(b, 0), cr = F.tuft * 0.95;
+          tf.push({ x: Q.x * 0.2, y: Q.y - cr * 0.1, a: 0, rx: cr, ry: cr * 0.62 });
+          tf.push({ x: -Q.x * 0.1, y: Q.y + cr * 0.45, a: 0, rx: cr * 0.9, ry: cr * 0.5 });
         }
         if (a1 >= b.len - 0.02) {                               // the tip: a narrower tuft reaching past the end
           var E = arcPoint(b, b.len);
