@@ -483,3 +483,41 @@ footer {
 .mine-strikes b { color: var(--amber); font-size: 18px; margin-left: 4px; }
 .coin-chip.chip-pulse { animation: chip-pulse 0.35s ease-out; }
 @keyframes chip-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.22); box-shadow: 0 0 14px rgba(111, 211, 230, 0.8); } 100% { transform: scale(1); } }
+
+/* ---------------- lathe stock: what is mounted, and taking a piece off ---------------- */
+.ctl-btn.primary { border-color: var(--amber); color: var(--amber); }
+.ctl-btn[aria-disabled="true"] { opacity: 0.5; }
+#stockLabel { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ltoast {
+  position: absolute; left: 50%; top: 14px; transform: translate(-50%, -8px);
+  background: rgba(20, 15, 11, 0.88); color: #f3e7d3;
+  border: 1px solid rgba(232, 163, 61, 0.5); border-radius: 999px;
+  padding: 7px 18px; font-weight: 600; font-size: 15px; letter-spacing: 0.03em;
+  opacity: 0; pointer-events: none; max-width: 92%; text-align: center;
+  transition: opacity 0.25s ease, transform 0.25s ease; z-index: 6;
+}
+#ltoast.on { opacity: 1; transform: translate(-50%, 0); }
+#stockMenu {
+  position: absolute; right: 12px; bottom: 12px; z-index: 7;
+  width: min(340px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto;
+  background: rgba(20, 15, 11, 0.96); color: #f3e7d3;
+  border: 1px solid rgba(232, 163, 61, 0.5); border-radius: 10px;
+  padding: 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+#stockMenu h2 { margin: 0 0 4px; font: 700 15px "Barlow Condensed", sans-serif; letter-spacing: 0.14em; color: var(--amber); }
+#stockMenu p { margin: 0 0 10px; font-size: 13px; color: #cbbba2; line-height: 1.35; }
+#stockMenu .stock-list { display: flex; flex-direction: column; gap: 6px; }
+#stockMenu .stock-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; text-align: left;
+  padding: 7px 11px; border-radius: 8px; border: 1px solid rgba(150, 125, 85, 0.45);
+  background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit;
+}
+#stockMenu .stock-opt[aria-pressed="true"] { border-color: var(--amber); }
+#stockMenu .stock-opt i { flex: 0 0 auto; width: 22px; height: 12px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset; }
+#stockMenu .stock-opt b { font-weight: 700; font-size: 14px; }
+#stockMenu .stock-opt small { display: block; font-size: 12px; color: #b9a98f; }
+#stockMenu .stock-opt .n { margin-left: auto; font: 600 17px "Barlow Condensed", sans-serif; }
+/* phones: sound and new log shrink to their icons so the lathe keeps its height */
+@media (max-width: 460px) {
+  .ctl-btn.icon-sm { font-size: 0; gap: 0; padding: 8px 12px; }
+}

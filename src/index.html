@@ -59,15 +59,11 @@
         <div class="wallet" aria-label="Wallet">
           <span class="coin-chip" title="Coins">
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>
-            <b id="walletCoins">0</b>
+            <b id="walletCoins" data-currency="coins">0</b>
           </span>
           <span class="coin-chip" title="Diamonds">
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="#6fd3e6" stroke="#2b7f93" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 21 9 9m3 12 3-12" fill="none" stroke="#2b7f93" stroke-width="1.2" opacity="0.7"/></svg>
-            <b id="walletDiamonds">0</b>
-          </span>
-          <span class="coin-chip" title="Gems">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 21 9 12 22 3 9z" fill="#d86fa8" stroke="#8a2f62" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 9h18M12 2v20" fill="none" stroke="#8a2f62" stroke-width="1.2" opacity="0.6"/></svg>
-            <b id="walletGems">0</b>
+            <b id="walletDiamonds" data-currency="diamonds">0</b>
           </span>
           <span class="full-badge" id="fullBadge" title="Full game unlocked" hidden>FULL</span>
         </div>
@@ -78,6 +74,8 @@
         <div id="err"></div>
         <div id="cutflash"></div>
         <div id="pmeter" aria-hidden="true"><i></i></div>
+        <div id="ltoast" role="status" aria-live="polite"></div>
+        <div id="stockMenu" role="dialog" aria-label="Choose what to turn" hidden></div>
         <div id="hint"><b>Touch below the log, then nudge up</b> to push the chisel in. Push harder to cut deeper.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.</div>
       </div>
 
@@ -168,11 +166,19 @@
             <span class="rpmv" id="rpmVal">1100 RPM</span>
           </div>
           <button class="ctl-btn" id="viewBtn" title="Switch between 3D and flat view">2D VIEW</button>
-          <button class="ctl-btn" id="soundBtn" data-sound aria-pressed="true" title="Toggle sound">
+          <button class="ctl-btn icon-sm" id="soundBtn" data-sound aria-pressed="true" title="Toggle sound" aria-label="Sound">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="snd-waves" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="snd-waves" d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></svg>
             SOUND
           </button>
-          <button class="ctl-btn" id="newLogBtn" title="Mount a practice blank">
+          <button class="ctl-btn" id="stockBtn" title="Mount a log or blank from the shed" aria-haspopup="dialog" aria-expanded="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="7" cy="12" rx="3" ry="6"/><path d="M7 6h11a3 6 0 0 1 0 12H7"/></svg>
+            <span id="stockLabel">PRACTICE</span>
+          </button>
+          <button class="ctl-btn primary" id="doneBtn" title="Take the piece off the lathe and keep it">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
+            DONE
+          </button>
+          <button class="ctl-btn icon-sm" id="newLogBtn" title="Mount a practice blank" aria-label="New practice log">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
             NEW LOG
           </button>
@@ -243,6 +249,8 @@
     <div id="adOverlay" role="dialog" aria-modal="true" aria-labelledby="adTitle" hidden></div>
 
     <script src="vendor/three.min.js"></script>
+    <script src="js/registry.js"></script>
+    <script src="js/state.js"></script>
     <script src="js/cutting.js"></script>
     <script src="js/paint.js"></script>
     <script src="js/audio.js"></script>

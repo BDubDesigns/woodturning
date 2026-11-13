@@ -13,9 +13,9 @@ function fresh() {
   w.reset(0);
   return w;
 }
-function dwell(w, t, p, tip, seconds) {
+function dwell(w, t, p, tip, seconds, rpm) {
   let removed = 0;
-  for (let s = 0; s < seconds; s += DT) removed += w.cut(t, p, tip, DT);
+  for (let s = 0; s < seconds; s += DT) removed += w.cut(t, p, tip, DT, 1, rpm);
   return removed;
 }
 function sweep(w, t0, t1, p, tip, seconds) {
@@ -145,7 +145,7 @@ test("a short nudge cuts shallow, more pressure cuts deeper", () => {
 test("removal is rate-capped: a fast whip scores, a slow pass cuts deep", () => {
   const fast = fresh(), slow = fresh();
   sweep(fast, 0.2, 0.8, 1, "gouge", 0.12);
-  sweep(slow, 0.2, 0.8, 1, "gouge", 6);
+  sweep(slow, 0.2, 0.8, 1, "gouge", 16);
   const df = depth(fast, 0.5), ds = depth(slow, 0.5);
   assert.ok(df > 0 && df < 0.06, "fast whip only scores: " + df);
   assert.ok(ds > 0.25, "slow pass goes deep: " + ds);
@@ -218,4 +218,50 @@ test("dwelling never erodes past the pass depth (round-over is idempotent)", () 
   let maxDelta = 0;
   for (let i = 0; i < N; i++) maxDelta = Math.max(maxDelta, before[i] - w.radius[i]);
   assert.ok(maxDelta < 1e-4, "kept eroding: " + maxDelta);
+});
+
+/* ---------- removal rate: RPM and pressure ---------- */
+test("removal rate is base x RPM factor x pressure factor, all from config", () => {
+  const C = L.CFG;
+  assert.equal(L.rpmFactor(C.RPM_REF), 1);
+  assert.equal(L.rpmFactor(), 1, "no rpm given means the default speed");
+  assert.equal(L.rpmFactor(99999), L.rpmFactor(C.RPM_MAX), "rpm clamps to the slider range");
+  assert.equal(L.rpmFactor(0), L.rpmFactor(C.RPM_MIN));
+  assert.ok(Math.abs(L.pressureFactor(1) - 1) < 1e-12);
+  assert.ok(Math.abs(L.pressureFactor(0) - C.PRESS_RATE_MIN) < 1e-12);
+  const r = L.removalRate("gouge", 0.5, 1650);
+  assert.ok(Math.abs(r - L.TIPS.gouge.rate * C.RATE_SCALE * L.rpmFactor(1650) * L.pressureFactor(0.5)) < 1e-12);
+});
+
+test("higher RPM takes wood off faster", () => {
+  const lo = fresh(), mid = fresh(), hi = fresh();
+  dwell(lo, 0.5, 1, "gouge", 0.5, 300);
+  dwell(mid, 0.5, 1, "gouge", 0.5, 1100);
+  dwell(hi, 0.5, 1, "gouge", 0.5, 2400);
+  const a = depth(lo, 0.5), b = depth(mid, 0.5), c = depth(hi, 0.5);
+  assert.ok(a > 0 && b > a * 2.5 && c > b * 1.6, `depth after 0.5s at 300/1100/2400 RPM: ${a} ${b} ${c}`);
+});
+
+test("pushing harder cuts faster, not only deeper", () => {
+  // Early in a dwell neither has reached its pass depth, so this measures speed.
+  const light = fresh(), hard = fresh();
+  dwell(light, 0.5, 0.4, "skew", 0.2);
+  dwell(hard, 0.5, 1, "skew", 0.2);
+  const dl = depth(light, 0.5), dh = depth(hard, 0.5);
+  assert.ok(dl > 0 && dh > dl * 2.5, `light ${dl} vs hard ${dh}`);
+});
+
+test("at the default speed a full-pressure pass takes a couple of seconds, not a blink", () => {
+  const w = fresh();
+  dwell(w, 0.5, 1, "gouge", 0.5);
+  assert.ok(depth(w, 0.5) < L.CFG.PASS_DEPTH * 0.5, "half a second is well short of a full pass: " + depth(w, 0.5));
+  dwell(w, 0.5, 1, "gouge", 3);
+  assert.ok(depth(w, 0.5) > L.CFG.PASS_DEPTH * 0.85, "a steady dwell still reaches pass depth: " + depth(w, 0.5));
+});
+
+test("slow RPM with a light touch barely shaves", () => {
+  const w = fresh();
+  dwell(w, 0.5, 0.3, "gouge", 1, 200);
+  const d = depth(w, 0.5);
+  assert.ok(d > 0 && d < 0.02, "light slow cut: " + d);
 });

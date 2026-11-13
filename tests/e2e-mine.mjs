@@ -1,7 +1,7 @@
 // Browser check of the mine and the money model, in a real page.
 //   node tests/e2e-mine.mjs [path/to/page.html] [--shots dir]
 // Drives the real UI: the ad gate (finish and close early), the mine scene
-// (swipe the vein until it cracks, 5 diamonds), selling gems,
+// (swipe the vein until it cracks, 5 diamonds), no gems,
 // diamonds buying land, the full unlock removing ads and timers, persistence,
 // and that the free game's core loop is never gated.
 import { createRequire } from "node:module";
@@ -33,7 +33,6 @@ const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("woodtur
 const wallet = async () => ({
   coins: Number(await page.textContent("#walletCoins")),
   diamonds: Number(await page.textContent("#walletDiamonds")),
-  gems: Number(await page.textContent("#walletGems")),
 });
 const setAdSeconds = (s) => page.evaluate((s) => { window.__mine.adProvider.seconds = s; }, s);
 
@@ -46,15 +45,16 @@ check(await page.locator("#mineScreen").isVisible(), "#mine opens the mine scree
 check(!(await page.locator("#farmScreen").isVisible()) && !(await page.locator("#latheScreen").isVisible()), "other screens are hidden");
 check(await page.locator("#tabMine").getAttribute("aria-selected") === "true", "the MINE tab is selected");
 let w = await wallet();
-check(w.coins === 250 && w.diamonds === 5 && w.gems === 0, "wallet shows coins, diamonds and gems");
+check(w.coins === 250 && w.diamonds === 5, "wallet shows coins and diamonds");
+check((await page.locator("#walletGems").count()) === 0 && (await page.locator(".wallet .coin-chip").count()) === 2, "the wallet has no gems");
 
 // ---- the trade is transparent: the screen prints what the model pays
 const text = await page.textContent("#mineBody");
-const cfg = await page.evaluate(() => ({ v: Game.Monetize.CFG.DIAMONDS_PER_VEIN, c: Game.Monetize.CFG.COINS_PER_GEM, s: Game.Monetize.CFG.AD_SECONDS, p: Game.Monetize.priceLabel() }));
+const cfg = await page.evaluate(() => ({ v: Game.Monetize.CFG.DIAMONDS_PER_VEIN, s: Game.Monetize.CFG.AD_SECONDS, p: Game.Monetize.priceLabel() }));
 check(cfg.v === 5, "cracking the vein is worth 5 diamonds");
 check(text.includes(`pays exactly ${cfg.v} diamonds`), `the screen says the vein pays ${cfg.v} diamonds`);
 check(text.includes(`about ${cfg.s} seconds`), "the screen says how long the ad is");
-check(text.includes(`${cfg.c} coins`), `the screen says a gem sells for ${cfg.c} coins`);
+check(!/\bgems?\b/i.test(text) && (await page.locator('[data-act="mine-gems"], [data-act="sell-gems"]').count()) === 0, "the mine offers diamonds only, no gems");
 check(text.includes("No dice, no hidden rates"), "the screen says there is no randomness");
 check(text.includes("complete game") && text.includes("only skip waiting"), "the free-game promise is printed");
 check(text.includes(cfg.p) && text.includes("removes every ad and every timer"), "the unlock states its price and what it does");
@@ -162,15 +162,6 @@ await page.click('[data-act="mine-leave"]');
 check(await page.locator("#mineBody").isVisible(), "back at the entrance");
 check((await page.textContent('[data-act="enter-mine"]')).includes("ENTER THE MINE"), "another visit takes another ad");
 check(!(await page.textContent("#mineNote")).includes("visit is saved"), "no stale visit message after cracking");
-
-// ---- gems still sell (until gems are retired)
-await page.evaluate(() => { __farm.game.wallet.gems = 2; __farm.persist(); MineUI.show(); });
-await page.click('[data-act="sell-gems"]');
-w = await wallet();
-check(w.gems === 0 && w.coins === 250 + cfg.c * 2, `selling gems pays ${cfg.c} coins each (${w.coins} coins)`);
-check((await saved()).wallet.coins === w.coins, "the sale is saved");
-await page.click('[data-act="sell-gems"]', { force: true });
-check((await page.textContent("#mineNote")).includes("no gems"), "selling with no gems says so");
 
 // ---- diamonds spend on land, a shortcut for coins
 await page.click("#tabFarm");

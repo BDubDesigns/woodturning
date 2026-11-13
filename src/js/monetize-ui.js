@@ -1,7 +1,7 @@
 /* ============================================================
    The mine screen: the entrance (one ad gets you in), the mine
-   scene itself (mine-scene.js: crack the vein by hand), selling
-   gems, the full unlock, and the ad overlay. Draws from the monetization model
+   scene itself (mine-scene.js: crack the vein by hand), the full
+   unlock, and the ad overlay. Draws from the monetization model
    (monetize.js) and the shared game state farm-ui.js exposes as
    __farm. Wording rules: say what a thing costs and what it
    gives, in plain numbers, and never hide the close button.
@@ -90,7 +90,7 @@
   }
 
   function render() {
-    var free = !mine.needsAd(), gems = game.wallet.gems, un = mine.isUnlocked();
+    var free = !mine.needsAd(), un = mine.isUnlocked();
     var h = "";
 
     var vein = plural(CFG.DIAMONDS_PER_VEIN, "diamond", "diamonds");
@@ -100,11 +100,6 @@
       : "<p>Watch one ad of about " + CFG.AD_SECONDS + " seconds to get into the mine. Swing a pick at the diamond vein until it cracks open. It pays exactly " + vein + ", every time. No dice, no hidden rates.</p>";
     h += '<div class="row">' + enterButton() + "</div>";
     h += '<div class="mine-note" id="mineNote" role="status" aria-live="polite"></div></section>';
-
-    h += '<section class="mine-card" aria-labelledby="mGemsH"><h2 id="mGemsH">GEMS</h2>';
-    h += "<p>You have <b id=\"mineGems\">" + gems + "</b> " + (gems === 1 ? "gem" : "gems") + ". Each sells for " + CFG.COINS_PER_GEM + " coins.</p>";
-    h += '<div class="row"><button type="button" class="act" data-act="sell-gems"' + (gems ? "" : ' aria-disabled="true"') + '><span class="an">SELL ' + (gems ? "ALL" : "GEMS") + '</span><span class="ad">' +
-      (gems ? plural(gems, "gem", "gems") + " for " + gems * CFG.COINS_PER_GEM + " coins" : "Nothing to sell yet") + "</span></button></div></section>";
 
     h += '<section class="mine-card" aria-labelledby="mUseH"><h2 id="mUseH">WHAT DIAMONDS DO</h2><ul>' +
       "<li>Skip growing time. One diamond skips " + Math.round(G.Farm.CFG.DIAMOND_MS / 60000) + " minutes.</li>" +
@@ -127,7 +122,7 @@
     }
     h += "</section>";
 
-    h += '<p class="mine-foot">Ads watched: <b id="mineAds">' + mine.state.adsWatched + "</b> · Gems sold: <b>" + mine.state.gemsSold + "</b></p>";
+    h += '<p class="mine-foot">Ads watched: <b id="mineAds">' + mine.state.adsWatched + "</b></p>";
     body.innerHTML = h;
     if (note) { var el = $("mineNote"); el.textContent = note; el.classList.add("on"); }
   }
@@ -221,11 +216,7 @@
     if (!b) return;
     var a = b.getAttribute("data-act");
     if (a === "enter-mine") enterMine();
-    else if (a === "sell-gems") {
-      var r = mine.sellGems("all");
-      host.renderWallet(); render();
-      say(r.ok ? "Sold " + plural(r.gems, "gem", "gems") + " for " + r.coins + " coins." : "You have no gems to sell yet.");
-    } else if (a === "unlock") { confirming = true; render(); }
+    else if (a === "unlock") { confirming = true; render(); }
     else if (a === "unlock-cancel") { confirming = false; render(); }
     else if (a === "unlock-confirm") {
       payProvider.buy(function (ok) {
