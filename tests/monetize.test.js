@@ -19,9 +19,11 @@ function setup() {
   return { clock, game, mine, farm, saves: () => saves };
 }
 
-test("a new game starts with no gems, locked, no ads watched", () => {
+test("a new game has coins and diamonds only, locked, no ads watched", () => {
   const { game, mine } = setup();
-  assert.equal(game.wallet.gems, 0);
+  assert.deepEqual(Object.keys(game.wallet).sort(), ["coins", "diamonds"]);
+  assert.equal(game.wallet.diamonds, 5);
+  assert.equal(game.wallet.coins, 250);
   assert.equal(mine.isUnlocked(), false);
   assert.equal(mine.needsAd(), true);
   assert.equal(mine.state.adsWatched, 0);
@@ -32,11 +34,12 @@ test("the mine trade is exact: one finished ad pays the printed amount, every ti
   const d0 = game.wallet.diamonds;
   for (let i = 0; i < 20; i++) assert.equal(mine.mineReward("diamonds", true).amount, M.CFG.DIAMONDS_PER_AD);
   assert.equal(game.wallet.diamonds, d0 + 20 * M.CFG.DIAMONDS_PER_AD);
-  for (let i = 0; i < 20; i++) assert.equal(mine.mineReward("gems", true).amount, M.CFG.GEMS_PER_AD);
-  assert.equal(game.wallet.gems, 20 * M.CFG.GEMS_PER_AD);
-  assert.equal(mine.state.adsWatched, 40);
+  assert.equal(mine.state.adsWatched, 20);
   assert.deepEqual(M.trade("diamonds"), { kind: "diamonds", amount: M.CFG.DIAMONDS_PER_AD, noun: "diamonds" });
   assert.equal(M.trade("nonsense"), null);
+  assert.equal(M.trade("gems"), null, "the mine pays diamonds only");
+  assert.equal(mine.mineReward("gems", true).ok, false);
+  assert.equal(mine.sellGems, undefined, "there is nothing to sell at the mine");
 });
 
 test("a closed or unfinished ad pays nothing and costs nothing", () => {
@@ -48,21 +51,6 @@ test("a closed or unfinished ad pays nothing and costs nothing", () => {
   }
   assert.equal(JSON.stringify(game), before);
   assert.equal(saves(), n);
-});
-
-test("gems sell for coins at the fixed rate", () => {
-  const { game, mine } = setup();
-  assert.equal(mine.sellGems("all").ok, false, "nothing to sell");
-  mine.mineReward("gems", true); mine.mineReward("gems", true); mine.mineReward("gems", true);
-  const c0 = game.wallet.coins;
-  assert.deepEqual(mine.sellGems(1), { ok: true, gems: 1, coins: M.CFG.COINS_PER_GEM });
-  assert.equal(game.wallet.coins, c0 + M.CFG.COINS_PER_GEM);
-  assert.equal(mine.sellGems(5).ok, false, "cannot sell more than owned");
-  assert.equal(game.wallet.gems, 2);
-  const r = mine.sellGems("all");
-  assert.equal(r.coins, 2 * M.CFG.COINS_PER_GEM);
-  assert.equal(game.wallet.gems, 0);
-  assert.equal(mine.state.gemsSold, 3);
 });
 
 test("the unlock removes ads: mining pays the same with no ad", () => {
@@ -95,9 +83,9 @@ test("the unlock removes timers: a planted tree is ready at once", () => {
   assert.deepEqual(farm.grownWhileAway(), [], "no welcome-back list when nothing waits");
 });
 
-test("no paywall on the core loop: a free game grows and chops with no diamonds, gems, or ads", () => {
+test("no paywall on the core loop: a free game grows and chops with no diamonds or ads", () => {
   const { farm, game, clock, mine } = setup();
-  game.wallet.diamonds = 0; game.wallet.gems = 0;
+  game.wallet.diamonds = 0;
   assert.equal(mine.isUnlocked(), false);
   assert.equal(farm.plant(0, "pine").ok, true);
   assert.equal(farm.chopHit(0, { side: 1, y: 0.5 }).ok, false, "not grown yet, and no way to be told to pay");
@@ -108,7 +96,6 @@ test("no paywall on the core loop: a free game grows and chops with no diamonds,
   assert.equal(r.felled, true);
   assert.equal(farm.logCount("pine"), 1, "the log arrives with an empty wallet");
   assert.equal(game.wallet.diamonds, 0);
-  assert.equal(game.wallet.gems, 0);
   assert.equal(game.mine.adsWatched, 0);
 });
 
@@ -147,42 +134,58 @@ test("land can be bought with diamonds as well as coins", () => {
   assert.equal(farm.buyLand().ok, true);
 });
 
-test("saves round trip the mine, gems, and the unlock; old saves still load", () => {
+test("saves round trip the mine and the unlock", () => {
   const store = S.memoryStore();
   const g1 = S.newGame();
   const m1 = M.createMine(g1);
-  m1.mineReward("gems", true); m1.mineReward("diamonds", true); m1.unlock();
+  m1.mineReward("diamonds", true); m1.mineReward("diamonds", true); m1.unlock();
   assert.equal(S.write(store, g1), true);
   const g2 = S.load(store);
   const m2 = M.createMine(g2);
-  assert.equal(g2.wallet.gems, 1);
+  assert.equal(g2.wallet.diamonds, 5 + 2 * M.CFG.DIAMONDS_PER_AD);
   assert.equal(m2.isUnlocked(), true);
   assert.equal(m2.state.adsWatched, 2);
-
-  // a slice-2 save with no mine section and no gems
-  const old = S.memoryStore();
-  old.setItem(S.KEY, JSON.stringify({ v: 1, wallet: { coins: 70, diamonds: 2 }, farm: null }));
-  const g3 = S.load(old);
-  const m3 = M.createMine(g3);
-  assert.equal(g3.wallet.coins, 70);
-  assert.equal(g3.wallet.gems, 0);
-  assert.equal(m3.isUnlocked(), false);
 });
 
-test("a damaged mine section cannot unlock the game or hand out gems", () => {
-  const bad = [null, 5, "x", [], { unlocked: "true" }, { unlocked: 1 }, { adsWatched: -5, gemsSold: NaN }];
+test("old saves with gems still load: gems become coins at the old rate, and are gone", () => {
+  const old = S.memoryStore();
+  old.setItem(S.KEY, JSON.stringify({ v: 1, wallet: { coins: 70, diamonds: 2, gems: 3 }, farm: null, mine: { unlocked: false, adsWatched: 4, gemsSold: 9 } }));
+  const g = S.load(old);
+  const m = M.createMine(g);
+  assert.equal(g.v, S.VERSION);
+  assert.equal(g.wallet.coins, 70 + 3 * S.COINS_PER_OLD_GEM);
+  assert.equal(g.wallet.diamonds, 2);
+  assert.equal("gems" in g.wallet, false);
+  assert.equal("gemsSold" in g.mine, false);
+  assert.equal(m.state.adsWatched, 4);
+  // a slice-2 save with no mine section and no gems
+  old.setItem(S.KEY, JSON.stringify({ v: 1, wallet: { coins: 70, diamonds: 2 }, farm: null }));
+  const g3 = S.load(old);
+  assert.equal(g3.wallet.coins, 70);
+  assert.equal(M.createMine(g3).isUnlocked(), false);
+  // negative or junk gems add nothing
+  old.setItem(S.KEY, JSON.stringify({ v: 1, wallet: { coins: 1, diamonds: 1, gems: -4 } }));
+  assert.equal(S.load(old).wallet.coins, 1);
+});
+
+test("a damaged mine section cannot unlock the game", () => {
+  const bad = [null, 5, "x", [], { unlocked: "true" }, { unlocked: 1 }, { adsWatched: -5 }];
   for (const b of bad) {
     const n = M.normalizeMine(b);
     assert.equal(n.unlocked, false);
-    assert.ok(n.adsWatched >= 0 && n.gemsSold >= 0);
+    assert.ok(n.adsWatched >= 0);
   }
-  const store = S.memoryStore();
-  store.setItem(S.KEY, JSON.stringify({ v: 1, wallet: { coins: 1, diamonds: 1, gems: -4 }, mine: { unlocked: true } }));
-  assert.equal(S.load(store).wallet.gems, 0, "negative gems are ignored");
+});
+
+test("no gems anywhere in the game's screens or code", () => {
+  for (const f of ["../src/js/monetize.js", "../src/js/monetize-ui.js", "../src/index.html", "../src/js/farm-ui.js", "../src/js/registry.js", "../src/js/main.js"]) {
+    const t = fs.readFileSync(path.join(__dirname, f), "utf8");
+    assert.equal(/\bgems?\b/i.test(t), false, f + " still mentions gems");
+  }
 });
 
 test("player-facing copy has no em dashes", () => {
-  for (const f of ["../src/js/monetize.js", "../src/js/monetize-ui.js", "../src/index.html"]) {
+  for (const f of ["../src/js/monetize.js", "../src/js/monetize-ui.js", "../src/index.html", "../src/js/registry.js", "../src/js/state.js", "../src/js/main.js", "../src/js/harvest-view.js"]) {
     const t = fs.readFileSync(path.join(__dirname, f), "utf8");
     assert.equal(t.includes("—"), false, f + " contains an em dash");
   }

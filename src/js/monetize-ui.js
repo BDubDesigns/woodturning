@@ -1,5 +1,5 @@
 /* ============================================================
-   The mine screen: the ad trade, selling gems, the full unlock,
+   The mine screen: the ad trade for diamonds, the full unlock,
    and the ad overlay. Draws from the monetization model
    (monetize.js) and the shared game state farm-ui.js exposes as
    __farm. Wording rules: say what a thing costs and what it
@@ -82,28 +82,21 @@
 
   function mineButton(kind) {
     var t = M.trade(kind), free = !mine.needsAd();
-    var label = free ? "MINE " + t.amount + " " + t.noun.toUpperCase() : "MINE " + kind.toUpperCase();
-    var desc;
-    if (kind === "diamonds") desc = free ? "No ad. Instant." : "Watch one ad, get " + plural(t.amount, "diamond", "diamonds");
-    else desc = (free ? "No ad. " : "Watch one ad, get " + plural(t.amount, "gem", "gems") + ". ") + "A gem sells for " + CFG.COINS_PER_GEM + " coins";
-    return '<button type="button" class="act primary" data-act="mine-' + kind + '"><span class="an">' + label + '</span><span class="ad">' + desc + "</span></button>";
+    var label = free ? "MINE " + t.amount + " " + t.noun.toUpperCase() : "MINE " + t.kind.toUpperCase();
+    var desc = free ? "No ad. Instant." : "Watch one ad, get " + plural(t.amount, "diamond", "diamonds");
+    return '<button type="button" class="act primary" data-act="mine-' + t.kind + '"><span class="an">' + label + '</span><span class="ad">' + desc + "</span></button>";
   }
 
   function render() {
-    var free = !mine.needsAd(), gems = game.wallet.gems, un = mine.isUnlocked();
+    var free = !mine.needsAd(), un = mine.isUnlocked();
     var h = "";
 
     h += '<section class="mine-card" aria-labelledby="mTradeH"><h2 id="mTradeH">THE TRADE</h2>';
     h += free
       ? "<p>You own the full game, so there are no ads. Mining is free and pays the same.</p>"
-      : "<p>Watch one ad of about " + CFG.AD_SECONDS + " seconds, then pick what you mine. You get exactly that, every time. No dice, no hidden rates.</p>";
-    h += '<div class="row">' + mineButton("diamonds") + mineButton("gems") + "</div>";
+      : "<p>Watch one ad of about " + CFG.AD_SECONDS + " seconds and mine " + plural(M.trade("diamonds").amount, "diamond", "diamonds") + ". You get exactly that, every time. No dice, no hidden rates.</p>";
+    h += '<div class="row">' + mineButton("diamonds") + "</div>";
     h += '<div class="mine-note" id="mineNote" role="status" aria-live="polite"></div></section>';
-
-    h += '<section class="mine-card" aria-labelledby="mGemsH"><h2 id="mGemsH">GEMS</h2>';
-    h += "<p>You have <b id=\"mineGems\">" + gems + "</b> " + (gems === 1 ? "gem" : "gems") + ". Each sells for " + CFG.COINS_PER_GEM + " coins.</p>";
-    h += '<div class="row"><button type="button" class="act" data-act="sell-gems"' + (gems ? "" : ' aria-disabled="true"') + '><span class="an">SELL ' + (gems ? "ALL" : "GEMS") + '</span><span class="ad">' +
-      (gems ? plural(gems, "gem", "gems") + " for " + gems * CFG.COINS_PER_GEM + " coins" : "Nothing to sell yet") + "</span></button></div></section>";
 
     h += '<section class="mine-card" aria-labelledby="mUseH"><h2 id="mUseH">WHAT DIAMONDS DO</h2><ul>' +
       "<li>Skip growing time. One diamond skips " + Math.round(G.Farm.CFG.DIAMOND_MS / 60000) + " minutes.</li>" +
@@ -126,7 +119,7 @@
     }
     h += "</section>";
 
-    h += '<p class="mine-foot">Ads watched: <b id="mineAds">' + mine.state.adsWatched + "</b> · Gems sold: <b>" + mine.state.gemsSold + "</b></p>";
+    h += '<p class="mine-foot">Ads watched: <b id="mineAds">' + mine.state.adsWatched + "</b></p>";
     body.innerHTML = h;
     if (note) { var el = $("mineNote"); el.textContent = note; el.classList.add("on"); }
   }
@@ -156,12 +149,7 @@
     if (!b) return;
     var a = b.getAttribute("data-act");
     if (a === "mine-diamonds") startMining("diamonds");
-    else if (a === "mine-gems") startMining("gems");
-    else if (a === "sell-gems") {
-      var r = mine.sellGems("all");
-      host.renderWallet(); render();
-      say(r.ok ? "Sold " + plural(r.gems, "gem", "gems") + " for " + r.coins + " coins." : "You have no gems to sell yet.");
-    } else if (a === "unlock") { confirming = true; render(); }
+    else if (a === "unlock") { confirming = true; render(); }
     else if (a === "unlock-cancel") { confirming = false; render(); }
     else if (a === "unlock-confirm") {
       payProvider.buy(function (ok) {

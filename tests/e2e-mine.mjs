@@ -1,6 +1,6 @@
 // Browser check of the mine and the money model, in a real page.
 //   node tests/e2e-mine.mjs [path/to/page.html] [--shots dir]
-// Drives the real UI: the ad trade (finish and close early), gems and selling,
+// Drives the real UI: the ad trade for diamonds (finish and close early), no gems,
 // diamonds buying land, the full unlock removing ads and timers, persistence,
 // and that the free game's core loop is never gated.
 import { createRequire } from "node:module";
@@ -32,7 +32,6 @@ const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("woodtur
 const wallet = async () => ({
   coins: Number(await page.textContent("#walletCoins")),
   diamonds: Number(await page.textContent("#walletDiamonds")),
-  gems: Number(await page.textContent("#walletGems")),
 });
 const setAdSeconds = (s) => page.evaluate((s) => { window.__mine.adProvider.seconds = s; }, s);
 
@@ -45,13 +44,14 @@ check(await page.locator("#mineScreen").isVisible(), "#mine opens the mine scree
 check(!(await page.locator("#farmScreen").isVisible()) && !(await page.locator("#latheScreen").isVisible()), "other screens are hidden");
 check(await page.locator("#tabMine").getAttribute("aria-selected") === "true", "the MINE tab is selected");
 let w = await wallet();
-check(w.coins === 250 && w.diamonds === 5 && w.gems === 0, "wallet shows coins, diamonds and gems");
+check(w.coins === 250 && w.diamonds === 5, "wallet shows coins and diamonds");
+check((await page.locator("#walletGems").count()) === 0 && (await page.locator(".wallet .coin-chip").count()) === 2, "the wallet has no gems");
 
 // ---- the trade is transparent: the screen prints what the model pays
 const text = await page.textContent("#mineBody");
-const cfg = await page.evaluate(() => ({ d: Game.Monetize.CFG.DIAMONDS_PER_AD, g: Game.Monetize.CFG.GEMS_PER_AD, c: Game.Monetize.CFG.COINS_PER_GEM, p: Game.Monetize.priceLabel() }));
+const cfg = await page.evaluate(() => ({ d: Game.Monetize.CFG.DIAMONDS_PER_AD, p: Game.Monetize.priceLabel() }));
 check(text.includes(`get ${cfg.d} diamonds`), `the screen says one ad gives ${cfg.d} diamonds`);
-check(text.includes(`${cfg.c} coins`), `the screen says a gem sells for ${cfg.c} coins`);
+check(!/\bgems?\b/i.test(text) && (await page.locator('[data-act="mine-gems"], [data-act="sell-gems"]').count()) === 0, "the mine offers diamonds only, no gems");
 check(text.includes("No dice, no hidden rates"), "the screen says there is no randomness");
 check(text.includes("complete game") && text.includes("only skip waiting"), "the free-game promise is printed");
 check(text.includes(cfg.p) && text.includes("removes every ad and every timer"), "the unlock states its price and what it does");
@@ -82,18 +82,6 @@ check((await saved()).wallet.diamonds === w.diamonds && (await saved()).mine.ads
 await page.click('[data-act="mine-diamonds"]');
 await page.waitForSelector("#adOverlay", { state: "hidden" });
 check((await wallet()).diamonds === 5 + 2 * cfg.d, "a second ad pays the same, no dice");
-
-// ---- gems, and selling them
-await page.click('[data-act="mine-gems"]');
-await page.waitForSelector("#adOverlay", { state: "hidden" });
-w = await wallet();
-check(w.gems === cfg.g, `mining gems pays exactly ${cfg.g}`);
-await page.click('[data-act="sell-gems"]');
-w = await wallet();
-check(w.gems === 0 && w.coins === 250 + cfg.c * cfg.g, `selling gems pays ${cfg.c} coins each (${w.coins} coins)`);
-check((await saved()).wallet.coins === w.coins, "the sale is saved");
-await page.click('[data-act="sell-gems"]', { force: true });
-check((await page.textContent("#mineNote")).includes("no gems"), "selling with no gems says so");
 
 // ---- diamonds spend on land, a shortcut for coins
 await page.click("#tabFarm");
@@ -137,7 +125,7 @@ await page.click('[data-act="mine-diamonds"]');
 check(!(await page.locator("#adOverlay").isVisible()), "unlocked: mining shows no ad");
 check((await wallet()).diamonds === d0 + cfg.d, "unlocked: mining still pays the same");
 const adsBefore = (await saved()).mine.adsWatched;
-await page.click('[data-act="mine-gems"]');
+await page.click('[data-act="mine-diamonds"]');
 check((await saved()).mine.adsWatched === adsBefore, "unlocked: no ad counted");
 
 // timers removed: the walnut planted earlier is ready, and new trees are ready at once
