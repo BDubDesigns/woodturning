@@ -143,18 +143,55 @@
     var rpmSlider = document.getElementById("rpm"), rpmVal = document.getElementById("rpmVal");
     S.rpm = parseInt(rpmSlider.value, 10);
     rpmSlider.addEventListener("input", function () { S.rpm = parseInt(rpmSlider.value, 10); rpmVal.textContent = S.rpm + " RPM"; });
-    var tipGougeBtn = document.getElementById("tipGouge"), tipSkewBtn = document.getElementById("tipSkew");
+    /* The chisel rack: one button per tip the workshop owns. Gouge and skew are in
+       the page; tips bought at Arbor Freight (shop.js) get a button here. */
+    var tipGroup = document.getElementById("toolsCut");
+    var TIP_ICON = {
+      parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+      detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
+      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>'
+    };
+    S.tips = ["gouge", "skew"];
+    function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
     function setTip(t) {
+      if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
-      tipGougeBtn.setAttribute("aria-pressed", t === "gouge" ? "true" : "false");
-      tipSkewBtn.setAttribute("aria-pressed", t === "skew" ? "true" : "false");
+      tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
     }
-    tipGougeBtn.addEventListener("click", function () { audio.init(); setTip("gouge"); });
-    tipSkewBtn.addEventListener("click", function () { audio.init(); setTip("skew"); });
+    function setTips(list) {
+      S.tips = L.TIP_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
+      S.tips.forEach(function (k) {
+        if (tipGroup.querySelector('[data-tip="' + k + '"]')) return;
+        var tp = L.TIPS[k], b = document.createElement("button");
+        b.className = "tip-btn"; b.type = "button"; b.id = "tip" + k.charAt(0).toUpperCase() + k.slice(1);
+        b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
+        b.innerHTML = (TIP_ICON[k] || "") + '<span><span class="tname">' + tp.name.toUpperCase() + '</span><div class="tdesc">' + tp.desc + "</div></span>";
+        tipGroup.appendChild(b);
+      });
+      tipButtons().forEach(function (b) { b.hidden = S.tips.indexOf(b.getAttribute("data-tip")) < 0; });
+      tipGroup.classList.toggle("many", S.tips.length > 2);
+      tipGroup.style.gridTemplateColumns = S.tips.length > 2 ? "repeat(" + (S.tips.length > 4 ? 3 : 2) + ", 1fr)" : "";
+      if (S.tips.indexOf(S.tip) < 0) setTip("gouge"); else setTip(S.tip);
+    }
+    tipGroup.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-tip]") : null;
+      if (b) { audio.init(); setTip(b.getAttribute("data-tip")); }
+    });
     root.addEventListener("keydown", function (e) {
-      if (e.key === "1") setTip("gouge");
+      if (e.key === "1") setTip("gouge");        // 3, 4 and 5 switch modes, so only the first two tips have keys
       if (e.key === "2") setTip("skew");
     });
+    /* What the workshop has bought at Arbor Freight: the light over the lathe,
+       the motor (how fast wood comes off) and the chisels on the rack. */
+    S.cutBoost = 1;
+    function applyUpgrades() {
+      var shop = root.Game && root.Game.shop;
+      if (!shop) return;
+      S.lightLevel = shop.lightLevel();
+      S.cutBoost = shop.cutBoost();
+      setTips(shop.tips());
+    }
+    L.applyUpgrades = applyUpgrades;
     var hint = document.getElementById("hint");
     var HINTS = {
       cut: hint.innerHTML,
@@ -580,7 +617,7 @@
         if (p.active) {
           S.lastT = p.t;
           if (S.mode === "cut") {
-            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1, S.rpm) * CHIP_SCALE;
+            var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);
@@ -609,7 +646,8 @@
     }
     setSpec(P.generateSpec());
     syncOrder();
-    S.syncOrder = syncOrder; S.takeOrder = takeOrder;
+    applyUpgrades();
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;

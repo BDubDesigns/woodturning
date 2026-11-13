@@ -610,3 +610,63 @@ footer {
 .g-pick small { color: #bfae8f; font-size: 12px; }
 .g-pick .n { display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; }
 #profileBar .plabel b { display: block; color: var(--amber); font-size: 11px; letter-spacing: 0.08em; margin-top: 4px; }
+
+/* more than two chisels on the rack: a compact row, names only */
+.tip-group.many { display: grid; gap: 8px; }
+.tip-group.many .tip-btn { min-width: 0; min-height: 46px; padding: 6px 10px; gap: 8px; }
+.tip-group.many .tdesc { display: none; }
+.tip-group.many .tip-btn .tname { font-size: 15px; }
+.tip-group.many .tip-btn svg { width: 26px; height: 24px; }
+.tip-btn[hidden] { display: none; }
+
+/* ---------- Arbor Freight, the tool store ---------- */
+#shopScreen { overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #22302a 0%, #18201c 50%, #0e1210 100%); }
+#shopBody { width: 100%; max-width: 680px; margin: 0 auto; padding: 14px 14px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.af-banner {
+  position: relative; overflow: hidden; padding: 14px 16px 12px; border-radius: 12px;
+  background: linear-gradient(135deg, #1f4d2e 0%, #173a23 60%, #10281a 100%); border: 2px solid #f2c230;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.af-logo { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 34px; letter-spacing: 0.08em; line-height: 1; color: #f2c230; text-shadow: 0 2px 0 #0b1a10; }
+.af-logo b { color: #fff4cf; font-weight: 700; }
+.af-tag { margin-top: 4px; font-size: 13.5px; color: #d8e8d2; }
+.af-sale {
+  position: absolute; right: -34px; top: 14px; transform: rotate(32deg); padding: 3px 40px;
+  background: #c0392b; color: #fff; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.12em;
+}
+.af-line { padding: 12px 14px 14px; border-radius: 12px; color: #f3e7d3; background: rgba(14, 18, 16, 0.78); border: 1px solid #355a43; }
+.af-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.af-head h2 { margin: 0; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.16em; color: #f2c230; }
+.af-head p { margin: 2px 0 0; font-size: 13px; color: #b8c8b2; line-height: 1.35; }
+.af-head > div { flex: 1; min-width: 0; }
+.af-icon { flex: none; width: 40px; height: 40px; border-radius: 9px; background: #e9e3cf; display: flex; align-items: center; justify-content: center; }
+.af-icon svg { width: 30px; height: 30px; }
+.af-step { flex: none; font-size: 12px; color: #b8c8b2; font-variant-numeric: tabular-nums; padding-top: 3px; }
+.af-k { display: block; font-size: 10px; letter-spacing: 0.2em; font-weight: 700; color: #8fae93; margin-bottom: 2px; }
+.af-now { padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); margin-bottom: 10px; display: flex; flex-direction: column; }
+.af-now b, .af-item b { font-size: 15px; font-weight: 600; }
+.af-now small, .af-item small { font-size: 12.5px; color: #bfae8f; line-height: 1.35; margin-top: 2px; }
+.af-item { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.af-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.af-price {
+  flex: none; position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 18px;
+  background: #f2c230; color: #1b1405; border-radius: 4px 10px 10px 4px; transform: rotate(-4deg); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+.af-price::before { content: ""; position: absolute; left: 6px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: #10281a; }
+.af-price b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+.af-line .act { width: 100%; background: #2a2119; color: #f3e7d3; border-color: #5a4630; }
+.af-line .act.primary { background: #3d3410; border-color: #f2c230; }
+.af-line .act.primary .an { color: #f2c230; }
+.af-line .act .ad { color: #d9c7a4; }
+.af-line .act[aria-disabled="true"] { opacity: 0.6; }
+.af-later { margin: 8px 0 0; font-size: 12.5px; color: #8fae93; }
+.af-later b { color: #f2c230; font-variant-numeric: tabular-nums; }
+.af-top { margin: 0; font-size: 13.5px; color: var(--ok); }
+.af-foot { margin: 0; text-align: center; font-size: 12px; color: #6f8a73; }
+#stoast {
+  position: sticky; bottom: 10px; margin: 0 auto 10px; width: fit-content; max-width: 92%;
+  padding: 8px 14px; border-radius: 8px; font-size: 14px; text-align: center;
+  background: var(--plate); color: #f3e7d3; border: 1px solid rgba(242, 194, 48, 0.5);
+  opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+}
+#stoast.on { opacity: 1; }

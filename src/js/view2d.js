@@ -154,10 +154,11 @@
       g.strokeStyle = "#7c4a22"; g.lineWidth = Math.max(9, rPx * 0.3);
       g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
       g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
-      if (S.tip === "gouge") {
-        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4, 0, Math.PI * 2); g.stroke();
+      var tip = L.TIPS[S.tip] || L.TIPS.gouge, z = tip.size || 1;
+      if (tip.look === "gouge") {
+        g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4 * z, 0, Math.PI * 2); g.stroke();
       } else {
-        g.beginPath(); g.moveTo(tipX - 5, tipY + 3); g.lineTo(tipX + 5, tipY - 4); g.stroke();
+        g.beginPath(); g.moveTo(tipX - 5 * z, tipY + 3 * z); g.lineTo(tipX + 5 * z, tipY - 4 * z); g.stroke();
       }
     }
 

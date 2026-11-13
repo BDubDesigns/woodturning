@@ -34,9 +34,9 @@
   var ctxSig = "";
 
   /* ---------------- screens ---------------- */
-  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen"), orders: $("ordersScreen") };
+  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen"), orders: $("ordersScreen"), shop: $("shopScreen") };
   // no HARVEST tab: the forest opens only from a grown tree on the farm
-  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine"), orders: $("tabOrders") };
+  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine"), orders: $("tabOrders"), shop: $("tabShop") };
   var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats"), harvestStatsEl = $("harvestStats");
   var current = null;
   /* Is there a grown tree for the forest to fell? Without one the forest
@@ -60,6 +60,7 @@
     if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();
     if (name !== "mine" && root.MineUI) root.MineUI.hide();   // the mine scene sleeps too
     if (name !== "orders" && G.OrdersUI) G.OrdersUI.hide();
+    if (name !== "shop" && G.ShopUI) G.ShopUI.hide();
     if (name === "farm") {
       titleEl.innerHTML = "THE <em>FARM</em>";
       subEl.textContent = "PLANT · WAIT · HARVEST · GROWS WHILE YOU ARE AWAY";
@@ -70,6 +71,11 @@
       titleEl.innerHTML = "THE <em>FOREST</em>";
       subEl.textContent = "HARVEST · CHOP, DELIMB, SAW";
       statsEl.style.display = "none";
+    } else if (name === "shop") {
+      titleEl.innerHTML = "ARBOR <em>FREIGHT</em>";
+      subEl.textContent = "TOOLS · LIGHTS · MOTORS · PRICES THAT ONLY GO UP";
+      statsEl.style.display = "none";
+      if (G.ShopUI) G.ShopUI.show();
     } else if (name === "orders") {
       titleEl.innerHTML = "THE <em>BOARD</em>";
       subEl.textContent = "COMMISSIONS · TURN IT · PAINT IT · GET PAID";
@@ -94,6 +100,7 @@
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
   tabs.mine.addEventListener("click", function () { showScreen("mine"); });
   tabs.orders.addEventListener("click", function () { showScreen("orders"); });
+  tabs.shop.addEventListener("click", function () { showScreen("shop"); });
 
   /* ---------------- wallet ---------------- */
   /* One chip per registered currency: each <b data-currency="id"> shows that balance. */
@@ -367,8 +374,12 @@
   var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff });
   G.commissions = board;
   root.__farm.board = board;
+  /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */
+  var shop = G.Shop.createShop(game, { state: state, onChange: persist });
+  G.shop = shop;
+  root.__farm.shop = shop;
 
-  var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : "lathe";
+  var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : /#shop\b/.test(location.hash) ? "shop" : "lathe";
   G.startScreen = startScreen;
   showScreen(startScreen);
   if (grew.length) {

@@ -61,7 +61,7 @@ mine, monetization, distribution, and the one-month bet.
   purchase until the Play Store slice wires AdMob and Play Billing. Play Pass
   notes are in `docs/play-pass.md` (open question, not applied for).
 
-- Commissions: the COMMISSIONS tab is a board of up to three orders. Each asks
+- Commissions: the ORDERS tab is a board of up to three orders. Each asks
   for a turned piece (rolling pin, walking stick, chair leg, banister spindle,
   baseball bat) with a target shape, the wood it must be made from, a paint
   spec and a sheen, and pays coins: finer wood pays more. TAKE IT puts the
@@ -76,6 +76,19 @@ mine, monetization, distribution, and the one-month bet.
   in while the game is closed. Model in `src/js/commissions.js`, screen in
   `src/js/commissions-ui.js`; the save section is `commissions`.
 
+- Arbor Freight (the SHOP tab): the workshop's tool store, where coins from
+  orders buy upgrades. Three lines, each a ladder bought in order, every rung
+  about four times the price of the last:
+  - Lighting: bare bulb, halogen work light (150), LED shop panel (600), studio
+    light bar (2400). The lamp hangs at the top of the workshop and the light
+    on the piece comes from it, in both views.
+  - Motor: half horse, one horse (300), horse and a half (1100), two horse
+    (4000): wood comes off 1.25x, 1.55x, 1.9x as fast.
+  - Chisels: gouge and skew, then a parting tool (200), detail gouge (700) and
+    roughing gouge (2500), each a new button on the chisel rack.
+  Model in `src/js/shop.js` (save section `shop`), screen in `src/js/shop-ui.js`;
+  chisel tips are data in `TIPS` in `cutting.js`.
+
 - The mine: the MINE tab's ad no longer pays out directly. One finished ad
   (about 5 seconds, close button always there) lets you into the mine: a
   timbered shaft with a diamond vein in the middle. Swipe the pick across it;
@@ -88,9 +101,9 @@ mine, monetization, distribution, and the one-month bet.
 
 ## Play
 
-Open `lathe.html` in a browser. The FARM, LATHE, MINE and COMMISSIONS tabs switch
+Open `lathe.html` in a browser. The FARM, LATHE, MINE, ORDERS and SHOP tabs switch
 screens (`lathe.html#farm` opens the farm, `#harvest` the forest, `#mine` the mine,
-`#orders` the commission board,
+`#orders` the commission board, `#shop` Arbor Freight,
 and `?seed=N` picks the harvest's tree). It is one self-contained file (no network),
 so it can be hosted anywhere or opened in an in-app browser. `?view=2d`
 starts in the flat view.
@@ -121,7 +134,7 @@ The lathe:
   your finger shows it). More pressure, deeper pass.
 - Hold still or move slowly to cut deep; whip across to only score it.
   Going deeper than one pass takes another pass. Light passes smooth.
-- `1` / `2` switch gouge / skew.
+- `1` / `2` switch gouge / skew. Chisels bought at Arbor Freight join the rack.
 
 ## Code
 
@@ -138,6 +151,8 @@ src/js/farm.js      farm model: plots, real-time growth, diamonds, land, choppin
 src/js/farm-ui.js   farm screen, tabs, wallet, tap input
 src/js/commissions.js     commission model: orders, target shapes, grading, the board (pure)
 src/js/commissions-ui.js  the commission board screen and the grade dialog
+src/js/shop.js      Arbor Freight model: upgrade lines, tiers, prices, buying (pure)
+src/js/shop-ui.js   the store screen
 src/js/view3d.js    Three.js view
 src/js/view2d.js    Canvas2D view (fallback and first-class view)
 src/js/audio.js     synthesised cut / motor / catch sounds
@@ -160,7 +175,7 @@ know which view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutt
 
 ```
 npm test        # cutting model, farm model, save, harvest model, paint and finish model
-npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, and the commission board in Chromium
+npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, the commission board and the store in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
 

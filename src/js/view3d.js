@@ -572,9 +572,11 @@
     function showTip() {
       if (shownTip === S.tip) return;
       shownTip = S.tip;
-      gougeTip.visible = S.tip === "gouge";
-      skewTip.visible = S.tip === "skew";
-      blade.scale.x = S.tip === "gouge" ? 1 : 0.92;
+      var tip = L.TIPS[S.tip] || L.TIPS.gouge, z = tip.size || 1;   // the look of the tip, at its size
+      gougeTip.visible = tip.look === "gouge";
+      skewTip.visible = tip.look === "skew";
+      gougeTip.scale.set(z, 1, z); skewTip.scale.set(z, 1, 1);
+      blade.scale.x = (tip.look === "gouge" ? 1 : 0.92) * Math.max(0.5, Math.min(1.3, z));
     }
 
     /* ---------------- the brush and the spray bottle ----------------
