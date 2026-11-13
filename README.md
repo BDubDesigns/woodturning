@@ -61,6 +61,21 @@ mine, monetization, distribution, and the one-month bet.
   purchase until the Play Store slice wires AdMob and Play Billing. Play Pass
   notes are in `docs/play-pass.md` (open question, not applied for).
 
+- Commissions: the COMMISSIONS tab is a board of up to three orders. Each asks
+  for a turned piece (rolling pin, walking stick, chair leg, banister spindle,
+  baseball bat) with a target shape, the wood it must be made from, a paint
+  spec and a sheen, and pays coins: finer wood pays more. TAKE IT puts the
+  order on the lathe, mounting that wood from the shed if there is some: the
+  target is a ghost outline on the piece and in the profile strip, with a live
+  SHAPE score, and its paint spec is on the spec card. DONE grades the piece
+  (shape 55%, paint 35%, sheen 10%) and offers it to the order: DELIVER pays a
+  share of the reward that grows with the grade (one to three stars), or KEEP IT
+  for another try. Only the named wood can be delivered; turned pieces already
+  in the shed can be delivered from the board. A declined or delivered order is
+  replaced after four minutes, worked out from the saved clock, so orders come
+  in while the game is closed. Model in `src/js/commissions.js`, screen in
+  `src/js/commissions-ui.js`; the save section is `commissions`.
+
 - The mine: the MINE tab's ad no longer pays out directly. One finished ad
   (about 5 seconds, close button always there) lets you into the mine: a
   timbered shaft with a diamond vein in the middle. Swipe the pick across it;
@@ -73,8 +88,9 @@ mine, monetization, distribution, and the one-month bet.
 
 ## Play
 
-Open `lathe.html` in a browser. The FARM, HARVEST, LATHE and MINE tabs switch
+Open `lathe.html` in a browser. The FARM, LATHE, MINE and COMMISSIONS tabs switch
 screens (`lathe.html#farm` opens the farm, `#harvest` the forest, `#mine` the mine,
+`#orders` the commission board,
 and `?seed=N` picks the harvest's tree). It is one self-contained file (no network),
 so it can be hosted anywhere or opened in an in-app browser. `?view=2d`
 starts in the flat view.
@@ -88,10 +104,11 @@ Harvest, all with a finger or mouse:
 - Delimb: swipe across a branch to cut it right there. The outer part falls
   away and the stub can be cut again. Cut close to the log to finish a limb.
   Thick branches take more than one swipe.
-- Delimb is done when the log looks clean: a limb cut down to a short stub
-  (up to twice the flush length) counts as clean, and the counter and the saw
-  gate use that one definition. Any swipe that crosses a limb cuts it, the
-  crown leader lying along the log included.
+- Delimb is done when the log looks clean: a limb with at least two thirds of
+  its length cut off counts as clean and comes away flush, and the counter and
+  the saw gate use that one definition. Any swipe that crosses a limb cuts it,
+  the crown leader lying along the log included, and swipes that land a little
+  apart add up.
 - Saw: top-down on the log. Press where you want a cut and rub back and
   forth across it. One long drag is one stroke; it takes real rubbing. Two
   cuts free the middle piece, which becomes the blank. Cuts will not start
@@ -119,6 +136,8 @@ src/js/main.js      state, input, frame loop, UI
 src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
 src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
 src/js/farm-ui.js   farm screen, tabs, wallet, tap input
+src/js/commissions.js     commission model: orders, target shapes, grading, the board (pure)
+src/js/commissions-ui.js  the commission board screen and the grade dialog
 src/js/view3d.js    Three.js view
 src/js/view2d.js    Canvas2D view (fallback and first-class view)
 src/js/audio.js     synthesised cut / motor / catch sounds
@@ -141,7 +160,7 @@ know which view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutt
 
 ```
 npm test        # cutting model, farm model, save, harvest model, paint and finish model
-npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, and paint and finish in Chromium
+npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, and the commission board in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
 

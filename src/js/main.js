@@ -41,6 +41,8 @@
       paintTool: "brush",               // brush | liner
       color: "crimson",                 // a P.PALETTE key
       spec: null,                       // the paint spec to match (a commission supplies this)
+      order: null,                      // the commission being turned (commissions.js), or null
+      target: null,                     // its target profile: SEG radii, drawn as a ghost to turn down to
       stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
       wood: null,                       // the wood of the stock, null for practice
       flow: 0,                          // brush / spray activity 0..1, drives the sound
@@ -275,14 +277,19 @@
       var piece = sh.inventory.add("piece", {
         wood: wood, from: from, shape: shape,
         profile: St.pack(S.work.radius),
+        start: St.pack(S.work.baseRadius),
+        order: S.order ? S.order.id : null,
         coat: { coat: St.pack(S.coat.coat, 3), color: St.pack(S.coat.color, 3), gloss: St.pack(S.coat.gloss, 3) },
         sheen: m ? m.sheen : null,
         spec: S.spec || null,
         match: m ? Math.round(m.total * 1000) / 1000 : null,
         removed: Math.round(S.work.removedFraction() * 1000) / 1000
       });
+      var order = S.order;
       mount(null);
-      toast(woodName(wood) + " piece added to the shed.");
+      if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
+      else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
+      else toast(woodName(wood) + " piece added to the shed.");
       return piece;
     }
     doneBtn.addEventListener("click", function () { audio.init(); closeStock(); finishPiece(); });
@@ -357,11 +364,56 @@
       S.spec = spec;
       var need = P.specPaints(spec);
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
-      specName.textContent = spec.name;
+      specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
       drawSpec(); updateSpecInfo();
       return true;
     }
-    document.getElementById("specNewBtn").addEventListener("click", function () { setSpec(P.generateSpec()); });
+    var specNewBtn = document.getElementById("specNewBtn");
+    specNewBtn.addEventListener("click", function () {
+      if (S.order) { if (G.showScreen) G.showScreen("orders"); return; }
+      setSpec(P.generateSpec());
+    });
+
+    /* ---------------- the commission on the lathe ----------------
+       The board (commissions.js) says which order is active. Its target shape
+       is drawn as a ghost on the piece and in the profile strip, its paint spec
+       goes on the spec card, and DONE offers the piece to it. */
+    function board() { return G.commissions || null; }
+    function pieceName(o) { var d = G.Commissions && G.Commissions.PIECES[o.kind]; return d ? d.name : "Piece"; }
+    var profileLabel = document.getElementById("profileLabel");
+    function syncOrder() {
+      var b = board(), o = b ? b.active() : null;
+      if (o === S.order) return;
+      S.order = o;
+      S.target = o ? b.targetProfile(o) : null;
+      specNewBtn.textContent = o ? "BOARD" : "NEW SPEC";
+      specNewBtn.title = o ? "Back to the commission board" : "Roll a new paint spec";
+      if (o) setSpec(o.spec); else setSpec(P.generateSpec());
+      shapeShown = -1; updateShape();
+      drawProfile();
+    }
+    L.syncOrder = syncOrder;
+    /* Taking an order from the board: put the right wood on the lathe if the
+       shed has some (a blank first, then a log), so the player can start. */
+    function takeOrder() {
+      syncOrder();
+      var o = S.order, inv = shared() && shared().inventory;
+      if (!o || !inv) return;
+      if (S.stock && S.wood === o.wood) { toast(pieceName(o) + " for " + o.client + ". Turn it to the dashed line."); return; }
+      var blanks = inv.list("blank", function (it) { return it.wood === o.wood; });
+      var ok = blanks.length ? mountStock({ kind: "blank", id: blanks[0].id }) : inv.count("log", o.wood) ? mountStock({ kind: "log", key: o.wood }) : false;
+      if (ok) toast(stockName(S.stock) + " on the lathe. Turn it to the dashed line.");
+      else toast("No " + woodName(o.wood).toLowerCase() + " in the shed. Grow one on the farm. You can practise the shape meanwhile.");
+    }
+    L.takeOrder = takeOrder;
+    var shapeShown = -1;
+    function updateShape() {
+      if (!S.target || !G.Commissions) { profileLabel.textContent = "PROFILE"; return; }
+      var sc = Math.round(G.Commissions.shapeScore(S.work.radius, S.target, S.work.baseRadius).score * 100);
+      if (sc === shapeShown) return;
+      shapeShown = sc;
+      profileLabel.innerHTML = "SHAPE<b>" + sc + "%</b>";
+    }
     function rgbCss(c, a) { return "rgba(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + "," + (a == null ? 1 : a) + ")"; }
     var specDrawn = { version: -1, spec: null, w: 0 };
     function drawSpec() {
@@ -472,6 +524,19 @@
         g.restore();
       }
       g.strokeStyle = "rgba(70,45,20,0.6)"; g.lineWidth = 1; g.stroke();
+      if (S.target) {                   // the commission's shape, to turn down to
+        var tg = S.target;
+        g.save(); g.setLineDash([4, 3]); g.strokeStyle = "#fff1c8"; g.lineWidth = 1.4;
+        for (var sgn = -1; sgn <= 1; sgn += 2) {
+          g.beginPath();
+          for (var ti = 0; ti < n; ti++) {
+            var tx = pad + (ti / (n - 1)) * iw, ty = mid + sgn * (tg[ti] / C.R0) * (mid - 3);
+            if (ti === 0) g.moveTo(tx, ty); else g.lineTo(tx, ty);
+          }
+          g.stroke();
+        }
+        g.restore();
+      }
       if (S.lastT >= 0 && S.pointer.active) {
         var cx = pad + S.lastT * iw;
         g.strokeStyle = "#e8a33d"; g.lineWidth = 2;
@@ -487,6 +552,7 @@
       var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
       statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
       statShape.textContent = L.shapeName(S.work);
+      if (S.target) updateShape();
       if (S.mode === "cut") drawProfile(); else { drawSpec(); updateSpecInfo(); }
     }
 
@@ -538,6 +604,8 @@
       }
     }
     setSpec(P.generateSpec());
+    syncOrder();
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;

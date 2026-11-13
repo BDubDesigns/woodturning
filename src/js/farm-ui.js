@@ -34,9 +34,9 @@
   var ctxSig = "";
 
   /* ---------------- screens ---------------- */
-  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen") };
+  var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen"), orders: $("ordersScreen") };
   // no HARVEST tab: the forest opens only from a grown tree on the farm
-  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine") };
+  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine"), orders: $("tabOrders") };
   var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats"), harvestStatsEl = $("harvestStats");
   var current = null;
   /* Is there a grown tree for the forest to fell? Without one the forest
@@ -59,6 +59,7 @@
     harvestStatsEl.style.display = name === "harvest" ? "" : "none";
     if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();
     if (name !== "mine" && root.MineUI) root.MineUI.hide();   // the mine scene sleeps too
+    if (name !== "orders" && G.OrdersUI) G.OrdersUI.hide();
     if (name === "farm") {
       titleEl.innerHTML = "THE <em>FARM</em>";
       subEl.textContent = "PLANT · WAIT · HARVEST · GROWS WHILE YOU ARE AWAY";
@@ -69,6 +70,11 @@
       titleEl.innerHTML = "THE <em>FOREST</em>";
       subEl.textContent = "HARVEST · CHOP, DELIMB, SAW";
       statsEl.style.display = "none";
+    } else if (name === "orders") {
+      titleEl.innerHTML = "THE <em>BOARD</em>";
+      subEl.textContent = "COMMISSIONS · TURN IT · PAINT IT · GET PAID";
+      statsEl.style.display = "none";
+      if (G.OrdersUI) G.OrdersUI.show();
     } else if (name === "mine") {
       titleEl.innerHTML = "THE <em>MINE</em>";
       subEl.textContent = "WATCH AN AD · CRACK THE VEIN · " + M.CFG.DIAMONDS_PER_VEIN + " DIAMONDS";
@@ -78,6 +84,7 @@
       titleEl.innerHTML = "THE <em>LATHE</em>";
       subEl.textContent = "PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING";
       statsEl.style.display = "";
+      if (L.syncOrder) L.syncOrder();            // the board may have a new order on the lathe
       root.dispatchEvent(new Event("resize"));   // the lathe views size themselves to the stage
     }
     try { history.replaceState(null, "", name === "lathe" ? location.pathname + location.search : "#" + name); } catch (e) {}
@@ -86,6 +93,7 @@
   tabs.farm.addEventListener("click", function () { showScreen("farm"); });
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
   tabs.mine.addEventListener("click", function () { showScreen("mine"); });
+  tabs.orders.addEventListener("click", function () { showScreen("orders"); });
 
   /* ---------------- wallet ---------------- */
   /* One chip per registered currency: each <b data-currency="id"> shows that balance. */
@@ -355,7 +363,14 @@
   layoutPlots();
   renderWallet();
   persist();
-  showScreen(/#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : "lathe");
+  /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js. */
+  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff });
+  G.commissions = board;
+  root.__farm.board = board;
+
+  var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : "lathe";
+  G.startScreen = startScreen;
+  showScreen(startScreen);
   if (grew.length) {
     var names = grew.map(function (g) { return WOODS[g.wood].name.toLowerCase(); });
     pendingToast = grew.length === 1 ? "While you were away, your " + names[0] + " finished growing." : "While you were away, " + grew.length + " trees finished growing.";

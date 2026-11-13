@@ -521,3 +521,82 @@ footer {
 @media (max-width: 460px) {
   .ctl-btn.icon-sm { font-size: 0; gap: 0; padding: 8px 12px; }
 }
+
+/* ---------- the commission board ---------- */
+#ordersScreen { overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #35281b 0%, #221a12 50%, #130e0a 100%); }
+#board { width: 100%; max-width: 680px; margin: 0 auto; padding: 14px 14px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+#orderList { display: flex; flex-direction: column; gap: 12px; }
+.order {
+  padding: 12px 14px 14px; border-radius: 12px; color: #f3e7d3;
+  background: rgba(20, 15, 11, 0.74); border: 1px solid #5a4630;
+}
+.order.on { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber) inset; }
+.order.empty { border-style: dashed; color: #bfae8f; text-align: center; padding: 18px 14px; }
+.order.empty p { margin: 0; font-size: 14.5px; }
+.order.empty b { color: #f3e7d3; font-variant-numeric: tabular-nums; }
+.o-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; color: #bfae8f; }
+.o-who b { color: #f3e7d3; font-weight: 600; }
+.o-pay { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: rgba(232, 163, 61, 0.14); border: 1px solid rgba(232, 163, 61, 0.5); }
+.o-pay b, .g-pay b, .b-hist b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
+.coin { vertical-align: -2px; }
+.o-name { margin: 2px 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.o-badge { font-size: 11.5px; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber); }
+.o-shape { display: block; width: 100%; height: 64px; margin: 0 0 10px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45)); }
+.o-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.tag { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid #4a3a28; font-size: 13px; color: #f3e7d3; }
+.tag .dot { width: 10px; height: 10px; margin-right: 6px; }
+.o-blurb { margin: 0 0 4px; font-size: 13.5px; color: #bfae8f; line-height: 1.4; }
+.o-have { margin: 0 0 10px; font-size: 13.5px; color: var(--ok); line-height: 1.4; }
+.o-have.none { color: #e0b07a; }
+.order .row, .grade-card .row { display: flex; flex-wrap: wrap; gap: 10px; }
+.order .act, .grade-card .act { background: #2a2119; color: #f3e7d3; border-color: #5a4630; }
+.order .act.primary, .grade-card .act.primary { background: #4a2f14; border-color: var(--amber); }
+.order .act .ad, .grade-card .act .ad { color: #bfae8f; }
+.order .act.primary .an, .grade-card .act.primary .an { color: var(--amber); }
+#boardFoot { color: #bfae8f; font-size: 13.5px; }
+#boardFoot p { margin: 0 0 8px; line-height: 1.45; }
+.b-done { color: #f3e7d3; }
+.b-hist { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.b-hist li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(20, 15, 11, 0.55); }
+.b-hist li span:not(.stars) { flex: 1; color: #f3e7d3; }
+.b-hist li span.stars span { font-size: 14px; }
+.b-help { color: var(--faint); font-size: 12.5px; }
+.stars span { color: rgba(255, 255, 255, 0.18); font-size: 18px; letter-spacing: 1px; }
+.stars span.on { color: #f6c46a; text-shadow: 0 0 6px rgba(246, 196, 106, 0.5); }
+#otoast {
+  position: sticky; bottom: 10px; margin: 0 auto 10px; width: fit-content; max-width: 92%;
+  padding: 8px 14px; border-radius: 8px; font-size: 14px; text-align: center;
+  background: var(--plate); color: #f3e7d3; border: 1px solid rgba(232, 163, 61, 0.35);
+  opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+}
+#otoast.on { opacity: 1; }
+#gradeOverlay {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  padding: 18px; background: rgba(8, 6, 4, 0.82);
+}
+#gradeOverlay[hidden] { display: none !important; }
+.grade-card {
+  width: 100%; max-width: 400px; padding: 16px; border-radius: 14px; color: #f3e7d3;
+  background: linear-gradient(180deg, #33261a 0%, #21180f 100%); border: 1px solid var(--amber);
+}
+.grade-card h2 { margin: 0 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+.g-stars { text-align: center; margin: 4px 0 10px; }
+.g-stars .stars span { font-size: 38px; }
+.g-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.g-row .gk { width: 54px; font-size: 11px; letter-spacing: 0.16em; color: #bfae8f; }
+.g-row .gbar { flex: 1; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
+.g-row .gbar i { display: block; height: 100%; background: linear-gradient(90deg, #c97b2d, #f6c46a); }
+.g-row b { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.g-note { margin: 6px 0 10px; font-size: 13.5px; color: #bfae8f; }
+.g-pay { margin: 8px 0 14px; font-size: 15px; display: flex; align-items: center; gap: 5px; justify-content: center; }
+.g-pay.big b { font-size: 40px; }
+.g-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; max-height: 50vh; overflow-y: auto; }
+.g-pick {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; text-align: left; border-radius: 9px;
+  background: #2a2119; color: #f3e7d3; border: 1px solid #5a4630; min-height: 52px;
+}
+.g-pick:hover { border-color: var(--amber); }
+.g-pick > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; }
+.g-pick small { color: #bfae8f; font-size: 12px; }
+.g-pick .n { display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; }
+#profileBar .plabel b { display: block; color: var(--amber); font-size: 11px; letter-spacing: 0.08em; margin-top: 4px; }

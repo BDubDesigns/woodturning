@@ -54,6 +54,7 @@
           <button class="tab" id="tabFarm" role="tab" aria-selected="false" aria-controls="farmScreen">FARM</button>
           <button class="tab" id="tabLathe" role="tab" aria-selected="true" aria-controls="latheScreen">LATHE</button>
           <button class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="mineScreen">MINE</button>
+          <button class="tab" id="tabOrders" role="tab" aria-selected="false" aria-controls="ordersScreen">COMMISSIONS</button>
         </div>
         <div class="wallet" aria-label="Wallet">
           <span class="coin-chip" title="Coins">
@@ -79,7 +80,7 @@
       </div>
 
       <div id="profileBar">
-        <div class="plabel">PROFILE</div>
+        <div class="plabel" id="profileLabel">PROFILE</div>
         <canvas id="profileCanvas" aria-label="Live cross-section profile of the workpiece"></canvas>
       </div>
 
@@ -217,6 +218,14 @@
         </div>
       </div>
 
+      <div id="ordersScreen" class="screen" hidden>
+        <div id="board">
+          <div id="orderList" aria-label="Commissions"></div>
+          <div id="boardFoot"></div>
+        </div>
+        <div id="otoast" role="status" aria-live="polite"></div>
+      </div>
+
       <div id="mineScreen" class="screen" hidden>
         <div id="mineBody"></div>
         <div id="mineScene" hidden>
@@ -242,12 +251,14 @@
     </div>
 
     <div id="adOverlay" role="dialog" aria-modal="true" aria-labelledby="adTitle" hidden></div>
+    <div id="gradeOverlay" role="dialog" aria-modal="true" aria-labelledby="gradeTitle" hidden></div>
 
     <script src="vendor/three.min.js"></script>
     <script src="js/registry.js"></script>
     <script src="js/state.js"></script>
     <script src="js/cutting.js"></script>
     <script src="js/paint.js"></script>
+    <script src="js/commissions.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/view3d.js"></script>
     <script src="js/view2d.js"></script>
@@ -260,6 +271,7 @@
     <script src="js/vein.js"></script>
     <script src="js/mine-scene.js"></script>
     <script src="js/farm-ui.js"></script>
+    <script src="js/commissions-ui.js"></script>
     <script src="js/monetize-ui.js"></script>
   </body>
 </html>

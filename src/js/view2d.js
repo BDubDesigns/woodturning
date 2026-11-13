@@ -310,6 +310,21 @@
       g.restore();
       g.strokeStyle = "rgba(40,24,10,0.55)"; g.lineWidth = 1.2; g.stroke();
 
+      // a commission's target shape, as a dashed ghost to turn down to (cut mode only)
+      if (S.target && S.mode === "cut") {
+        var tg = S.target;
+        g.save(); g.setLineDash([6, 5]); g.lineWidth = 1.6; g.strokeStyle = "rgba(255,241,200,0.9)";
+        for (var sgn = -1; sgn <= 1; sgn += 2) {
+          g.beginPath();
+          for (var gi = 0; gi < SEG; gi++) {
+            var gx = Lp.left + (gi / (SEG - 1)) * len, gy = cy + sgn * (tg[gi] / R0) * rPx;
+            if (gi === 0) g.moveTo(gx, gy); else g.lineTo(gx, gy);
+          }
+          g.stroke();
+        }
+        g.restore();
+      }
+
       // end grain, chuck, tail centre
       g.fillStyle = "#dcb57e";
       g.beginPath(); g.ellipse(Lp.left, cy, 4.5, (r[0] / R0) * rPx, 0, 0, Math.PI * 2); g.fill();

@@ -627,6 +627,32 @@
       mistGeo.attributes.position.needsUpdate = true;
     }
 
+    /* ---------------- the target ghost: a commission's shape, drawn over the piece ----------------
+       A bright silhouette in the plane through the axis, drawn on top of everything
+       so the player can turn down to it. Only in cut mode, and only with a target. */
+    var ghostPos = new Float32Array(SEG * 2 * 3), ghostGeo = new THREE.BufferGeometry();
+    ghostGeo.setAttribute("position", new THREE.BufferAttribute(ghostPos, 3));
+    var ghostIdx = [];
+    for (var gi = 0; gi < SEG - 1; gi++) { ghostIdx.push(gi, gi + 1, SEG + gi, SEG + gi + 1); }
+    ghostGeo.setIndex(ghostIdx);
+    var ghost = new THREE.LineSegments(ghostGeo, new THREE.LineBasicMaterial({ color: 0xfff6dc, transparent: true, opacity: 0.95, depthTest: false }));
+    ghost.renderOrder = 10; ghost.visible = false; ghost.frustumCulled = false;
+    scene.add(ghost);
+    var ghostFor = null;
+    function syncGhost() {
+      var tg = S.target, on = !!tg && S.mode === "cut";
+      ghost.visible = on;
+      if (!on || ghostFor === tg) return;
+      ghostFor = tg;
+      for (var k = 0; k < SEG; k++) {
+        var x = axialX(k / (SEG - 1));
+        ghostPos[k * 3] = x; ghostPos[k * 3 + 1] = CENTER_Y + tg[k]; ghostPos[k * 3 + 2] = 0.02;
+        ghostPos[(SEG + k) * 3] = x; ghostPos[(SEG + k) * 3 + 1] = CENTER_Y - tg[k]; ghostPos[(SEG + k) * 3 + 2] = 0.02;
+      }
+      ghostGeo.attributes.position.needsUpdate = true;
+      ghostGeo.computeBoundingSphere();
+    }
+
     /* ---------------- the finishing lamp: swings along the piece so the gloss catches it ---------------- */
     var lamp = new THREE.Group();
     lamp.visible = false;
@@ -752,6 +778,7 @@
         spawnMist(contactPoint, Math.floor(pr * dt * 220 + Math.random()));
       },
       frame: function (dt) {
+        syncGhost();
         frameN++;
         showTip();
         showTool();
