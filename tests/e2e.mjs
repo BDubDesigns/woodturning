@@ -34,12 +34,12 @@ const wire = (pg, label) => {
 /* ================= harvest ================= */
 const plain = await chromium.launch();
 
-/* farmWood: start with a grown tree of that wood on the farm, so the harvest
+/* farmWood: start with a grown tree of that wood on the farm. The forest
+   only opens from a grown farm tree (tap it, then HARVEST), so the harvest
    fells a real tree: the plot empties, its blank is kept in the shed, and
-   DONE on the lathe turns that blank into a piece. Without it the forest
-   offers a practice tree and nothing is kept. */
+   DONE on the lathe turns that blank into a piece. */
 async function harvestRun(label, viewport, seed, farmWood) {
-  console.log(`\nHARVEST ${label} (${viewport.width}x${viewport.height}, seed ${seed}${farmWood ? ", farm " + farmWood : ", practice"})`);
+  console.log(`\nHARVEST ${label} (${viewport.width}x${viewport.height}, seed ${seed}, farm ${farmWood})`);
   const pg = await plain.newPage({ viewport });
   wire(pg, label);
   await pg.goto(`file://${page_}#farm`);
@@ -48,10 +48,19 @@ async function harvestRun(label, viewport, seed, farmWood) {
   await pg.evaluate((wood) => {
     localStorage.clear();
     const f = window.__farm.farm;
-    if (wood) { f.plant(0, wood); f.state.plots[0].plantedAt -= 60 * 60 * 1000; }
+    f.plant(0, wood); f.state.plots[0].plantedAt -= 60 * 60 * 1000;
     window.__farm.persist();
-  }, farmWood || null);
+  }, farmWood);
+  // a #harvest link with nothing picked lands on the farm: there is no practice tree
   await pg.goto(`file://${page_}?seed=${seed}#harvest`);
+  await pg.waitForFunction(() => window.__farm);
+  const landed = await pg.evaluate(() => ({ f: !document.getElementById("farmScreen").hidden, h: document.getElementById("harvestScreen").hidden, tab: !!document.getElementById("tabHarvest"), btn: !!document.getElementById("hNewTreeBtn") }));
+  check(landed.f && landed.h, "#harvest with no tree picked shows the farm, not the forest");
+  check(!landed.tab && !landed.btn, "no HARVEST tab and no NEW TREE button");
+  // tap the grown tree, then HARVEST
+  await pg.click('.plot[data-i="0"]');
+  check((await pg.locator('[data-act="chop"]').count()) === 0, "the farm panel has no CHOP");
+  await pg.click('[data-act="harvest"]');
   await pg.waitForFunction(() => window.__harvest && window.__harvest.running);
   await pg.waitForTimeout(300);
   const shot = async (name) => { if (shots) await pg.screenshot({ path: `${shots}/${label}-${name}.png` }); };
@@ -92,7 +101,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
   while ((await phase()) === "chop" && swings < 30) { await swipe(-1, wantH); swings++; }
   check(swings >= 5 && swings <= 14, `tree cracked after ${swings} swings`);
   const src = await pg.evaluate(() => window.__harvest.source);
-  check(farmWood ? src && src.wood === farmWood && src.plot === 0 : src === null, farmWood ? "the forest is felling the farm's grown tree" : "no grown tree on the farm: a practice tree");
+  check(src && src.wood === farmWood && src.plot === 0, "the forest is felling the farm's grown tree");
   check((await phase()) === "crack", "tree is cracking");
   await pg.waitForTimeout(500);
   await shot("2-cracking");
@@ -177,12 +186,8 @@ async function harvestRun(label, viewport, seed, farmWood) {
   check(lathe.hidden, "the harvest screen is out of the way");
   check(lathe.max <= 1.05 + 1e-6 && lathe.max > 0.9, `blank fits the lathe (widest ${lathe.max.toFixed(2)})`);
   const kept = await pg.evaluate(() => { const inv = window.__farm.state.inventory; return { blanks: inv.count("blank"), logs: inv.count("log"), stock: window.__lathe.stock, label: document.getElementById("stockLabel").textContent }; });
-  if (farmWood) {
-    check(kept.blanks === 1 && kept.logs === 0, "sawn: the log became a blank in the shed");
-    check(kept.stock && kept.stock.kind === "blank", `the lathe has the kept blank mounted (${kept.label})`);
-  } else {
-    check(kept.blanks === 0 && kept.stock === null && kept.label === "PRACTICE", "practice: nothing kept, the lathe says practice");
-  }
+  check(kept.blanks === 1 && kept.logs === 0, "sawn: the log became a blank in the shed");
+  check(kept.stock && kept.stock.kind === "blank", `the lathe has the kept blank mounted (${kept.label})`);
   const body = await pg.evaluate(() => document.body.innerText);
   check(!/[\u2014\u2013]/.test(body), "no em dashes in the copy on screen");
 
@@ -200,42 +205,43 @@ async function harvestRun(label, viewport, seed, farmWood) {
   const after = await pg.evaluate(() => ({ d: window.__lathe.work.depthAt(0.5) * 40, f: window.__lathe.work.removedFraction() }));
   check(after.d > 2, `the harvested blank cuts like any other (${after.d.toFixed(1)} mm deep)`);
 
-  // DONE: a kept blank becomes a piece in the shed; practice work is never kept
-  await pg.click("#doneBtn", { force: true });   // aria-disabled on practice, still tappable to explain why
+  // DONE: a kept blank becomes a piece in the shed
+  await pg.click("#doneBtn", { force: true });
   const done = await pg.evaluate(() => { const inv = window.__farm.state.inventory; const p = inv.list("piece")[0]; return { pieces: inv.count("piece"), blanks: inv.count("blank"), stock: window.__lathe.stock, toast: document.getElementById("ltoast").textContent, piece: p && { wood: p.wood, from: p.from, prof: p.profile.length, coat: p.coat.coat.length, shape: p.shape }, saved: JSON.parse(localStorage.getItem("woodturning.save")).inventory.items.length }; });
-  if (farmWood) {
-    check(done.pieces === 1 && done.blanks === 0 && done.stock === null, "DONE: the blank left the shed and the turned piece went in");
-    check(done.piece.wood === farmWood && done.piece.from === "blank" && done.piece.prof === 240 && done.piece.coat === 240 && done.piece.shape !== "Blank", `the piece keeps its wood, profile and paint for grading (${done.piece.shape})`);
-    check(done.saved === 1, "the piece is saved");
-  } else {
-    check(done.pieces === 0 && done.toast.includes("Practice"), "DONE on practice: nothing kept, and the lathe says why");
-  }
+  check(done.pieces === 1 && done.blanks === 0 && done.stock === null, "DONE: the blank left the shed and the turned piece went in");
+  check(done.piece.wood === farmWood && done.piece.from === "blank" && done.piece.prof === 240 && done.piece.coat === 240 && done.piece.shape !== "Blank", `the piece keeps its wood, profile and paint for grading (${done.piece.shape})`);
+  check(done.saved === 1, "the piece is saved");
 
-  // and back to the forest for another
-  await pg.click("#tabHarvest");
-  await pg.waitForTimeout(300);
-  const back = await pg.evaluate(() => ({ h: document.getElementById("harvestScreen").hidden, l: document.getElementById("latheScreen").hidden, running: window.__harvest.running }));
-  check(!back.h && back.l && back.running, "the HARVEST tab goes back to the forest");
-  await pg.click("#hNewTreeBtn");
-  const fresh = await pg.evaluate(() => ({ ph: window.__harvest.game.phase, sw: window.__harvest.game.swings }));
-  check(fresh.ph === "chop" && fresh.sw === 0, "NEW TREE starts a fresh tree");
+  // the farm tree is gone, so the forest can't be reopened until another grows
+  await pg.click("#tabFarm");
+  check(await pg.evaluate(() => window.__farm.farm.plotAt(0) === null && !window.__harvest.running), "the harvested plot is empty and the forest sleeps");
+  await pg.evaluate(() => window.Game.showScreen("harvest"));
+  check(await pg.evaluate(() => document.getElementById("harvestScreen").hidden && !document.getElementById("farmScreen").hidden), "with no grown tree the forest stays shut");
 
-  // the farm still chops after a visit to the forest (the two chops live side by side)
+  // a second grown tree: HARVEST starts a fresh tree of that wood
+  await pg.evaluate(() => { const f = window.__farm.farm; f.plant(1, "walnut"); f.state.plots[1].plantedAt -= 60 * 60 * 1000; window.__farm.tick(); });
+  await pg.click('.plot[data-i="1"]');
+  await pg.click('[data-act="harvest"]');
+  await pg.waitForTimeout(200);
+  const again = await pg.evaluate(() => ({ ph: window.__harvest.game.phase, sw: window.__harvest.game.swings, src: window.__harvest.source, h: document.getElementById("harvestScreen").hidden }));
+  check(!again.h && again.ph === "chop" && again.sw === 0 && again.src && again.src.plot === 1 && again.src.wood === "walnut", "HARVEST on another grown tree starts that tree fresh");
+
+  // a growing tree offers no HARVEST, and swiping a grown one does nothing
   if (label === "desktop") {
     await pg.click("#tabFarm");
-    const onFarm = await pg.evaluate(() => ({ f: !document.getElementById("farmScreen").hidden, h: document.getElementById("harvestScreen").hidden, running: window.__harvest.running }));
-    check(onFarm.f && onFarm.h && !onFarm.running, "FARM tab: the forest stops while the farm shows");
-    await pg.evaluate(() => { const f = window.__farm.farm; f.state.plots[0] = null; f.plant(0, "pine"); f.state.plots[0].plantedAt -= 10 * 60 * 1000; window.__farm.select(0); window.__farm.tick(); });
-    for (let k = 0; k < 4; k++) await pg.click('[data-act="chop"]');
-    await pg.waitForTimeout(200);
-    const farmed = await pg.evaluate(() => ({ plot: window.__farm.farm.plotAt(0), logs: window.__farm.farm.logCount("pine") }));
-    check(farmed.plot === null && farmed.logs === 1, "farm chop after a harvest: four hits fell the pine into the shed");
+    await pg.evaluate(() => { const f = window.__farm.farm; f.plant(0, "oak"); window.__farm.tick(); });
+    await pg.click('.plot[data-i="0"]');
+    check((await pg.locator('[data-act="harvest"]').count()) === 0, "a growing tree has no HARVEST");
+    const b1 = await pg.locator('.plot[data-i="1"]').boundingBox();
+    await pg.mouse.move(b1.x + 10, b1.y + b1.height * 0.6); await pg.mouse.down();
+    await pg.mouse.move(b1.x + b1.width - 10, b1.y + b1.height * 0.6, { steps: 6 }); await pg.mouse.up();
+    check(await pg.evaluate(() => { const p = window.__farm.farm.plotAt(1); return p && p.wood === "walnut"; }), "swiping a grown tree on the farm does not chop it");
   }
   await pg.close();
 }
 
 await harvestRun("desktop", { width: 1100, height: 760 }, 7, "oak");
-await harvestRun("phone", { width: 390, height: 760 }, 5);
+await harvestRun("phone", { width: 390, height: 760 }, 5, "pine");
 await plain.close();
 
 /* ================= lathe ================= */

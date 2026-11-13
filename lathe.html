@@ -636,7 +636,6 @@ footer {
       <nav id="tabs" aria-label="Screens">
         <div class="tab-group" role="tablist">
           <button class="tab" id="tabFarm" role="tab" aria-selected="false" aria-controls="farmScreen">FARM</button>
-          <button class="tab" id="tabHarvest" role="tab" aria-selected="false" aria-controls="harvestScreen">HARVEST</button>
           <button class="tab" id="tabLathe" role="tab" aria-selected="true" aria-controls="latheScreen">LATHE</button>
           <button class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="mineScreen">MINE</button>
         </div>
@@ -787,10 +786,6 @@ footer {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="snd-waves" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="snd-waves" d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></svg>
               SOUND
             </button>
-            <button class="ctl-btn" id="hNewTreeBtn" title="Walk up to a fresh tree">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-              NEW TREE
-            </button>
           </div>
         </footer>
       </div>
@@ -866,12 +861,12 @@ footer {
   var CURRENCY_ORDER = ["coins", "diamonds"];
 
   /* ---------------- woods ----------------
-     growMs: how long a tree takes on the farm. hits: farm swipes to fell it.
+     growMs: how long a tree takes on the farm.
      trunk, leaf, leaf2, shape: how it looks on the farm and in the forest. */
   var WOODS = {
-    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN,  hits: 4, shape: "conifer", trunk: "#c19a62", leaf: "#3f7a4a", leaf2: "#5a9a5e" },
-    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN,  hits: 6, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
-    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, hits: 7, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
+    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", leaf: "#3f7a4a", leaf2: "#5a9a5e" },
+    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
+    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
   };
   var WOOD_ORDER = ["pine", "oak", "walnut"];
 
@@ -906,7 +901,7 @@ footer {
   }
   function addWood(def) {
     def = Object.assign({ shape: "round", trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" }, def);
-    return add(WOODS, WOOD_ORDER, def, ["name", "growMs", "hits"]);
+    return add(WOODS, WOOD_ORDER, def, ["name", "growMs"]);
   }
   function addItemKind(def) {
     def = Object.assign({ stack: false, fields: [] }, def);
@@ -4031,10 +4026,11 @@ footer {
     var seedUrl = /[?&]seed=(\d+)/.exec(root.location.search);
     var order = (root.Game && root.Game.Farm && root.Game.Farm.WOOD_ORDER) || ["pine", "oak", "walnut"];
     var woodUrl = /[?&]wood=(\w+)/.exec(root.location.search);
-    /* Where the tree comes from. opts.source() names a grown tree on the
-       farm ({ plot, wood }); felling it takes it off the farm, and its
-       blank is kept in the shed. With no grown tree the forest offers a
-       practice tree: it plays the same, and nothing it gives is kept. */
+    /* Where the tree comes from. opts.source() names the grown farm tree
+       the player picked ({ plot, wood }); felling it takes it off the
+       farm, and its blank is kept in the shed. The page only opens the
+       forest with one picked (farm-ui.js), so there is no practice tree
+       to pick; with no source the tree plays the same but is not kept. */
     var src = null;
     function pickSource() { src = opts.source ? opts.source() : null; if (src) src.felled = false; return src; }
     function pickWood(seed) {
@@ -4916,7 +4912,6 @@ footer {
     function hide() { running = false; audio.saw(0); pointer.active = false; pointer.id = null; }
     root.addEventListener("resize", function () { if (running) resize(); });
     document.getElementById("hSoundBtn").addEventListener("click", function () { audio.toggle(); });
-    document.getElementById("hNewTreeBtn").addEventListener("click", reset);
     begin();
 
     return { show: show, hide: hide, reset: reset, refresh: refresh, resize: resize, game: game, get source() { return src; }, get cam() { return cam; }, get saw() { return saw; },
@@ -4935,8 +4930,7 @@ footer {
     var h = host();
     if (!h) return null;
     var f = h.farm, G = root.Game, i = G.harvestPlot;
-    if (!(i >= 0 && f.isMature(f.plotAt(i)))) i = f.firstMature();
-    return i >= 0 ? { plot: i, wood: f.plotAt(i).wood } : null;
+    return i >= 0 && f.isMature(f.plotAt(i)) ? { plot: i, wood: f.plotAt(i).wood } : null;
   }
   function onFelled(src) {
     var h = host();
@@ -4967,8 +4961,15 @@ footer {
       }
       view.show();
     },
-    /* The farm asked to harvest a particular tree: start over on it unless a felled tree is mid-harvest. */
-    fresh: function () { if (view && !(view.source && view.source.felled) && view.game.phase !== "done") view.reset(); },
+    /* The farm asked to harvest a particular tree: start over on it, unless
+       it is the very tree already standing here. A tree felled earlier and
+       left mid-harvest is already a log in the shed, so nothing is lost. */
+    fresh: function () {
+      if (!view) return;
+      var s = view.source, want = root.Game.harvestPlot;
+      if (s && !s.felled && s.plot === want && view.game.phase !== "done") return;
+      view.reset();
+    },
     hide: function () { if (view) view.hide(); }
   };
 })(window);
@@ -5631,7 +5632,7 @@ footer {
    Farm model: pure, renderer-free, testable in Node.
 
    A plot is null (empty) or
-     { wood, plantedAt, skipped, hits, notches }
+     { wood, plantedAt, skipped }
    plantedAt is a wall-clock timestamp in ms. Growth is derived
    from the clock every time it is asked for, never counted down
    by a timer, so a tree grows exactly as much while the game is
@@ -5680,16 +5681,13 @@ footer {
         if (!p || typeof p !== "object" || !WOODS[p.wood] || !isFinite(p.plantedAt)) return null;
         return {
           wood: p.wood, plantedAt: p.plantedAt,
-          skipped: isFinite(p.skipped) && p.skipped > 0 ? p.skipped : 0,
-          hits: isFinite(p.hits) && p.hits > 0 ? Math.floor(p.hits) : 0,
-          notches: Array.isArray(p.notches) ? p.notches.filter(validNotch).slice(0, 12) : []
+          skipped: isFinite(p.skipped) && p.skipped > 0 ? p.skipped : 0
         };
       });
     }
     if (isFinite(f.lastSeen)) out.lastSeen = f.lastSeen;
     return out;
   }
-  function validNotch(n) { return n && (n.side === -1 || n.side === 1) && isFinite(n.y); }
 
   /* game: the save object.
      opts.state: the shared state (state.js). Made over `game` if not given.
@@ -5724,7 +5722,7 @@ footer {
       if (!WOODS[woodId]) return { ok: false, reason: "unknown wood" };
       if (i < 0 || i >= farm.plots.length) return { ok: false, reason: "no such plot" };
       if (farm.plots[i]) return { ok: false, reason: "plot is taken" };
-      farm.plots[i] = { wood: woodId, plantedAt: now(), skipped: 0, hits: 0, notches: [] };
+      farm.plots[i] = { wood: woodId, plantedAt: now(), skipped: 0 };
       changed();
       return { ok: true };
     }
@@ -5781,35 +5779,9 @@ footer {
       return { ok: true, price: price, index: farm.plots.length - 1 };
     }
 
-    /* One swipe into the trunk. side is -1 (from the left) or 1 (from
-       the right); y is where it landed, 0 at the crown to 1 at the
-       base. Enough hits and the tree falls: the plot empties and a log
-       of that wood goes to the shed (the shared inventory). The full
-       chop, delimb and saw is the Harvest screen, which fells through
-       fell() below. */
-    function chopHit(i, hit) {
-      var p = plotAt(i);
-      if (!p) return { ok: false, reason: "nothing growing" };
-      if (!isMature(p)) return { ok: false, reason: "not grown yet" };
-      var side = hit && hit.side === -1 ? -1 : 1;
-      var y = hit && isFinite(hit.y) ? Math.min(1, Math.max(0, hit.y)) : 0.7;
-      p.hits += 1;
-      p.notches.push({ side: side, y: y });
-      if (p.notches.length > 12) p.notches.shift();
-      var need = WOODS[p.wood].hits;
-      if (p.hits >= need) {
-        var wood = p.wood;
-        farm.plots[i] = null;
-        inventory.add("log", wood);
-        changed();
-        return { ok: true, felled: true, wood: wood, hits: need, need: need };
-      }
-      changed();
-      return { ok: true, felled: false, wood: p.wood, hits: p.hits, need: need };
-    }
-
-    /* Fell a grown tree in one go (the Harvest screen did the chopping).
-       The plot empties and the log goes to the shed. */
+    /* Fell a grown tree. This is the only way wood leaves the farm: the
+       Harvest screen chops it down, then calls this. The plot empties and
+       the log goes to the shed (the shared inventory). */
     function fell(i) {
       var p = plotAt(i);
       if (!p) return { ok: false, reason: "nothing growing" };
@@ -5853,7 +5825,7 @@ footer {
       plotAt: plotAt, progress: progress, remainingMs: remainingMs, isMature: isMature, stage: stage,
       diamondsToFinish: diamondsToFinish,
       plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
-      chopHit: chopHit, fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
+      fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
     };
   }
 
@@ -6924,12 +6896,14 @@ footer {
     <script>
 /* ============================================================
    Farm screen and the page shell around it: the FARM / LATHE tabs,
-   the wallet, saving. Draws the plots, takes taps and swipes, and
+   the wallet, saving. Draws the plots, takes taps, and
    hands everything to the farm model (farm.js). The model never
    knows the DOM exists.
 
-   Plots are real buttons that live for the whole session, so a swipe
-   is never interrupted by a redraw. Once a second a tick refreshes
+   Trees are never chopped here: tap a grown tree, then HARVEST takes it
+   to the forest, which is the only way into that screen.
+
+   Plots are real buttons that live for the whole session. Once a second a tick refreshes
    the clocks and the drawn tree; the bottom panel only rebuilds when
    what it shows has changed.
    ============================================================ */
@@ -6957,15 +6931,23 @@ footer {
 
   /* ---------------- screens ---------------- */
   var screens = { farm: $("farmScreen"), harvest: $("harvestScreen"), lathe: $("latheScreen"), mine: $("mineScreen") };
-  var tabs = { farm: $("tabFarm"), harvest: $("tabHarvest"), lathe: $("tabLathe"), mine: $("tabMine") };
+  // no HARVEST tab: the forest opens only from a grown tree on the farm
+  var tabs = { farm: $("tabFarm"), lathe: $("tabLathe"), mine: $("tabMine") };
   var titleEl = $("screenTitle"), subEl = $("screenSubtitle"), statsEl = $("latheStats"), harvestStatsEl = $("harvestStats");
   var current = null;
+  /* Is there a grown tree for the forest to fell? Without one the forest
+     has nothing to show, so asking for it lands on the farm instead. */
+  function harvestReady() {
+    var i = G.harvestPlot;
+    return i >= 0 && farm.isMature(farm.plotAt(i));
+  }
   function showScreen(name) {
+    if (name === "harvest" && !harvestReady()) name = "farm";
     if (current === name) return;
     current = name;
     for (var k in screens) {
       screens[k].hidden = k !== name;
-      tabs[k].setAttribute("aria-selected", k === name ? "true" : "false");
+      if (tabs[k]) tabs[k].setAttribute("aria-selected", k === name ? "true" : "false");
     }
     var L = root.Lathe;
     L.hidden = name !== "lathe";            // the lathe sleeps while another screen shows
@@ -6975,7 +6957,7 @@ footer {
     if (name !== "mine" && root.MineUI) root.MineUI.hide();   // the mine scene sleeps too
     if (name === "farm") {
       titleEl.innerHTML = "THE <em>FARM</em>";
-      subEl.textContent = "PLANT · WAIT · CHOP · GROWS WHILE YOU ARE AWAY";
+      subEl.textContent = "PLANT · WAIT · HARVEST · GROWS WHILE YOU ARE AWAY";
       statsEl.style.display = "none";
       tick();
       if (pendingToast) { toast(pendingToast); pendingToast = ""; }
@@ -6998,7 +6980,6 @@ footer {
   }
   G.showScreen = showScreen;
   tabs.farm.addEventListener("click", function () { showScreen("farm"); });
-  tabs.harvest.addEventListener("click", function () { showScreen("harvest"); });
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
   tabs.mine.addEventListener("click", function () { showScreen("mine"); });
 
@@ -7023,17 +7004,9 @@ footer {
     toastTimer = setTimeout(function () { toastEl.classList.remove("on"); }, 3200);
   }
 
-  /* ---------------- sound ---------------- */
-  function thunk(n) {
-    var a = root.Lathe && root.Lathe.audio;
-    if (!a) return;
-    a.init(); a.clunk();
-    if (n > 1) setTimeout(function () { a.clunk(); }, 130);
-  }
-
   /* ---------------- drawing a tree ---------------- */
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
-  function treeSVG(woodId, pr, st, notches) {
+  function treeSVG(woodId, pr, st) {
     var w = WOODS[woodId];
     var s = '<ellipse cx="50" cy="108" rx="34" ry="7" fill="rgba(0,0,0,0.3)"/>';
     if (st === "seed") {
@@ -7061,13 +7034,6 @@ footer {
         '<circle cx="' + (50 + r * 0.55) + '" cy="' + (cy + r * 0.2) + '" r="' + r * 0.7 + '" fill="' + w.leaf + '"/>' +
         '<circle cx="50" cy="' + cy + '" r="' + r * 0.85 + '" fill="' + w.leaf2 + '"/>';
     }
-    if (st === "mature" && notches) {
-      for (var n = 0; n < notches.length; n++) {
-        var ny = top + 4 + notches[n].y * (trunkH - 12);
-        if (notches[n].side < 0) s += '<polygon points="' + x0 + ',' + (ny - 4) + ' ' + (x0 + trunkW * 0.55) + ',' + ny + ' ' + x0 + ',' + (ny + 4) + '" fill="#2a1a0e"/>';
-        else s += '<polygon points="' + (x0 + trunkW) + ',' + (ny - 4) + ' ' + (x0 + trunkW * 0.45) + ',' + ny + ' ' + (x0 + trunkW) + ',' + (ny + 4) + '" fill="#2a1a0e"/>';
-      }
-    }
     return s;
   }
 
@@ -7080,7 +7046,6 @@ footer {
     btn.innerHTML = '<svg class="tree" viewBox="0 0 100 120" aria-hidden="true"></svg><span class="plot-name"></span><span class="plot-time"></span><span class="plot-bar"><i></i></span>';
     var e = { btn: btn, svg: btn.firstChild, name: btn.children[1], time: btn.children[2], bar: btn.children[3].firstChild, sig: "" };
     btn.addEventListener("click", function () { select(i); });
-    attachSwipe(btn, i);
     return e;
   }
 
@@ -7118,15 +7083,15 @@ footer {
   function renderPlot(i) {
     var e = els[i], p = farm.plotAt(i), st = farm.stage(p);
     var pr = p ? farm.progress(p) : 0;
-    var sig = (p ? p.wood : "-") + "|" + st + "|" + Math.round(pr * 60) + "|" + (p ? p.notches.length : 0) + "|" + (i === selected ? 1 : 0);
+    var sig = (p ? p.wood : "-") + "|" + st + "|" + Math.round(pr * 60) + "|" + (i === selected ? 1 : 0);
     if (sig !== e.sig) {
       e.sig = sig;
-      e.svg.innerHTML = p ? treeSVG(p.wood, pr, st, p.notches) : '<ellipse cx="50" cy="104" rx="32" ry="8" fill="rgba(0,0,0,0.25)"/><path d="M50 92v-16M42 84h16" stroke="#9b7b4e" stroke-width="3" stroke-linecap="round" opacity="0.7"/>';
+      e.svg.innerHTML = p ? treeSVG(p.wood, pr, st) : '<ellipse cx="50" cy="104" rx="32" ry="8" fill="rgba(0,0,0,0.25)"/><path d="M50 92v-16M42 84h16" stroke="#9b7b4e" stroke-width="3" stroke-linecap="round" opacity="0.7"/>';
     }
     e.btn.className = "plot " + (p ? (st === "mature" ? "mature" : "growing") : "empty") + (i === selected ? " selected" : "");
     var label;
     if (!p) { e.name.textContent = "Plot " + (i + 1); e.time.textContent = "Tap to plant"; label = "Plot " + (i + 1) + ", empty"; }
-    else if (st === "mature") { e.name.textContent = WOODS[p.wood].name.toUpperCase(); e.time.textContent = "Ready to chop"; label = WOODS[p.wood].name + ", ready to chop"; }
+    else if (st === "mature") { e.name.textContent = WOODS[p.wood].name.toUpperCase(); e.time.textContent = "Ready to harvest"; label = WOODS[p.wood].name + ", ready to harvest"; }
     else { e.name.textContent = WOODS[p.wood].name.toUpperCase(); e.time.textContent = F.formatDuration(farm.remainingMs(p)); label = WOODS[p.wood].name + " " + STAGE_LABEL[st].toLowerCase() + ", " + e.time.textContent + " left"; }
     e.bar.style.width = (p ? pr * 100 : 0).toFixed(1) + "%";
     e.btn.setAttribute("aria-label", "Plot " + (i + 1) + ": " + label);
@@ -7140,58 +7105,6 @@ footer {
     landBtn.className = "plot land" + (poor ? " poor" : "");
     landBtn.innerHTML = '<span class="plus">+</span><span class="plot-name">NEW LAND</span><span class="plot-time">' + price + ' coins</span>';
     landBtn.setAttribute("aria-label", "Buy a new plot of land for " + price + " coins");
-  }
-
-  /* ---------------- chopping ---------------- */
-  var nextSide = 1;
-  function doChop(i, side, y) {
-    var before = farm.plotAt(i);
-    if (!before) return;
-    var ghostSVG = before ? treeSVG(before.wood, 1, "mature", before.notches) : "";
-    var r = farm.chopHit(i, { side: side, y: y });
-    if (!r.ok) return;
-    var e = els[i];
-    e.btn.classList.remove("hit"); void e.btn.offsetWidth; e.btn.classList.add("hit");
-    if (r.felled) {
-      thunk(2);
-      var ghost = document.createElement("div");
-      ghost.className = "ghost";
-      ghost.innerHTML = '<svg viewBox="0 0 100 120" aria-hidden="true">' + ghostSVG + "</svg>";
-      e.btn.appendChild(ghost);
-      ghost.addEventListener("animationend", function () { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); });
-      toast("Crack! The " + WOODS[r.wood].name.toLowerCase() + " is down. One log added to the shed.");
-    } else {
-      thunk(1);
-    }
-    tick();
-  }
-
-  /* A swipe: put the finger down on one side of the tree and drag
-     across it. The first 28px of sideways travel lands one hit, on
-     the side the swipe started from. Where it lands up the trunk
-     follows the finger. */
-  function attachSwipe(btn, i) {
-    var g = null;
-    btn.addEventListener("pointerdown", function (ev) {
-      var p = farm.plotAt(i);
-      if (!p || !farm.isMature(p)) return;
-      g = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, done: false };
-      try { btn.setPointerCapture(ev.pointerId); } catch (e) {}
-    });
-    btn.addEventListener("pointermove", function (ev) {
-      if (!g || ev.pointerId !== g.id || g.done) return;
-      var dx = ev.clientX - g.x, dy = ev.clientY - g.y;
-      if (Math.abs(dx) < 28 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-      g.done = true;
-      var rect = btn.getBoundingClientRect();
-      // trunk spans roughly 45% to 90% of the plot's height
-      var y = clamp((((g.y + ev.clientY) / 2) - rect.top - rect.height * 0.45) / (rect.height * 0.45), 0, 1);
-      select(i);
-      doChop(i, dx > 0 ? -1 : 1, y);
-    });
-    function end(ev) { if (g && ev.pointerId === g.id) g = null; }
-    btn.addEventListener("pointerup", end);
-    btn.addEventListener("pointercancel", end);
   }
 
   /* ---------------- selection and the panel ---------------- */
@@ -7216,7 +7129,7 @@ footer {
       any = true;
       h += '<span class="log item" data-kind="' + kind + '">' + R.ITEMS[kind].many + ' <b>' + n + "</b></span>";
     });
-    if (!any) h += "<span>No logs yet. Grow a tree and chop it down.</span>";
+    if (!any) h += "<span>No logs yet. Grow a tree and harvest it.</span>";
     if (shedEl.innerHTML !== h) shedEl.innerHTML = h;
   }
 
@@ -7248,7 +7161,7 @@ footer {
     if (selected < 0) return "none|" + extra;
     if (!p) return "empty|" + selected + "|" + extra;
     var cost = farm.isMature(p) ? 0 : farm.diamondsToFinish(p);
-    return [selected, p.wood, farm.stage(p), p.hits, cost, state.wallet.balance("diamonds")].join("|");
+    return [selected, p.wood, farm.stage(p), cost, state.wallet.balance("diamonds")].join("|");
   }
 
   function renderCtx(force) {
@@ -7260,7 +7173,7 @@ footer {
     var line = document.createElement("div"); line.className = "line";
     var row = document.createElement("div"); row.className = "row";
     if (selected < 0) {
-      line.textContent = "Tap a plot to plant, tend, or chop. Trees keep growing while the game is closed.";
+      line.textContent = "Tap a plot to plant or tend it. Tap a grown tree to harvest it. Trees keep growing while the game is closed.";
       ctxEl.appendChild(line);
       var la0 = landAct();
       if (la0) { row.appendChild(la0); ctxEl.appendChild(row); }
@@ -7270,7 +7183,7 @@ footer {
       line.innerHTML = "<b>Plot " + (selected + 1) + "</b> is empty. What will you grow?";
       F.WOOD_ORDER.forEach(function (id) {
         var w = WOODS[id];
-        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), (mine.isUnlocked() ? "Ready right away, " : F.formatDuration(w.growMs) + " to grow, ") + w.hits + " swipes to chop", "", true, function () {
+        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), (mine.isUnlocked() ? "Ready right away" : F.formatDuration(w.growMs) + " to grow") , "", true, function () {
           var r = farm.plant(selected, id);
           if (r.ok) { select(selected); tick(); }
         });
@@ -7280,15 +7193,8 @@ footer {
       var la1 = landAct();
       if (la1) row.appendChild(la1);
     } else if (farm.isMature(p)) {
-      var left = WOODS[p.wood].hits - p.hits;
-      line.innerHTML = "<b>" + WOODS[p.wood].name + "</b> is fully grown. Swipe into the trunk from the side. " + left + (left === 1 ? " swipe" : " swipes") + " to go.";
-      var chop = act("CHOP", "One swipe at the trunk", "primary", true, function () {
-        nextSide = -nextSide;
-        doChop(selected, nextSide, 0.35 + Math.random() * 0.5);
-      });
-      chop.setAttribute("data-act", "chop");
-      row.appendChild(chop);
-      var hv = act("HARVEST", "Fell, trim and saw it into a blank", "", true, function () {
+      line.innerHTML = "<b>" + WOODS[p.wood].name + "</b> is fully grown. Take it to the forest to chop, delimb and saw it into a blank.";
+      var hv = act("HARVEST", "Fell, trim and saw it into a blank", "primary", true, function () {
         G.harvestPlot = selected;
         if (root.Lathe.harvestHost.fresh) root.Lathe.harvestHost.fresh();
         showScreen("harvest");

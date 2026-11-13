@@ -2,7 +2,7 @@
    Farm model: pure, renderer-free, testable in Node.
 
    A plot is null (empty) or
-     { wood, plantedAt, skipped, hits, notches }
+     { wood, plantedAt, skipped }
    plantedAt is a wall-clock timestamp in ms. Growth is derived
    from the clock every time it is asked for, never counted down
    by a timer, so a tree grows exactly as much while the game is
@@ -51,16 +51,13 @@
         if (!p || typeof p !== "object" || !WOODS[p.wood] || !isFinite(p.plantedAt)) return null;
         return {
           wood: p.wood, plantedAt: p.plantedAt,
-          skipped: isFinite(p.skipped) && p.skipped > 0 ? p.skipped : 0,
-          hits: isFinite(p.hits) && p.hits > 0 ? Math.floor(p.hits) : 0,
-          notches: Array.isArray(p.notches) ? p.notches.filter(validNotch).slice(0, 12) : []
+          skipped: isFinite(p.skipped) && p.skipped > 0 ? p.skipped : 0
         };
       });
     }
     if (isFinite(f.lastSeen)) out.lastSeen = f.lastSeen;
     return out;
   }
-  function validNotch(n) { return n && (n.side === -1 || n.side === 1) && isFinite(n.y); }
 
   /* game: the save object.
      opts.state: the shared state (state.js). Made over `game` if not given.
@@ -95,7 +92,7 @@
       if (!WOODS[woodId]) return { ok: false, reason: "unknown wood" };
       if (i < 0 || i >= farm.plots.length) return { ok: false, reason: "no such plot" };
       if (farm.plots[i]) return { ok: false, reason: "plot is taken" };
-      farm.plots[i] = { wood: woodId, plantedAt: now(), skipped: 0, hits: 0, notches: [] };
+      farm.plots[i] = { wood: woodId, plantedAt: now(), skipped: 0 };
       changed();
       return { ok: true };
     }
@@ -152,35 +149,9 @@
       return { ok: true, price: price, index: farm.plots.length - 1 };
     }
 
-    /* One swipe into the trunk. side is -1 (from the left) or 1 (from
-       the right); y is where it landed, 0 at the crown to 1 at the
-       base. Enough hits and the tree falls: the plot empties and a log
-       of that wood goes to the shed (the shared inventory). The full
-       chop, delimb and saw is the Harvest screen, which fells through
-       fell() below. */
-    function chopHit(i, hit) {
-      var p = plotAt(i);
-      if (!p) return { ok: false, reason: "nothing growing" };
-      if (!isMature(p)) return { ok: false, reason: "not grown yet" };
-      var side = hit && hit.side === -1 ? -1 : 1;
-      var y = hit && isFinite(hit.y) ? Math.min(1, Math.max(0, hit.y)) : 0.7;
-      p.hits += 1;
-      p.notches.push({ side: side, y: y });
-      if (p.notches.length > 12) p.notches.shift();
-      var need = WOODS[p.wood].hits;
-      if (p.hits >= need) {
-        var wood = p.wood;
-        farm.plots[i] = null;
-        inventory.add("log", wood);
-        changed();
-        return { ok: true, felled: true, wood: wood, hits: need, need: need };
-      }
-      changed();
-      return { ok: true, felled: false, wood: p.wood, hits: p.hits, need: need };
-    }
-
-    /* Fell a grown tree in one go (the Harvest screen did the chopping).
-       The plot empties and the log goes to the shed. */
+    /* Fell a grown tree. This is the only way wood leaves the farm: the
+       Harvest screen chops it down, then calls this. The plot empties and
+       the log goes to the shed (the shared inventory). */
     function fell(i) {
       var p = plotAt(i);
       if (!p) return { ok: false, reason: "nothing growing" };
@@ -224,7 +195,7 @@
       plotAt: plotAt, progress: progress, remainingMs: remainingMs, isMature: isMature, stage: stage,
       diamondsToFinish: diamondsToFinish,
       plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
-      chopHit: chopHit, fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
+      fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
     };
   }
 

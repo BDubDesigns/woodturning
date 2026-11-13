@@ -30,8 +30,8 @@ test("registry: the woods, currencies and item kinds the game ships with", () =>
 });
 
 test("registry: bad entries are refused", () => {
-  assert.throws(() => R.addWood({ id: "pine", name: "Pine", growMs: 1, hits: 1 }), /already exists/);
-  assert.throws(() => R.addWood({ id: "Bad Id", name: "x", growMs: 1, hits: 1 }), /id/);
+  assert.throws(() => R.addWood({ id: "pine", name: "Pine", growMs: 1 }), /already exists/);
+  assert.throws(() => R.addWood({ id: "Bad Id", name: "x", growMs: 1 }), /id/);
   assert.throws(() => R.addWood({ id: "birch", name: "Birch" }), /growMs/);
   assert.throws(() => R.addItemKind({ id: "plank", name: "Plank", stack: true }), /by/);
 });
@@ -143,10 +143,9 @@ test("one state: the farm, the mine and the inventory share the wallet and the s
   farm.plant(0, "oak");
   assert.equal(farm.finishNow(0).ok, true);
   assert.equal(state.wallet.balance("diamonds"), 5 + M.CFG.DIAMONDS_PER_AD - Math.ceil(F.WOODS.oak.growMs / F.CFG.DIAMOND_MS));
-  for (let i = 0; i < F.WOODS.oak.hits; i++) farm.chopHit(0, { side: 1, y: 0.5 });
+  farm.fell(0);
   assert.equal(state.inventory.count("log", "oak"), 1, "a felled tree lands in the shared inventory");
   assert.equal(farm.logCount("oak"), 1);
-  // harvesting a grown tree fells it in one go
   farm.plant(1, "pine");
   assert.equal(farm.firstMature(), -1);
   assert.equal(farm.fell(1).ok, false, "not grown yet");
