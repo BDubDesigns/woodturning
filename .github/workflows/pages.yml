@@ -1,0 +1,35 @@
+# Publishes the live site to the gh-pages branch whenever master changes.
+# (Repo Settings > Pages > Source: "Deploy from a branch", branch gh-pages, folder /.)
+# The pr-preview/ folder holds open pull-request previews (see pr-preview.yml), so it is kept.
+name: Deploy site
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build the single-file game
+        run: |
+          mkdir _site
+          cp index.html _site/
+          node tools/build.mjs _site/lathe.html
+      - uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          clean-exclude: pr-preview/
+          force: false
