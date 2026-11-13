@@ -84,11 +84,19 @@
     var seedUrl = /[?&]seed=(\d+)/.exec(root.location.search);
     var order = (root.Game && root.Game.Farm && root.Game.Farm.WOOD_ORDER) || ["pine", "oak", "walnut"];
     var woodUrl = /[?&]wood=(\w+)/.exec(root.location.search);
+    /* Where the tree comes from. opts.source() names a grown tree on the
+       farm ({ plot, wood }); felling it takes it off the farm, and its
+       blank is kept in the shed. With no grown tree the forest offers a
+       practice tree: it plays the same, and nothing it gives is kept. */
+    var src = null;
+    function pickSource() { src = opts.source ? opts.source() : null; if (src) src.felled = false; return src; }
     function pickWood(seed) {
+      if (src) return src.wood;
       if (woodUrl && order.indexOf(woodUrl[1]) >= 0) return woodUrl[1];
       return seed == null ? order[Math.floor(Math.random() * order.length)] : order[seed % order.length];
     }
     var seed0 = seedUrl ? parseInt(seedUrl[1], 10) : null;
+    pickSource();
     var game = new L.Harvest(seed0, pickWood(seed0));
     var foliageCache = {}, foliageSeed = -1, looks = {};
 
@@ -265,6 +273,7 @@
           case "snap":
             audio.snap(); break;
           case "landed":
+            if (src && !src.felled) { src.felled = !!(opts.onFelled && opts.onFelled(src)); if (!src.felled) src = null; }
             toast("Down. Clear the limbs.", 2.6);
             setHint("<b>Swipe a blade across each branch</b> to cut it away.<br />Cut close to the log for a clean finish. Thick ones take a few swipes.");
             camStart = null; camEnd = null; cam = camLog(game.log.bx, game.log.dir, game.log.len); layoutSaw();
@@ -877,7 +886,7 @@
       if (game.phase === "saw" || game.phase === "done") sawBlend = Math.min(1, sawBlend + dt / 0.55);
       if (handoff >= 0) {
         handoff += dt;
-        if (handoff > 1.35) { handoff = -1; if (opts.onBlank) opts.onBlank(game.blank); }
+        if (handoff > 1.35) { handoff = -1; if (opts.onBlank) opts.onBlank(game.blank, src && src.felled ? src : null); }
       }
       if (game.phase === "saw") audio.saw(clamp(sawSpeed, 0, 1) * (pointer.active && game.saw && game.saw.active ? 1 : 0));
       else audio.saw(0);
@@ -940,14 +949,20 @@
     }
 
     function begin() {
-      setHint(look().name + ". <b>Swipe into the trunk from the side.</b> Cuts land where your finger is.<br />Quick swipes bite. Keep chopping until it cracks.");
+      var whose = src ? "Your " + look().name.toLowerCase() + " from plot " + (src.plot + 1) + "." : "Practice tree, " + look().name.toLowerCase() + ". Nothing it gives is kept: grow a tree on the farm for wood to keep.";
+      setHint(whose + " <b>Swipe into the trunk from the side.</b> Cuts land where your finger is.<br />Quick swipes bite. Keep chopping until it cracks.");
       toastEl.classList.remove("on"); toastT = 0;
       parts.length = 0; trail.length = 0; sawBlend = 0; handoff = -1; swayAmp = 0.05; shake = 0;
       cam = camChop(); camStart = camEnd = null; layoutSaw(); updateHud();
     }
-    function reset() { game.reset(null, pickWood(null)); begin(); }
+    function reset() { pickSource(); game.reset(null, pickWood(null)); begin(); }
+    /* A tree nobody has touched yet can be swapped for the one the farm offers now. */
+    function untouched() { return game.phase === "chop" && game.swings === 0; }
+    function sameSource(a, b) { return a === b || (!!a && !!b && a.plot === b.plot && a.wood === b.wood); }
+    function refresh() { if (untouched() && !sameSource(src, opts.source ? opts.source() : null)) reset(); }
     function show() {
       if (game.phase === "done") reset();         // that harvest went to the lathe; start a fresh tree
+      else refresh();                            // a farm tree grew since this one was set up
       resize();
       if (!running) { running = true; last = performance.now(); root.requestAnimationFrame(loop); }
     }
@@ -957,7 +972,7 @@
     document.getElementById("hNewTreeBtn").addEventListener("click", reset);
     begin();
 
-    return { show: show, hide: hide, reset: reset, resize: resize, game: game, get cam() { return cam; }, get saw() { return saw; },
+    return { show: show, hide: hide, reset: reset, refresh: refresh, resize: resize, game: game, get source() { return src; }, get cam() { return cam; }, get saw() { return saw; },
       get running() { return running; }, update: update, render: render };
   }
 
@@ -967,14 +982,46 @@
      this host. The view is built the first time the screen is opened, when
      its stage has a size, and a finished blank goes to the lathe. */
   var view = null;
+  /* The farm and the shared state, once the page shell has made them. */
+  function host() { return root.__farm || null; }
+  function source() {
+    var h = host();
+    if (!h) return null;
+    var f = h.farm, G = root.Game, i = G.harvestPlot;
+    if (!(i >= 0 && f.isMature(f.plotAt(i)))) i = f.firstMature();
+    return i >= 0 ? { plot: i, wood: f.plotAt(i).wood } : null;
+  }
+  function onFelled(src) {
+    var h = host();
+    if (!h) return false;
+    var p = h.farm.plotAt(src.plot);
+    if (!p || p.wood !== src.wood) return false;
+    if (root.Game.harvestPlot === src.plot) root.Game.harvestPlot = -1;
+    return h.farm.fell(src.plot).ok;        // the log is in the shed now, so leaving mid-harvest loses nothing
+  }
+  /* A sawn blank: from a farm tree, its log in the shed becomes a blank;
+     from a practice tree it goes straight to the lathe and is not kept. */
+  function onBlank(blank, src) {
+    var h = host(), G = root.Game, item = null;
+    if (src && h && h.state.inventory.take("log", src.wood)) {
+      item = h.state.inventory.add("blank", {
+        wood: src.wood, seed: blank.seed, profile: G.State.pack(blank.profile),
+        lengthUnits: blank.lengthUnits, lengthRatio: blank.lengthRatio, girthUnits: blank.girthUnits
+      });
+    }
+    if (!(item && L.mountStock && L.mountStock({ kind: "blank", id: item.id }))) L.mountBlank(blank);
+    G.showScreen("lathe");
+  }
   L.harvestHost = {
     show: function () {
       if (!view) {
-        view = createHarvest({ onBlank: function (blank) { L.mountBlank(blank); root.Game.showScreen("lathe"); } });
+        view = createHarvest({ source: source, onFelled: onFelled, onBlank: onBlank });
         root.__harvest = view;
       }
       view.show();
     },
+    /* The farm asked to harvest a particular tree: start over on it unless a felled tree is mid-harvest. */
+    fresh: function () { if (view && !(view.source && view.source.felled) && view.game.phase !== "done") view.reset(); },
     hide: function () { if (view) view.hide(); }
   };
 })(window);

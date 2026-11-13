@@ -147,7 +147,7 @@ check((await page.textContent("#shed")).includes("Pine"), "the shed shows it");
 check((await page.textContent("#toast")).includes("Crack"), "a crack message plays");
 await page.waitForTimeout(1100);
 check((await page.locator(".ghost").count()) === 0, "the falling tree animation cleans itself up");
-check((await saved()).farm.logs.pine === 1, "the log is saved");
+check((await saved()).inventory.stacks.log.pine === 1, "the log is saved in the shared inventory");
 
 // ---- an unripe tree cannot be chopped
 const hitsBefore = await page.evaluate(() => { __farm.farm.plant(0, "oak"); return __farm.farm.plotAt(0).hits; });
@@ -175,8 +175,29 @@ check(await page.locator("#stage").isVisible() && !(await page.locator("#farmScr
 await page.waitForTimeout(400);
 const lay = await page.evaluate(() => { const l = window.__lathe.views.current.layout(); return l.right - l.left; });
 check(lay > 100, `lathe resized to the stage after returning (${Math.round(lay)}px wide)`);
+
+// ---- the shed's log goes on the lathe; DONE turns it into a piece
+check((await page.textContent("#stockLabel")) === "PRACTICE", "the lathe starts on a practice blank");
+await page.click("#stockBtn");
+check(await page.locator("#stockMenu").isVisible(), "STOCK opens the shed's list");
+check((await page.textContent("#stockMenu")).includes("Pine log"), "the pine log from the farm is offered");
+await page.click('#stockMenu [data-stock="log"][data-key="pine"]');
+check(!(await page.locator("#stockMenu").isVisible()) && (await page.textContent("#stockLabel")) === "PINE LOG", "the pine log is mounted");
+check((await page.evaluate(() => __farm.farm.logCount("pine"))) === 1, "mounting leaves the log in the shed until DONE");
+await page.click("#doneBtn");
+check((await page.textContent("#ltoast")).includes("Turn it first") && (await page.evaluate(() => __farm.farm.logCount("pine"))) === 1, "DONE before any cut keeps the log and says why");
+const cutAt = await page.evaluate(() => { const v = window.__lathe.views.current, l = v.layout(), r = document.getElementById("stage").getBoundingClientRect(); return { x: r.left + (l.left + l.right) / 2, y: Math.min(r.bottom - 30, r.top + l.cy + l.rPx + 70) }; });
+await page.mouse.move(cutAt.x, cutAt.y); await page.mouse.down();
+for (let i = 1; i <= 10; i++) { await page.mouse.move(cutAt.x, cutAt.y - 4 * i); await page.waitForTimeout(25); }
+await page.waitForTimeout(900); await page.mouse.up();
+await page.click("#doneBtn");
+const turned = await page.evaluate(() => { const inv = __farm.state.inventory; return { logs: inv.count("log", "pine"), pieces: inv.list("piece").map((p) => ({ wood: p.wood, from: p.from })), label: document.getElementById("stockLabel").textContent }; });
+check(turned.logs === 0 && turned.pieces.length === 1 && turned.pieces[0].wood === "pine" && turned.pieces[0].from === "log", "DONE: the log left the shed and a pine piece went in");
+check(turned.label === "PRACTICE", "after DONE the lathe is back on a practice blank");
+check((await saved()).inventory.items.filter((i) => i.kind === "piece").length === 1, "the piece is saved");
 await page.click("#tabFarm");
 check(await page.locator("#farmScreen").isVisible(), "FARM tab shows the farm again");
+check((await page.textContent("#shed")).includes("Pieces"), "the shed lists the turned piece");
 
 // ---- storage blocked: the page still plays
 const ctx2 = await browser.newContext({ viewport: { width: 420, height: 800 } });

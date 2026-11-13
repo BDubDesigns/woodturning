@@ -9,21 +9,22 @@
    closed as while it is open. Diamonds add to `skipped`, which
    counts as time already grown.
 
-   The model owns the farm section of the save and the wallet it
-   is handed. Commissions read `logCount(wood)` and `takeLog(wood)`
-   to see which woods the player actually has.
+   The model owns the farm section of the save: the plots. Money
+   goes through the shared wallet and felled trees go into the
+   shared inventory (state.js), so every tab sees the same logs.
+   The woods themselves are registry data (registry.js).
    ============================================================ */
 (function (root) {
   "use strict";
 
   var MIN = 60 * 1000;
+  var Game = root.Game || {};
+  var R = Game.Registry || require("./registry.js");
+  var State = Game.State || require("./state.js");
 
-  var WOODS = {
-    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN,  hits: 4, shape: "conifer", trunk: "#c19a62", leaf: "#3f7a4a", leaf2: "#5a9a5e" },
-    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN,  hits: 6, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
-    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, hits: 7, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
-  };
-  var WOOD_ORDER = ["pine", "oak", "walnut"];
+  // The registry's tables, shared: a wood added there grows here too.
+  var WOODS = R.WOODS;
+  var WOOD_ORDER = R.WOOD_ORDER;
 
   var CFG = {
     START_PLOTS: 2,
@@ -38,7 +39,7 @@
   function defaultFarm() {
     var plots = [];
     for (var i = 0; i < CFG.START_PLOTS; i++) plots.push(null);
-    return { plots: plots, logs: {}, lastSeen: 0 };
+    return { plots: plots, lastSeen: 0 };
   }
 
   /* Accept whatever a save held and make it safe to use. */
@@ -56,15 +57,13 @@
         };
       });
     }
-    if (f.logs && typeof f.logs === "object") {
-      for (var id in WOODS) if (isFinite(f.logs[id]) && f.logs[id] > 0) out.logs[id] = Math.floor(f.logs[id]);
-    }
     if (isFinite(f.lastSeen)) out.lastSeen = f.lastSeen;
     return out;
   }
   function validNotch(n) { return n && (n.side === -1 || n.side === 1) && isFinite(n.y); }
 
-  /* game = { wallet: { coins, diamonds }, farm } (the save object).
+  /* game: the save object.
+     opts.state: the shared state (state.js). Made over `game` if not given.
      opts.now: () => ms, so tests can drive the clock.
      opts.onChange: called after any change worth saving. */
   function createFarm(game, opts) {
@@ -73,8 +72,9 @@
     var onChange = opts.onChange || function () {};
     // opts.timersOff: () => bool. The full unlock removes every timer: trees are ready the moment they are planted.
     var timersOff = opts.timersOff || function () { return false; };
+    var state = opts.state || State.createState(game, { onChange: onChange, now: now });
     game.farm = normalizeFarm(game.farm);
-    var farm = game.farm, wallet = game.wallet;
+    var farm = game.farm, wallet = state.wallet, inventory = state.inventory;
 
     function changed() { onChange(); }
     function plotAt(i) { return i >= 0 && i < farm.plots.length ? farm.plots[i] : null; }
@@ -105,8 +105,7 @@
       var p = plotAt(i);
       if (!p) return { ok: false, reason: "nothing growing" };
       if (isMature(p)) return { ok: false, reason: "already grown" };
-      if (wallet.diamonds < 1) return { ok: false, reason: "not enough diamonds" };
-      wallet.diamonds -= 1;
+      if (!wallet.spend("diamonds", 1).ok) return { ok: false, reason: "not enough diamonds" };
       p.skipped += CFG.DIAMOND_MS;
       changed();
       return { ok: true, cost: 1 };
@@ -118,8 +117,7 @@
       if (!p) return { ok: false, reason: "nothing growing" };
       if (isMature(p)) return { ok: false, reason: "already grown" };
       var cost = diamondsToFinish(p);
-      if (wallet.diamonds < cost) return { ok: false, reason: "not enough diamonds", cost: cost };
-      wallet.diamonds -= cost;
+      if (!wallet.spend("diamonds", cost).ok) return { ok: false, reason: "not enough diamonds", cost: cost };
       p.skipped += remainingMs(p);
       changed();
       return { ok: true, cost: cost };
@@ -140,8 +138,7 @@
     function buyLandWithDiamonds() {
       var cost = landPriceDiamonds();
       if (cost === null) return { ok: false, reason: "no more land" };
-      if (wallet.diamonds < cost) return { ok: false, reason: "not enough diamonds", cost: cost };
-      wallet.diamonds -= cost;
+      if (!wallet.spend("diamonds", cost).ok) return { ok: false, reason: "not enough diamonds", cost: cost };
       farm.plots.push(null);
       changed();
       return { ok: true, cost: cost, index: farm.plots.length - 1 };
@@ -149,8 +146,7 @@
     function buyLand() {
       var price = landPrice();
       if (price === null) return { ok: false, reason: "no more land" };
-      if (wallet.coins < price) return { ok: false, reason: "not enough coins", price: price };
-      wallet.coins -= price;
+      if (!wallet.spend("coins", price).ok) return { ok: false, reason: "not enough coins", price: price };
       farm.plots.push(null);
       changed();
       return { ok: true, price: price, index: farm.plots.length - 1 };
@@ -159,8 +155,9 @@
     /* One swipe into the trunk. side is -1 (from the left) or 1 (from
        the right); y is where it landed, 0 at the crown to 1 at the
        base. Enough hits and the tree falls: the plot empties and a log
-       of that wood goes to the shed. The real chop mechanic belongs to
-       Harvest; this is the seam it plugs into. */
+       of that wood goes to the shed (the shared inventory). The full
+       chop, delimb and saw is the Harvest screen, which fells through
+       fell() below. */
     function chopHit(i, hit) {
       var p = plotAt(i);
       if (!p) return { ok: false, reason: "nothing growing" };
@@ -174,7 +171,7 @@
       if (p.hits >= need) {
         var wood = p.wood;
         farm.plots[i] = null;
-        farm.logs[wood] = (farm.logs[wood] || 0) + 1;
+        inventory.add("log", wood);
         changed();
         return { ok: true, felled: true, wood: wood, hits: need, need: need };
       }
@@ -182,14 +179,26 @@
       return { ok: true, felled: false, wood: p.wood, hits: p.hits, need: need };
     }
 
-    function logCount(woodId) { return farm.logs[woodId] || 0; }
-    function takeLog(woodId) {
-      if (!logCount(woodId)) return false;
-      farm.logs[woodId] -= 1;
-      if (!farm.logs[woodId]) delete farm.logs[woodId];
+    /* Fell a grown tree in one go (the Harvest screen did the chopping).
+       The plot empties and the log goes to the shed. */
+    function fell(i) {
+      var p = plotAt(i);
+      if (!p) return { ok: false, reason: "nothing growing" };
+      if (!isMature(p)) return { ok: false, reason: "not grown yet" };
+      farm.plots[i] = null;
+      inventory.add("log", p.wood);
       changed();
-      return true;
+      return { ok: true, wood: p.wood };
     }
+    /* The first grown tree, or -1. */
+    function firstMature() {
+      for (var i = 0; i < farm.plots.length; i++) if (isMature(farm.plots[i])) return i;
+      return -1;
+    }
+
+    // The shed is the shared inventory; these read it for the farm's own screens.
+    function logCount(woodId) { return inventory.count("log", woodId); }
+    function takeLog(woodId) { return !!inventory.take("log", woodId); }
 
     /* Remember when the player was last here. */
     function touch() { farm.lastSeen = now(); }
@@ -211,11 +220,11 @@
     }
 
     return {
-      state: farm, wallet: wallet, now: now,
+      state: farm, shared: state, wallet: game.wallet, now: now,
       plotAt: plotAt, progress: progress, remainingMs: remainingMs, isMature: isMature, stage: stage,
       diamondsToFinish: diamondsToFinish,
       plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
-      chopHit: chopHit, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
+      chopHit: chopHit, fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
     };
   }
 
