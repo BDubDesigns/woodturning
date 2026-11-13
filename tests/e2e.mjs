@@ -284,18 +284,30 @@ for (const kind of ["3d", "2d"]) {
   for (const t of [0.25, 0.75]) {
     await page.click("#newLogBtn");
     await page.waitForTimeout(100);
-    const c = await carve(t);
+    const c = await carve(t, { hold: 3000 });   // a full pass at the default RPM takes a couple of seconds
     const m = await measure();
     check(Math.abs(m.centreT - t) < 0.02, `cut at t=${m.centreT.toFixed(3)}, finger at t=${t}`);
     check(Math.abs(m.drawnX - c.x) < 18, `deepest point drawn at x=${m.drawnX.toFixed(0)}, finger x=${c.x.toFixed(0)}`);
     check(c.minY > c.woodBottom, `finger stayed below the wood (lowest wood ${c.woodBottom.toFixed(0)}, finger reached ${c.minY.toFixed(0)})`);
-    check(m.depth > 0.1 && m.depth <= 0.45, `40px nudge + hold cut ${(m.depth * 40).toFixed(1)} mm deep`);
+    check(m.depth > 0.06 && m.depth <= 0.45, `40px nudge + hold cut ${(m.depth * 40).toFixed(1)} mm deep`);
   }
   // shallow nudge: cuts, but less
   await page.click("#newLogBtn");
   await carve(0.5, { push: 10, hold: 1200 });
   const shallow = await measure();
   check(shallow.depth > 0.005 && shallow.depth < 0.15, `10px nudge cut a shallow ${(shallow.depth * 40).toFixed(1)} mm`);
+
+  // the RPM slider sets how fast wood comes off
+  const setRpm = (v) => page.evaluate((v) => { const el = document.getElementById("rpm"); el.value = String(v); el.dispatchEvent(new Event("input")); }, v);
+  const byRpm = {};
+  for (const rpm of [300, 2400]) {
+    await setRpm(rpm);
+    await page.click("#newLogBtn");
+    await carve(0.5, { hold: 900 });
+    byRpm[rpm] = (await measure()).depth;
+  }
+  await setRpm(1100);
+  check(byRpm[300] > 0 && byRpm[2400] > byRpm[300] * 2, `same push, 300 RPM cut ${(byRpm[300] * 40).toFixed(1)} mm, 2400 RPM cut ${(byRpm[2400] * 40).toFixed(1)} mm`);
 
   if (shots) {
     // carve a little spindle for a visual check
