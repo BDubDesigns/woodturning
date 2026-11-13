@@ -6611,6 +6611,14 @@ header .gear-btn { margin-left: 4px; }
       else toast("No " + woodName(o.wood).toLowerCase() + " in the shed. Grow one on the farm. You can practise the shape meanwhile.");
     }
     L.takeOrder = takeOrder;
+    /* Practise an order on a free practice blank: its shape and spec are on, the wood stays in the shed. */
+    function practiseOrder() {
+      syncOrder();
+      if (!S.order) return;
+      mount(null);
+      toast("Practice blank on the lathe. Turn it to the line; it can't be delivered.");
+    }
+    L.practiseOrder = practiseOrder;
     /* With an order on, say plainly whether what is mounted can be delivered: any wood
        can be turned to the order's shape for practice, but only its own wood is accepted. */
     var orderNote = document.getElementById("orderNote");
@@ -6844,7 +6852,7 @@ header .gear-btn { margin-left: 4px; }
     setSpec(P.generateSpec());
     syncOrder();
     applyUpgrades();
-    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;
@@ -8772,8 +8780,10 @@ header .gear-btn { margin-left: 4px; }
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
-        if (st.blanks || st.logs) h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
-        else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
+        if (st.blanks || st.logs) {
+          h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
+          h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
+        } else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
         h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
       if (st.pieces) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
@@ -8811,6 +8821,10 @@ header .gear-btn { margin-left: 4px; }
       board.accept(id);
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();
+    } else if (what === "practise") {        // the order's shape and spec on a free practice blank, the real wood kept
+      board.accept(id);
+      G.showScreen("lathe");
+      if (root.Lathe.practiseOrder) root.Lathe.practiseOrder();
     } else if (what === "lathe") {
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();

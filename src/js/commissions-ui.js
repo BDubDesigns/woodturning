@@ -113,8 +113,10 @@
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
-        if (st.blanks || st.logs) h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
-        else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
+        if (st.blanks || st.logs) {
+          h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
+          h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
+        } else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
         h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
       if (st.pieces) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
@@ -152,6 +154,10 @@
       board.accept(id);
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();
+    } else if (what === "practise") {        // the order's shape and spec on a free practice blank, the real wood kept
+      board.accept(id);
+      G.showScreen("lathe");
+      if (root.Lathe.practiseOrder) root.Lathe.practiseOrder();
     } else if (what === "lathe") {
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();

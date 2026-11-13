@@ -447,6 +447,14 @@
       else toast("No " + woodName(o.wood).toLowerCase() + " in the shed. Grow one on the farm. You can practise the shape meanwhile.");
     }
     L.takeOrder = takeOrder;
+    /* Practise an order on a free practice blank: its shape and spec are on, the wood stays in the shed. */
+    function practiseOrder() {
+      syncOrder();
+      if (!S.order) return;
+      mount(null);
+      toast("Practice blank on the lathe. Turn it to the line; it can't be delivered.");
+    }
+    L.practiseOrder = practiseOrder;
     /* With an order on, say plainly whether what is mounted can be delivered: any wood
        can be turned to the order's shape for practice, but only its own wood is accepted. */
     var orderNote = document.getElementById("orderNote");
@@ -680,7 +688,7 @@
     setSpec(P.generateSpec());
     syncOrder();
     applyUpgrades();
-    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;

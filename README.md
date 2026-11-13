@@ -70,6 +70,8 @@ mine, monetization, distribution, and the one-month bet.
   SHAPE score, and its paint spec is on the spec card. With none of that wood,
   the card offers PRACTISE IT instead, and the lathe says plainly (a red banner
   and the spec card) that the piece is practice only and cannot be delivered.
+  With the wood in the shed, PRACTISE is still there: the order goes on a free
+  practice blank and the wood stays in the shed.
   DONE grades the piece (shape 55%, paint 35%, sheen 10%). Under 50% the
   customer turns it down: no pay, and the piece stays in the shed. From 50% to
   90% the pay rises from 30% to all of the reward, and at 90% and up it is the

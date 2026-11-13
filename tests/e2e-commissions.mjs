@@ -45,6 +45,15 @@ console.log("\nTAKE IT");
 // a pine log in the shed, then take the pine order
 await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "pine" }, 2); window.__orders.ui.render(true); });
 check(/1 pine log|2 pine logs/.test(await page.locator(".order[data-order]").first().textContent()), "with a log in the shed, the card says so");
+// with the wood in the shed, practising is still an option: a free blank, the log kept
+check(await page.locator('.order[data-order] [data-act="practise"]').first().isVisible(), "with the wood in the shed, the card still offers PRACTISE");
+await page.locator('.order[data-order] [data-act="practise"]').first().click();
+await tick(0.2);
+const prac = await page.evaluate(() => ({ order: !!window.__lathe.order, stock: window.__lathe.stock, logs: window.__farm.state.inventory.count("log", "pine") }));
+check(prac.order && prac.stock === null && prac.logs === 2, "PRACTISE puts the order on a practice blank and leaves the logs in the shed");
+check(!(await page.locator("#orderNote").isHidden()) && /Practice only/.test(await page.locator("#orderNote").textContent()), "and the lathe says it is practice only");
+await page.evaluate(() => { window.__orders.board.release(); window.__lathe.syncOrder(); window.Game.showScreen("orders"); });
+await tick(0.2);
 await page.locator('.order[data-order] [data-act="take"]').first().click();
 await tick(0.4);
 let st = await page.evaluate(() => {
