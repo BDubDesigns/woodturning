@@ -33,7 +33,7 @@
   var H = {
     SLICES: 141,          // along the trunk
     TRUNK_H: 7.0,         // bare trunk height, ground to where the crown starts
-    LEADER_H: 1.3,        // the crown leader above the trunk
+    LEADER_H: 1.8,        // the crown leader above the trunk (about the longest tree's)
     CHOP_MIN: 0.55,       // choppable stretch of trunk
     CHOP_MAX: 3.4,
     HINGE: 0.2,           // fraction of the width that must stay to hold the tree up
@@ -89,35 +89,45 @@
   var TREES = {
     // a conifer: slim, straight, strongly tapering, many short level boughs, narrow at the top
     pine: {
-      baseW: [1.1, 1.25], topW: [0.5, 0.6], taper: 1.0, flare: 0.12,
-      branch: { first: [1.7, 1.85], gap: [0.36, 0.46], top: 0.6, a0: [1.25, 1.45], a0Rise: 0.1, a1: [0.9, 1.0],
-                len: 1.8, lenFall: 1.15, lenJit: 0.2, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
-      leader: { len: 1.5, thick: 0.12 },
-      foliage: { twigs: [4, 6], twigLen: [0.35, 0.65], spread: [0.25, 0.6], upward: 0.02, dens: 1.3, densRise: 0.2, size: 0.11, sizeRise: 0, leaderTwigs: 8 }
+      baseW: [1.1, 1.25], topW: [0.5, 0.6], taper: 1.0, flare: 0.12, spire: 1.5,
+      branch: { first: [1.7, 1.85], gap: [0.36, 0.46], top: 0.2, a0: [1.25, 1.45], a0Rise: 0.1, a1: [1.05, 1.2],
+                len: 2.1, lenFall: 1.5, lenJit: 0.2, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
+      leader: { len: 2.0, thick: 0.2 },
+      foliage: { twigs: [6, 8], twigLen: [0.4, 0.75], spread: [0.35, 0.9], upward: 0.02, dens: 1.3, densRise: 0.2, size: 0.11, sizeRise: 0, leaderTwigs: 8,
+                 canopy: "needles", mass: 0.3, massRise: -0.2, droop: 0.35, needle: 0.3 }
     },
     // a spreading hardwood: broad trunk, long limbs leaving at a wide angle, a round crown
     oak: {
-      baseW: [1.25, 1.41], topW: [0.78, 0.86], taper: 1.3, flare: 0.2,
-      branch: { first: [1.55, 1.75], gap: [0.55, 0.75], top: 0.5, a0: [0.85, 1.2], a0Rise: -0.35, a1: [0.55, 0.7],
+      baseW: [1.25, 1.41], topW: [0.78, 0.86], taper: 1.3, flare: 0.2, spire: 1.5,
+      branch: { first: [2.2, 2.45], gap: [0.55, 0.75], top: 0.5, a0: [0.85, 1.2], a0Rise: -0.35, a1: [0.55, 0.7],
                 len: 1.95, lenFall: 0.9, lenJit: 0.35, thick: 0.17, thickFall: 0.07, thickJit: 0.03 },
-      leader: { len: 1.3, thick: 0.17 },
-      foliage: { twigs: [4, 6], twigLen: [0.4, 0.8], spread: [0.5, 1.0], upward: 0.16, dens: 0.95, densRise: 0.5, size: 0.15, sizeRise: 0.03, leaderTwigs: 7 }
+      leader: { len: 1.6, thick: 0.24 },
+      foliage: { twigs: [4, 6], twigLen: [0.4, 0.8], spread: [0.5, 1.0], upward: 0.16, dens: 0.95, densRise: 0.5, size: 0.15, sizeRise: 0.03, leaderTwigs: 7,
+                 canopy: "clumps", mass: 0.62, massRise: 0.1, crown: 1.5 }
     },
     // a stout hardwood: the thickest trunk, fewer heavier limbs, rising more steeply, a full crown
     walnut: {
-      baseW: [1.4, 1.55], topW: [0.9, 1.0], taper: 1.15, flare: 0.28,
-      branch: { first: [1.5, 1.7], gap: [0.7, 0.95], top: 0.6, a0: [0.6, 0.95], a0Rise: -0.2, a1: [0.5, 0.75],
+      baseW: [1.4, 1.55], topW: [0.9, 1.0], taper: 1.15, flare: 0.28, spire: 1.5,
+      branch: { first: [2.1, 2.35], gap: [0.7, 0.95], top: 0.6, a0: [0.6, 0.95], a0Rise: -0.2, a1: [0.5, 0.75],
                 len: 2.1, lenFall: 1.0, lenJit: 0.4, thick: 0.22, thickFall: 0.09, thickJit: 0.03 },
-      leader: { len: 1.2, thick: 0.22 },
-      foliage: { twigs: [4, 5], twigLen: [0.5, 0.9], spread: [0.45, 0.85], upward: 0.2, dens: 1.1, densRise: 0.4, size: 0.17, sizeRise: 0.03, leaderTwigs: 7 }
+      leader: { len: 1.5, thick: 0.26 },
+      foliage: { twigs: [4, 5], twigLen: [0.5, 0.9], spread: [0.45, 0.85], upward: 0.2, dens: 1.1, densRise: 0.4, size: 0.17, sizeRise: 0.03, leaderTwigs: 7,
+                 canopy: "clumps", mass: 0.7, massRise: 0.1, crown: 1.6 }
     }
   };
   var DEFAULT_WOOD = "oak";
   function treeType(wood) { return TREES[wood] || TREES[DEFAULT_WOOD]; }
 
+  /* The trunk tapers gently up the bole, then (over the last `spire` units,
+     inside the crown) narrows hard into the leader, so trunk and leader read as
+     one stem running to a point instead of a pole with a flat top. */
   function trunkWidth(tree, h) {
     var f = clamp(h / H.TRUNK_H, 0, 1);
     var w = tree.baseW + (tree.topW - tree.baseW) * Math.pow(f, tree.taper);
+    if (tree.spire && tree.tipW) {
+      var z = clamp((h - (H.TRUNK_H - tree.spire)) / tree.spire, 0, 1);
+      w += (tree.tipW - w) * z * z * (3 - 2 * z);
+    }
     return w + tree.flare * Math.exp(-h * 3.2);       // root flare
   }
 
@@ -133,7 +143,7 @@
     }
     return pts;
   }
-  function branchThick(b, s) { return b.t0 * (1 - 0.72 * clamp(s / b.len, 0, 1)); }
+  function branchThick(b, s) { return b.t0 * (1 - (b.taper || 0.72) * clamp(s / b.len, 0, 1)); }
 
   function makeTree(seed, wood) {
     var kind = TREES[wood] ? wood : DEFAULT_WOOD, T = TREES[kind];
@@ -142,6 +152,7 @@
     var tree = {
       seed: seed == null ? 1 : seed, wood: kind, type: T,
       baseW: pick(T.baseW), topW: pick(T.topW), taper: T.taper, flare: T.flare,
+      spire: T.spire || 0, tipW: T.leader.thick,
       branches: [], dirBias: r() < 0.5 ? -1 : 1
     };
     var B = T.branch, side = r() < 0.5 ? -1 : 1, y = pick(B.first), id = 0;
@@ -162,7 +173,7 @@
     // the leader: the trunk carries on into the crown
     var ld = {
       id: id++, y: H.TRUNK_H, s: 1, a0: 0.1, a1: 0.04, len: T.leader.len,
-      t0: T.leader.thick, leader: true, p0: 0
+      t0: T.leader.thick, leader: true, p0: 0, taper: 0.93      // runs out to a point
     };
     tree.branches.push(ld);
     for (var i = 0; i < tree.branches.length; i++) tree.branches[i].pts = branchCurve(tree.branches[i]);

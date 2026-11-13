@@ -114,7 +114,10 @@
         name: w.name, trunk: w.trunk, shape: w.shape,
         bark: [shade(w.trunk, 0.3), shade(w.trunk, 0.62), shade(w.trunk, 0.9), shade(w.trunk, 0.66), shade(w.trunk, 0.28)],
         limb: shade(w.trunk, 0.5), twig: shade(w.trunk, 0.6), limbHi: mixHex(w.trunk, "#ffffff", 0.18),
-        sprites: makeLeafSprites(greens, style.shapes)
+        sprites: makeLeafSprites(greens, style.shapes),
+        // the crown's four tones, shadow to sunlit, for the masses of foliage
+        canopy: [shade(w.leaf, 0.4), shade(w.leaf, 0.7), mixHex(w.leaf, w.leaf2, 0.45), shade(w.leaf2, 1.1)],
+        needles: w.shape === "conifer"
       };
       return k;
     }
@@ -532,14 +535,93 @@
         }
         side = -side;
       }
+      if (F.canopy === "needles" && !b.leader) {      // a spray across the front of the trunk, so the stem hides in the boughs
+        var B0 = arcPoint(b, 0.02);
+        twigs.push(makeTwig(r, B0.x, B0.y, b.s > 0 ? Math.PI + 0.3 : -0.3, L.trunkWidth(game.tree, b.y) * 0.75 + 0.15, 0.02, Math.max(0.4, b.len * 0.3), dens, size, 0));   // s0 past a clean stub: it goes when the limb does
+      }
       var T = arcPoint(b, b.len);                      // the tip forks in two
       for (i = -1; i <= 1; i += 2) {
         twigs.push(makeTwig(r, T.x, T.y, T.ang + i * (0.4 + r() * 0.3), 0.32 + r() * 0.28, L.branchThick(b, b.len) * 0.9, b.len, dens, size, F.upward));
       }
-      f = { twigs: twigs };
+      f = F.canopy === "needles" ? needleCanopy(r, b, twigs, F, hi) : clumpCanopy(r, b, twigs, F, hi);
+      f.twigs = twigs;
       foliageCache[b.id] = f;
       return f;
     }
+    /* A broadleaf crown is made of clumps: round masses of leaves at the ends
+       of the twigs, each a heap of overlapping puffs lit from above. Drawn in
+       passes over every branch at once (see drawCanopy), neighbouring clumps
+       melt into one crown. The leader carries a dome of clumps that closes the
+       crown over the top of the stem. */
+    function clumpCanopy(r, b, twigs, F, hi) {
+      var clumps = [], i, R = F.mass * (1 + F.massRise * hi);
+      function clump(x, y, rad, s0) {
+        var n = 7 + Math.round(rad * 16), puffs = [], k = 0, guard = 0;
+        while (k < n && guard++ < n * 6) {
+          var px = (r() * 2 - 1) * rad * 0.78, py = (r() * 2 - 1) * rad * 0.7;
+          if (px * px + py * py > rad * rad * 0.6) continue;
+          var pr = rad * (0.3 + 0.24 * r());
+          puffs.push({ x: x + px, y: y + py, r: pr, t: clamp(0.45 + 0.6 * (py / rad) - 0.25 * (px / rad) * b.s + 0.25 * (r() - 0.5), 0, 1) });
+          k++;
+        }
+        var rim = [];                                   // single leaves breaking the outline
+        for (k = 0; k < puffs.length; k++) {
+          var P = puffs[k], dx = P.x - x, dy = P.y - y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (d + P.r < rad * 0.72) continue;
+          for (var j = 0; j < 1; j++) {
+            var a = Math.atan2(dy, dx) + (r() - 0.5) * 1.4;
+            rim.push({ x: P.x + Math.cos(a) * P.r * 0.85, y: P.y + Math.sin(a) * P.r * 0.85, a: a, size: F.size * (0.7 + r() * 0.4), u: 0.2 + 0.6 * r() * P.t });
+          }
+        }
+        clumps.push({ s0: s0, x: x, y: y, r: rad, puffs: puffs, rim: rim });
+      }
+      for (i = 0; i < twigs.length; i++) {
+        var tw = twigs[i], e = tw.pts[tw.pts.length - 1], m = tw.pts[2];
+        var big = clamp(Math.hypot(e.x - tw.pts[0].x, e.y - tw.pts[0].y) / 0.6, 0.55, 1.2);
+        clump(e.x, e.y + R * 0.15, R * big * (0.8 + 0.4 * r()), tw.s0);
+        if (big > 0.7) clump(m.x, m.y + R * 0.1, R * 0.62 * (0.8 + 0.4 * r()), tw.s0);
+      }
+      if (b.leader) {                                   // the dome over the top of the stem
+        var top = arcPoint(b, b.len), C = F.crown;
+        for (i = 0; i < 7; i++) {
+          var a = Math.PI / 2 + (i - 3) * 0.5, d = C * (i === 3 ? 0.15 : 0.62);
+          clump(top.x + Math.cos(a) * d, top.y - 0.35 * C + Math.sin(a) * d * 0.85, R * (i === 3 ? 1.35 : 1.1) * (0.9 + 0.2 * r()), b.len * (0.5 + 0.5 * i / 7));
+        }
+      }
+      return { clumps: clumps, needles: null };
+    }
+    /* A conifer wears needles, never leaves: each twig is a spray of short
+       needles over a shadowed core, the boughs droop a little, and the leader
+       is needled to its tip so the tree ends in a spike. */
+    function needleCanopy(r, b, twigs, F, hi) {
+      var sprays = [], i;
+      function spray(pts, s0, len, up) {
+        var nd = [], n = pts.length - 1, step = 0.026, total = 0, k;
+        for (k = 0; k < n; k++) total += Math.hypot(pts[k + 1].x - pts[k].x, pts[k + 1].y - pts[k].y);
+        var count = Math.max(4, Math.round(total / step));
+        for (k = 0; k <= count; k++) {
+          var t = k / count, j = Math.min(n - 1, Math.floor(t * n)), f = t * n - j;
+          var x = lerp(pts[j].x, pts[j + 1].x, f), y = lerp(pts[j].y, pts[j + 1].y, f);
+          var ta = Math.atan2(pts[j + 1].y - pts[j].y, pts[j + 1].x - pts[j].x);
+          var nl = len * (0.75 + 0.45 * r()) * (up ? 1 - 0.85 * t : 1 - 0.45 * t * t);
+          for (var side = -1; side <= 1; side += 2) {
+            var a = ta + side * (0.55 + 0.4 * r()) - (up ? 0 : F.droop * Math.cos(ta) * (side > 0 ? 0.4 : 1));
+            var ex = x + Math.cos(a) * nl, ey = y + Math.sin(a) * nl;
+            nd.push({ x0: x, y0: y, x1: ex, y1: ey, t: clamp(0.35 + 0.45 * (ey - y) / nl + 0.35 * (r() - 0.5) + 0.15 * hi, 0, 1) });
+          }
+        }
+        // the shadowed core of the spray, so it reads as dense from a distance
+        var band = pts.slice(1).map(function (p, q) { return { x: p.x, y: p.y - len * 0.15, w: len * 0.85 * (1 - 0.6 * (q + 1) / n) }; });
+        sprays.push({ s0: s0, nd: nd, band: band });
+      }
+      for (i = 0; i < twigs.length; i++) spray(twigs[i].pts, twigs[i].s0, F.needle * (1 + F.massRise * hi), b.leader);
+      // the bough itself is needled along its outer part
+      var bp = [], s;
+      for (s = b.len * (b.leader ? 0.05 : 0.08); s <= b.len + 1e-6; s += b.len / 8) { var P = arcPoint(b, s); bp.push({ x: P.x, y: P.y }); }
+      if (bp.length > 1) spray(bp, b.leader ? 0 : b.len * 0.08, F.needle * (b.leader ? 0.95 : 1.15), b.leader);
+      return { clumps: null, needles: sprays };
+    }
+
     /* A tapered stroke along points that carry a width: limbs and twigs that
        thin out as they go, not lines of one thickness. */
     function taperStroke(pts, swayOn, fill, hilite) {
@@ -592,19 +674,73 @@
       }
       g.restore();
     }
-    function drawLeaves(b, a0, a1, yoff, swayOn) {
-      if (a1 - a0 < 0.02) return;
-      var f = foliage(b), i, j, tw, lf, spr = look().sprites;
+    /* The foliage of several branch parts ({ b, a0, a1 }), drawn together in
+       passes (shadow, body, mid tone, sunlit, then loose leaves) so the crown
+       is one mass rather than separate tufts. Only foliage growing from the
+       stretch a0..a1 of a branch is drawn: cut a limb and its leaves go with it. */
+    function drawCanopy(list, yoff, swayOn) {
+      var lk = look(), C = lk.canopy, items = [], i, j, k, q;
+      for (i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (it.a1 - it.a0 < 0.02) continue;
+        var f = foliage(it.b), grp = f.clumps || f.needles;
+        for (j = 0; j < grp.length; j++) if (grp[j].s0 >= it.a0 - 1e-6 && grp[j].s0 <= it.a1 + 1e-6) items.push(grp[j]);
+      }
+      if (!items.length) return;
       g.save(); g.translate(0, -yoff);
-      for (i = 0; i < f.twigs.length; i++) {
-        tw = f.twigs[i];
-        if (tw.s0 < a0 - 1e-6 || tw.s0 > a1 + 1e-6) continue;
-        for (j = 0; j < tw.leaves.length; j++) {
-          lf = tw.leaves[j];
-          var k = lf.size / 32, x = lf.x + (swayOn ? swayX(lf.y) * 1.1 : 0);
-          g.save(); g.translate(x, lf.y); g.scale(1, -1); g.rotate(-lf.a - (swayOn ? Math.sin(T * 2 + j + b.id) * 0.06 : 0));
-          g.drawImage(spr[Math.min(spr.length - 1, Math.floor(lf.u * spr.length))], -4 * k, -12 * k, 40 * k, 24 * k);
-          g.restore();
+      function sw(y) { return swayOn ? swayX(y) * 1.1 : 0; }
+      if (!lk.needles) {
+        // [colour, puff scale, shift toward the light (x), shift up (y), only puffs lit above this]
+        var pass = [[C[0], 1.06, 0.04, -0.07, -1], [C[1], 1, 0, 0, -1], [C[2], 0.74, 0.12, 0.16, 0.42], [C[3], 0.42, 0.24, 0.34, 0.74]];
+        for (q = 0; q < pass.length; q++) {
+          var P = pass[q];
+          g.fillStyle = P[0]; g.beginPath();
+          for (j = 0; j < items.length; j++) {
+            var cl = items[j], o = sw(cl.y);
+            for (k = 0; k < cl.puffs.length; k++) {
+              var pf = cl.puffs[k];
+              if (pf.t <= P[4]) continue;
+              var cx = pf.x + o - P[2] * pf.r, cy = pf.y + P[3] * pf.r;
+              g.moveTo(cx + pf.r * P[1], cy); g.arc(cx, cy, pf.r * P[1], 0, TAU);
+            }
+          }
+          g.fill();
+        }
+        var spr = lk.sprites;
+        for (j = 0; j < items.length; j++) {
+          var c2 = items[j], o2 = sw(c2.y);
+          for (k = 0; k < c2.rim.length; k++) {
+            var lf = c2.rim[k], sc = lf.size / 32;
+            g.save(); g.translate(lf.x + o2, lf.y); g.scale(1, -1); g.rotate(-lf.a - (swayOn ? Math.sin(T * 2 + k + j) * 0.06 : 0));
+            g.drawImage(spr[Math.min(spr.length - 1, Math.floor(lf.u * spr.length))], -4 * sc, -12 * sc, 40 * sc, 24 * sc);
+            g.restore();
+          }
+        }
+      } else {
+        g.lineCap = "round"; g.lineJoin = "round";
+        g.strokeStyle = C[0]; g.globalAlpha = 0.9;
+        for (j = 0; j < items.length; j++) {
+          var bd = items[j].band;
+          for (k = 0; k + 1 < bd.length; k++) {
+            g.lineWidth = bd[k].w; g.beginPath();
+            g.moveTo(bd[k].x + sw(bd[k].y), bd[k].y); g.lineTo(bd[k + 1].x + sw(bd[k + 1].y), bd[k + 1].y); g.stroke();
+          }
+        }
+        g.globalAlpha = 1;
+        // [colour, from tone, to tone, needle width]
+        var bands = [[C[0], 0, 0.3, 0.026], [C[1], 0.3, 0.55, 0.024], [C[2], 0.55, 0.78, 0.02], [C[3], 0.78, 1.01, 0.017]];
+        for (q = 0; q < bands.length; q++) {
+          g.strokeStyle = bands[q][0]; g.lineWidth = bands[q][3]; g.beginPath();
+          for (j = 0; j < items.length; j++) {
+            var nd = items[j].nd;
+            for (k = 0; k < nd.length; k++) {
+              var n0 = nd[k];
+              if (n0.t < bands[q][1] || n0.t >= bands[q][2]) continue;
+              var o3 = sw(n0.y0);
+              g.moveTo(n0.x0 + o3, n0.y0); g.lineTo(n0.x1 + o3, n0.y1);
+            }
+          }
+          g.stroke();
         }
       }
       g.restore();
@@ -626,11 +762,13 @@
         }
         drawTrunkPart(hStar, HC.TRUNK_H, hStar);
         if (hStar > 0) drawSplinter(false, hStar);
+        var list = [];
         for (i = 0; i < br.length; i++) {
           b = br[i];
           if (b.y < hStar || b.crushed) continue;
-          drawLeaves(b, 0, withLimbs ? limbStub(b) : b.len, hStar, swayOn);
+          list.push({ b: b, a0: 0, a1: withLimbs ? limbStub(b) : b.len });
         }
+        drawCanopy(list, hStar, swayOn);
       });
     }
     function drawStump(hStar) {
@@ -639,7 +777,9 @@
         for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) drawBranch(b, 0, b.len, 0, false); }
         drawTrunkPart(0, hStar, 0);
         drawSplinter(true, 0);
-        for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) drawLeaves(b, 0, b.len, 0, false); }
+        var list = [];
+        for (i = 0; i < br.length; i++) { b = br[i]; if (b.y < hStar) list.push({ b: b, a0: 0, a1: b.len }); }
+        drawCanopy(list, 0, false);
       });
     }
     function drawShadow(x0, x1, y) {
@@ -661,7 +801,7 @@
         g.translate(sx(p.ox), sy(p.oy)); g.rotate(-p.rot); g.translate(-sx(p.ox0), -sy(p.oy0));
         frame(sx(lg.bx), sy(lg.by), lg.dir * Math.PI / 2, function () {
           drawBranch(p.b, p.from, p.b.len, lg.hStar, false);
-          drawLeaves(p.b, p.from, p.b.len, lg.hStar, false);
+          drawCanopy([{ b: p.b, a0: p.from, a1: p.b.len }], lg.hStar, false);
         });
         g.restore();
       }
@@ -696,7 +836,7 @@
           g.save(); g.translate(X, Y); g.rotate(p.rot);
           g.fillStyle = p.kind === "leaf" ? (i % 2 ? "rgba(112,158,66," : "rgba(76,124,52,") + a.toFixed(3) + ")"
             : p.kind === "sawdust" ? "rgba(232,198,140," + a.toFixed(3) + ")" : "rgba(226,190,128," + a.toFixed(3) + ")";
-          if (p.kind === "leaf") { g.beginPath(); g.ellipse(0, 0, sz, sz * 0.5, 0, 0, TAU); g.fill(); }
+          if (p.kind === "leaf") { g.beginPath(); g.ellipse(0, 0, sz, sz * (look().needles ? 0.12 : 0.5), 0, 0, TAU); g.fill(); }
           else g.fillRect(-sz, -sz * 0.45, sz * 2, sz * 0.9);
           g.restore();
         }
