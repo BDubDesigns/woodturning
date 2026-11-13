@@ -33,7 +33,7 @@
      growMs: how long a tree takes on the farm.
      trunk, leaf, leaf2, shape: how it looks on the farm and in the forest. */
   var WOODS = {
-    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", leaf: "#3f7a4a", leaf2: "#5a9a5e" },
+    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", bark: "#7a5232", leaf: "#3f7a4a", leaf2: "#5a9a5e" },   // bark: the standing tree, when it differs from the wood
     oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
     walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
   };
