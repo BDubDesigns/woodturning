@@ -2,13 +2,14 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { playedGame } = require("./helpers.js");
 const Shop = require("../src/js/shop.js");
 const St = require("../src/js/state.js");
 const Save = require("../src/js/save.js");
 const Cut = require("../src/js/cutting.js");
 
 function setup(coins) {
-  const game = Save.newGame();
+  const game = playedGame();
   game.wallet.coins = coins == null ? 250 : coins;
   const state = St.createState(game);
   const shop = Shop.createShop(game, { state });
@@ -81,7 +82,7 @@ test("chisels add tips to the rack, and every tip sold is one the lathe can cut 
 });
 
 test("a broken shop section in a save is repaired, not trusted", () => {
-  const game = Save.newGame();
+  const game = playedGame();
   game.shop = { owned: { light: 99, motor: -3, chisels: "x", laser: 2 }, spent: "lots" };
   const shop = Shop.createShop(game, { state: St.createState(game) });
   assert.equal(shop.level("light"), Shop.LINES.light.tiers.length - 1);

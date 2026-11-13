@@ -177,6 +177,7 @@ check((await page.locator(".plot[data-i]").count()) === 3 && w.diamonds === 5, `
 check((await saved()).farm.plots.length === 3, "the land is saved");
 
 // ---- timers are real while free; the loop needs nothing from the mine
+await page.evaluate(() => { __farm.game.wallet.coins = Math.max(__farm.game.wallet.coins, 500); __farm.tick(); });   // seeds cost coins, which orders pay
 await page.click('.plot[data-i="0"]');
 await page.click('[data-plant="walnut"]');
 check((await page.locator('.plot[data-i="0"]').getAttribute("class")).includes("growing"), "free game: a planted tree grows over time");
@@ -222,7 +223,7 @@ await page.click("#tabFarm");
 check((await page.locator('.plot[data-i="0"]').getAttribute("class")).includes("mature"), "unlocked: the walnut that was growing is ready");
 check((await page.textContent('.plot[data-i="0"] .plot-time')).includes("Ready"), "unlocked: no countdown shown");
 await page.click('.plot[data-i="1"]');
-check((await page.textContent("#ctx")).includes("Ready right away"), "unlocked: planting says ready right away");
+check((await page.textContent("#ctx")).toLowerCase().includes("ready right away"), "unlocked: planting says ready right away");
 await page.click('[data-plant="oak"]');
 check((await page.locator('.plot[data-i="1"]').getAttribute("class")).includes("mature"), "unlocked: a new tree is ready the moment it is planted");
 check((await page.locator('[data-act="speedup"]').count()) === 0 && (await page.locator('[data-act="grownow"]').count()) === 0, "unlocked: no speed-up buttons to sell");

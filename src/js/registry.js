@@ -22,20 +22,25 @@
 
   /* ---------------- currencies ----------------
      premium: true means real money or ads can buy it. The free game
-     must never need a premium currency for anything in the core loop. */
+     must never need a premium currency for anything in the core loop.
+     start: what a brand-new player holds. The new-player flow (tutorial.js)
+     hands out coins and diamonds as they are needed, so a new game starts
+     with none; skipping the tutorial grants its STARTER pack instead. */
   var CURRENCIES = {
-    coins:    { id: "coins",    name: "Coins",    one: "coin",    many: "coins",    start: 250, premium: false },
-    diamonds: { id: "diamonds", name: "Diamonds", one: "diamond", many: "diamonds", start: 5,   premium: true }
+    coins:    { id: "coins",    name: "Coins",    one: "coin",    many: "coins",    start: 0, premium: false },
+    diamonds: { id: "diamonds", name: "Diamonds", one: "diamond", many: "diamonds", start: 0, premium: true }
   };
   var CURRENCY_ORDER = ["coins", "diamonds"];
 
   /* ---------------- woods ----------------
      growMs: how long a tree takes on the farm.
+     plantPrice: coins for a seed. A dearer wood always pays more for the same
+       job (commissions.js WOOD_PAY), and its cheapest order pays well over the seed.
      trunk, leaf, leaf2, shape: how it looks on the farm and in the forest. */
   var WOODS = {
-    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", bark: "#7a5232", leaf: "#3f7a4a", leaf2: "#5a9a5e" },   // bark: the standing tree, when it differs from the wood
-    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
-    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
+    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, plantPrice: 10, shape: "conifer", trunk: "#c19a62", bark: "#7a5232", leaf: "#3f7a4a", leaf2: "#5a9a5e" },   // bark: the standing tree, when it differs from the wood
+    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, plantPrice: 30, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
+    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, plantPrice: 50, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
   };
   var WOOD_ORDER = ["pine", "oak", "walnut"];
 
@@ -69,7 +74,7 @@
     return add(CURRENCIES, CURRENCY_ORDER, def, ["name"]);
   }
   function addWood(def) {
-    def = Object.assign({ shape: "round", trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" }, def);
+    def = Object.assign({ plantPrice: 10, shape: "round", trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" }, def);
     return add(WOODS, WOOD_ORDER, def, ["name", "growMs"]);
   }
   function addItemKind(def) {

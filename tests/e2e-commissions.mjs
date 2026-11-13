@@ -27,6 +27,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
 await page.goto(`file://${file}?view=2d&testclock#orders`);
 await page.waitForFunction(() => window.__orders && window.__lathe && window.__lathe.setSpec);
+await page.evaluate(() => { window.__farm.game.inventory.stacks = {}; window.__orders.ui.render(true); });   // an empty shed: these checks add their own wood
 const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);   // the lathe runs on its test clock (?testclock)
 await tick(0.3);
 

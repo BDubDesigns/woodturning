@@ -51,8 +51,9 @@ async function harvestRun(label, viewport, seed, farmWood) {
   // through the page's own state: leaving the page saves it, so a hand-written save would be overwritten
   await pg.evaluate((wood) => {
     localStorage.clear();
+    window.__farm.game.inventory.stacks = {};   // an empty shed, so the counts below are this tree's alone
     const f = window.__farm.farm;
-    f.plant(0, wood); f.state.plots[0].plantedAt -= 60 * 60 * 1000;
+    f.plant(0, wood, { free: true }); f.state.plots[0].plantedAt -= 60 * 60 * 1000;
     window.__farm.persist();
   }, farmWood);
   // a #harvest link with nothing picked lands on the farm: there is no practice tree
@@ -223,7 +224,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
   check(await pg.evaluate(() => document.getElementById("harvestScreen").hidden && !document.getElementById("farmScreen").hidden), "with no grown tree the forest stays shut");
 
   // a second grown tree: HARVEST starts a fresh tree of that wood
-  await pg.evaluate(() => { const f = window.__farm.farm; f.plant(1, "walnut"); f.state.plots[1].plantedAt -= 60 * 60 * 1000; window.__farm.tick(); });
+  await pg.evaluate(() => { const f = window.__farm.farm; f.plant(1, "walnut", { free: true }); f.state.plots[1].plantedAt -= 60 * 60 * 1000; window.__farm.tick(); });
   await pg.click('.plot[data-i="1"]');
   await pg.click('[data-act="harvest"]');
   await pg.waitForTimeout(200);
@@ -233,7 +234,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
   // a growing tree offers no HARVEST, and swiping a grown one does nothing
   if (label === "desktop") {
     await pg.click("#tabFarm");
-    await pg.evaluate(() => { const f = window.__farm.farm; f.plant(0, "oak"); window.__farm.tick(); });
+    await pg.evaluate(() => { const f = window.__farm.farm; f.plant(0, "oak", { free: true }); window.__farm.tick(); });
     await pg.click('.plot[data-i="0"]');
     check((await pg.locator('[data-act="harvest"]').count()) === 0, "a growing tree has no HARVEST");
     const b1 = await pg.locator('.plot[data-i="1"]').boundingBox();

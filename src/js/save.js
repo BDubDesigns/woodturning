@@ -24,12 +24,16 @@
 
   var R = (root.Game && root.Game.Registry) || (typeof require === "function" ? require("./registry.js") : null);
 
-  /* A fresh game: the starting wallet from the registry, an empty
-     inventory, and nothing else yet (each system fills in its own). */
+  /* A fresh game: the starting wallet from the registry, three pine logs
+     in the shed for the new-player flow to turn, and the flow at its first
+     step. Each other system fills in its own section. */
+  var START_LOGS = { pine: 3 };
   function newGame() {
     var wallet = {};
     R.CURRENCY_ORDER.forEach(function (id) { wallet[id] = R.CURRENCIES[id].start; });
-    return { v: VERSION, wallet: wallet, inventory: { stacks: {}, items: [], nextId: 1 }, farm: null, mine: null };
+    var logs = {};
+    for (var w in START_LOGS) logs[w] = START_LOGS[w];
+    return { v: VERSION, wallet: wallet, inventory: { stacks: { log: logs }, items: [], nextId: 1 }, farm: null, mine: null, tutorial: { step: null, done: false } };
   }
 
   function memoryStore() {
@@ -86,6 +90,8 @@
     if (!isObj(data) || !(data.v >= 1 && data.v <= VERSION)) return game;
     try { while (data.v < VERSION) data = MIGRATIONS[data.v](data); } catch (e) { return game; }
     for (var k in data) if (k !== "v" && isObj(data[k])) game[k] = data[k];
+    // a save from before the new-player flow: this player has played, so never walk them through it
+    if (!isObj(data.tutorial)) game.tutorial = { step: null, done: true };
     return game;
   }
 
@@ -93,7 +99,7 @@
     try { storage.setItem(KEY, JSON.stringify(game)); return true; } catch (e) { return false; }
   }
 
-  var api = { KEY: KEY, VERSION: VERSION, COINS_PER_OLD_GEM: COINS_PER_OLD_GEM, newGame: newGame, memoryStore: memoryStore, pickStorage: pickStorage, load: load, write: write, migrate1: migrate1 };
+  var api = { KEY: KEY, START_LOGS: START_LOGS, VERSION: VERSION, COINS_PER_OLD_GEM: COINS_PER_OLD_GEM, newGame: newGame, memoryStore: memoryStore, pickStorage: pickStorage, load: load, write: write, migrate1: migrate1 };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});
   G.Save = api;
