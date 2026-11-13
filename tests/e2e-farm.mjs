@@ -54,6 +54,8 @@ console.log("\nFARM");
 await page.goto(url + "?view=2d#farm");
 await page.evaluate(() => localStorage.clear());
 await reload();
+check(await page.evaluate(() => __farm.farm.logCount("pine")) === 3, "a new player's shed holds three pine logs");
+await page.evaluate(() => { __farm.game.inventory.stacks = {}; __farm.persist(); });   // an empty shed, so the log counts below are the farm's alone
 
 check(await page.locator("#farmScreen").isVisible(), "#farm opens the farm screen");
 check(!(await page.locator("#latheScreen").isVisible()), "lathe screen is hidden while on the farm");
@@ -70,6 +72,7 @@ check(s.farm.plots[0] && s.farm.plots[0].wood === "pine" && s.farm.plots[0].plan
 await page.click('.plot[data-i="1"]');
 await page.click('[data-plant="oak"]');
 check((await saved()).farm.plots[1].wood === "oak", "a second wood grows beside it (oak)");
+check((await page.textContent("#walletCoins")) === "210", "seeds cost coins: pine 10, oak 30");
 
 // ---- persists across a reload, still growing
 await reload();
@@ -105,7 +108,14 @@ await page.click("#buyLand");
 check((await page.locator(".plot[data-i]").count()) === 3, "with coins: a third plot appears");
 check((await page.textContent("#walletCoins")) === "50", "land cost 100 coins");
 check((await saved()).farm.plots.length === 3, "extra land is saved");
-await page.click('[data-plant="walnut"]');
+// short of coins for the seed: refused, then one finished ad plants it for free
+await page.evaluate(() => { __farm.game.wallet.coins = 5; __mine.adProvider.seconds = 0.2; __farm.tick(); });
+await page.click('[data-plant="walnut"]', { force: true });
+check((await saved()).farm.plots[2] === null && (await page.textContent("#toast")).includes("50 coins"), "too few coins for a seed: nothing planted, told the price");
+check(await page.locator('[data-act="adplant"]').isVisible(), "an ad to plant is offered");
+await page.click('[data-act="adplant"]');
+await page.waitForFunction(() => document.getElementById("adOverlay").hidden && __farm.farm.plotAt(2));
+check((await page.textContent("#walletCoins")) === "5", "the ad planted it for free");
 check((await page.locator(".plot.growing").count()) >= 1 && (await saved()).farm.plots[2].wood === "walnut", "new land grows a third wood at the same time");
 // not enough diamonds: the speed-up is refused and nothing changes
 await page.evaluate(() => { __farm.game.wallet.diamonds = 0; __farm.tick(); });
@@ -116,7 +126,7 @@ await reload();
 check((await page.locator(".plot[data-i]").count()) === 3, "reload: the land is still owned");
 
 // ---- no chop on the farm: a grown tree is only harvested
-await page.evaluate(() => { const f = __farm.farm; f.state.plots[0] = null; f.plant(0, "pine"); f.state.plots[0].plantedAt -= 10 * 60 * 1000; __farm.tick(); });
+await page.evaluate(() => { const f = __farm.farm; f.state.plots[0] = null; f.plant(0, "pine", { free: true }); f.state.plots[0].plantedAt -= 10 * 60 * 1000; __farm.tick(); });
 check((await plotClass(0)).includes("mature"), "set up a mature pine");
 check((await page.textContent('.plot[data-i="0"]')).includes("Ready to harvest"), "a grown tree says it is ready to harvest");
 check((await page.locator("#tabHarvest").count()) === 0, "there is no HARVEST tab");
@@ -135,7 +145,7 @@ check((await page.locator('[data-act="chop"]').count()) === 0, "the panel has no
 check((await page.locator('[data-act="harvest"].primary').count()) === 1, "HARVEST is the panel's main action for a grown tree");
 check((await page.textContent("#ctx")).includes("forest"), "the panel points to the forest");
 // a growing tree cannot be harvested
-await page.evaluate(() => { __farm.farm.state.plots[1] = null; __farm.farm.plant(1, "oak"); __farm.select(1); __farm.tick(); });
+await page.evaluate(() => { __farm.farm.state.plots[1] = null; __farm.farm.plant(1, "oak", { free: true }); __farm.select(1); __farm.tick(); });
 check((await page.locator('[data-act="harvest"]').count()) === 0, "a growing tree has no HARVEST");
 check(await page.evaluate(() => { window.Game.harvestPlot = 1; window.Game.showScreen("harvest"); return document.getElementById("harvestScreen").hidden; }), "the forest will not open on a growing tree");
 // the HARVEST button opens the forest on this tree
@@ -151,7 +161,7 @@ check((await page.textContent("#shed")).includes("Pine"), "a felled pine shows i
 check((await saved()).inventory.stacks.log.pine === 1, "the log is saved in the shared inventory");
 
 if (shots) {
-  await page.evaluate(() => { const f = __farm.farm; f.state.plots[1] = null; f.plant(1, "walnut"); f.state.plots[1].plantedAt -= 6 * 60 * 1000; __farm.tick(); });
+  await page.evaluate(() => { const f = __farm.farm; f.state.plots[1] = null; f.plant(1, "walnut", { free: true }); f.state.plots[1].plantedAt -= 6 * 60 * 1000; __farm.tick(); });
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${shots}/farm.png` });
   console.log(`  shot ${shots}/farm.png`);

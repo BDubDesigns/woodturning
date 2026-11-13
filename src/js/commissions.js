@@ -157,7 +157,8 @@
     for (k = 0; k < order.length; k++) { x -= weights[order[k]] || 0; if (x <= 0) return order[k]; }
     return order[order.length - 1];
   }
-  /* One order from a seed. opts.wood / opts.kind force those. Same seed, same order. */
+  /* One order from a seed. opts.wood / opts.kind / opts.specKind / opts.sheen /
+     opts.client force those. Same seed, same order. */
   function makeOrder(seed, opts) {
     opts = opts || {};
     var r = P.rng(seed >>> 0);
@@ -165,7 +166,8 @@
     var wood = opts.wood && R.WOODS[opts.wood] ? opts.wood : pickWeighted(r, WOOD_WEIGHT, woods);
     var kind = opts.kind && PIECES[opts.kind] ? opts.kind : PIECE_ORDER[Math.floor(r() * PIECE_ORDER.length)];
     var client = CLIENTS[Math.floor(r() * CLIENTS.length)];
-    var spec = P.generateSpec(Math.floor(r() * 4294967296), opts.specKind ? { kind: opts.specKind } : null);
+    if (opts.client) client = opts.client;
+    var spec = P.generateSpec(Math.floor(r() * 4294967296), { kind: opts.specKind, sheen: opts.sheen });
     var reward = Math.round(PIECES[kind].base * (WOOD_PAY[wood] || 1) / 5) * 5;
     return { id: 0, kind: kind, seed: seed >>> 0, wood: wood, client: client, spec: spec, reward: reward, postedAt: 0 };
   }
@@ -244,6 +246,8 @@
      opts.now: () => ms, so tests can drive the clock.
      opts.random: () => 0..1, where new orders' seeds come from.
      opts.timersOff: () => bool. With the full unlock a new order is posted at once.
+     opts.paused: () => bool. While true no order is posted on its own (the
+       new-player flow authors its board with postAuthored, then resume()s).
      opts.onChange: called after any change worth saving. */
   function createBoard(game, opts) {
     opts = opts || {};
@@ -251,6 +255,7 @@
     var random = opts.random || Math.random;
     var onChange = opts.onChange || function () {};
     var timersOff = opts.timersOff || function () { return false; };
+    var paused = opts.paused || function () { return false; };
     var state = opts.state || State.createState(game, { onChange: onChange, now: now });
     game.commissions = normalizeBoard(game.commissions);
     var B = game.commissions;
@@ -258,7 +263,7 @@
 
     function nextSeed() { B.seed = (Math.imul(B.seed ^ (B.seed >>> 13), 0x5bd1e995) + 0x9e3779b9) >>> 0; return B.seed; }
     function post(opts2) {
-      var o = makeOrder(nextSeed(), opts2);
+      var o = makeOrder(opts2 && opts2.seed != null ? opts2.seed : nextSeed(), opts2);
       o.id = B.nextId++; o.postedAt = now();
       B.orders.push(o);
       return o;
@@ -268,6 +273,7 @@
        the wood that grows quickest, so a new player can take one straight away. */
     function refill() {
       var t = now(), added = [];
+      if (paused()) return added;
       if (!B.done && !B.orders.length && !B.history.length && !B.nextAt) {
         added.push(post({ wood: "pine", kind: "rolling_pin", specKind: "dipped" }));
         while (B.orders.length < CFG.BOARD_SIZE) added.push(post());
@@ -281,6 +287,25 @@
       }
       if (added.length) onChange();
       return added;
+    }
+    /* Post fixed orders (each a makeOrder opts, seed included), whatever the
+       pause says, up to the board's size. The new-player flow's first board. */
+    function postAuthored(list) {
+      var added = [];
+      (list || []).forEach(function (d) { if (B.orders.length < CFG.BOARD_SIZE) added.push(post(d)); });
+      if (added.length) onChange();
+      return added;
+    }
+    /* After a pause: fill every empty slot now, then the normal clock takes over. */
+    function resume() {
+      if (paused()) return [];
+      var added = [];
+      if (B.done || B.history.length) {
+        while (B.orders.length < CFG.BOARD_SIZE) added.push(post());
+        B.nextAt = now() + CFG.NEW_ORDER_MS;
+        if (added.length) onChange();
+      }
+      return added.concat(refill());
     }
     function get(id) { for (var i = 0; i < B.orders.length; i++) if (B.orders[i].id === id) return B.orders[i]; return null; }
     function active() { return B.active ? get(B.active) : null; }
@@ -339,6 +364,7 @@
 
     /* Don't wait for the next order: post one now for RUSH_DIAMONDS diamonds. */
     function rushNext() {
+      if (paused()) return { ok: false, reason: "paused" };
       if (B.orders.length >= CFG.BOARD_SIZE) return { ok: false, reason: "board is full" };
       var paid = state.wallet.spend("diamonds", CFG.RUSH_DIAMONDS);
       if (!paid.ok) return { ok: false, reason: "not enough diamonds", need: CFG.RUSH_DIAMONDS, have: state.wallet.balance("diamonds") };
@@ -350,7 +376,7 @@
 
     refill();
     return {
-      state: B, refill: refill, get: get, active: active, accept: accept, release: release, decline: decline,
+      state: B, refill: refill, postAuthored: postAuthored, resume: resume, get: get, active: active, accept: accept, release: release, decline: decline,
       candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
       grade: grade, targetProfile: targetProfile
     };

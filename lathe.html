@@ -1062,20 +1062,25 @@ header .gear-btn { margin-left: 4px; }
 
   /* ---------------- currencies ----------------
      premium: true means real money or ads can buy it. The free game
-     must never need a premium currency for anything in the core loop. */
+     must never need a premium currency for anything in the core loop.
+     start: what a brand-new player holds. The new-player flow (tutorial.js)
+     hands out coins and diamonds as they are needed, so a new game starts
+     with none; skipping the tutorial grants its STARTER pack instead. */
   var CURRENCIES = {
-    coins:    { id: "coins",    name: "Coins",    one: "coin",    many: "coins",    start: 250, premium: false },
-    diamonds: { id: "diamonds", name: "Diamonds", one: "diamond", many: "diamonds", start: 5,   premium: true }
+    coins:    { id: "coins",    name: "Coins",    one: "coin",    many: "coins",    start: 0, premium: false },
+    diamonds: { id: "diamonds", name: "Diamonds", one: "diamond", many: "diamonds", start: 0, premium: true }
   };
   var CURRENCY_ORDER = ["coins", "diamonds"];
 
   /* ---------------- woods ----------------
      growMs: how long a tree takes on the farm.
+     plantPrice: coins for a seed. A dearer wood always pays more for the same
+       job (commissions.js WOOD_PAY), and its cheapest order pays well over the seed.
      trunk, leaf, leaf2, shape: how it looks on the farm and in the forest. */
   var WOODS = {
-    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", bark: "#7a5232", leaf: "#3f7a4a", leaf2: "#5a9a5e" },   // bark: the standing tree, when it differs from the wood
-    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
-    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
+    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, plantPrice: 10, shape: "conifer", trunk: "#c19a62", bark: "#7a5232", leaf: "#3f7a4a", leaf2: "#5a9a5e" },   // bark: the standing tree, when it differs from the wood
+    oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, plantPrice: 30, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
+    walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, plantPrice: 50, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
   };
   var WOOD_ORDER = ["pine", "oak", "walnut"];
 
@@ -1109,7 +1114,7 @@ header .gear-btn { margin-left: 4px; }
     return add(CURRENCIES, CURRENCY_ORDER, def, ["name"]);
   }
   function addWood(def) {
-    def = Object.assign({ shape: "round", trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" }, def);
+    def = Object.assign({ plantPrice: 10, shape: "round", trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" }, def);
     return add(WOODS, WOOD_ORDER, def, ["name", "growMs"]);
   }
   function addItemKind(def) {
@@ -2254,7 +2259,8 @@ header .gear-btn { margin-left: 4px; }
     for (k = 0; k < order.length; k++) { x -= weights[order[k]] || 0; if (x <= 0) return order[k]; }
     return order[order.length - 1];
   }
-  /* One order from a seed. opts.wood / opts.kind force those. Same seed, same order. */
+  /* One order from a seed. opts.wood / opts.kind / opts.specKind / opts.sheen /
+     opts.client force those. Same seed, same order. */
   function makeOrder(seed, opts) {
     opts = opts || {};
     var r = P.rng(seed >>> 0);
@@ -2262,7 +2268,8 @@ header .gear-btn { margin-left: 4px; }
     var wood = opts.wood && R.WOODS[opts.wood] ? opts.wood : pickWeighted(r, WOOD_WEIGHT, woods);
     var kind = opts.kind && PIECES[opts.kind] ? opts.kind : PIECE_ORDER[Math.floor(r() * PIECE_ORDER.length)];
     var client = CLIENTS[Math.floor(r() * CLIENTS.length)];
-    var spec = P.generateSpec(Math.floor(r() * 4294967296), opts.specKind ? { kind: opts.specKind } : null);
+    if (opts.client) client = opts.client;
+    var spec = P.generateSpec(Math.floor(r() * 4294967296), { kind: opts.specKind, sheen: opts.sheen });
     var reward = Math.round(PIECES[kind].base * (WOOD_PAY[wood] || 1) / 5) * 5;
     return { id: 0, kind: kind, seed: seed >>> 0, wood: wood, client: client, spec: spec, reward: reward, postedAt: 0 };
   }
@@ -2341,6 +2348,8 @@ header .gear-btn { margin-left: 4px; }
      opts.now: () => ms, so tests can drive the clock.
      opts.random: () => 0..1, where new orders' seeds come from.
      opts.timersOff: () => bool. With the full unlock a new order is posted at once.
+     opts.paused: () => bool. While true no order is posted on its own (the
+       new-player flow authors its board with postAuthored, then resume()s).
      opts.onChange: called after any change worth saving. */
   function createBoard(game, opts) {
     opts = opts || {};
@@ -2348,6 +2357,7 @@ header .gear-btn { margin-left: 4px; }
     var random = opts.random || Math.random;
     var onChange = opts.onChange || function () {};
     var timersOff = opts.timersOff || function () { return false; };
+    var paused = opts.paused || function () { return false; };
     var state = opts.state || State.createState(game, { onChange: onChange, now: now });
     game.commissions = normalizeBoard(game.commissions);
     var B = game.commissions;
@@ -2355,7 +2365,7 @@ header .gear-btn { margin-left: 4px; }
 
     function nextSeed() { B.seed = (Math.imul(B.seed ^ (B.seed >>> 13), 0x5bd1e995) + 0x9e3779b9) >>> 0; return B.seed; }
     function post(opts2) {
-      var o = makeOrder(nextSeed(), opts2);
+      var o = makeOrder(opts2 && opts2.seed != null ? opts2.seed : nextSeed(), opts2);
       o.id = B.nextId++; o.postedAt = now();
       B.orders.push(o);
       return o;
@@ -2365,6 +2375,7 @@ header .gear-btn { margin-left: 4px; }
        the wood that grows quickest, so a new player can take one straight away. */
     function refill() {
       var t = now(), added = [];
+      if (paused()) return added;
       if (!B.done && !B.orders.length && !B.history.length && !B.nextAt) {
         added.push(post({ wood: "pine", kind: "rolling_pin", specKind: "dipped" }));
         while (B.orders.length < CFG.BOARD_SIZE) added.push(post());
@@ -2378,6 +2389,25 @@ header .gear-btn { margin-left: 4px; }
       }
       if (added.length) onChange();
       return added;
+    }
+    /* Post fixed orders (each a makeOrder opts, seed included), whatever the
+       pause says, up to the board's size. The new-player flow's first board. */
+    function postAuthored(list) {
+      var added = [];
+      (list || []).forEach(function (d) { if (B.orders.length < CFG.BOARD_SIZE) added.push(post(d)); });
+      if (added.length) onChange();
+      return added;
+    }
+    /* After a pause: fill every empty slot now, then the normal clock takes over. */
+    function resume() {
+      if (paused()) return [];
+      var added = [];
+      if (B.done || B.history.length) {
+        while (B.orders.length < CFG.BOARD_SIZE) added.push(post());
+        B.nextAt = now() + CFG.NEW_ORDER_MS;
+        if (added.length) onChange();
+      }
+      return added.concat(refill());
     }
     function get(id) { for (var i = 0; i < B.orders.length; i++) if (B.orders[i].id === id) return B.orders[i]; return null; }
     function active() { return B.active ? get(B.active) : null; }
@@ -2436,6 +2466,7 @@ header .gear-btn { margin-left: 4px; }
 
     /* Don't wait for the next order: post one now for RUSH_DIAMONDS diamonds. */
     function rushNext() {
+      if (paused()) return { ok: false, reason: "paused" };
       if (B.orders.length >= CFG.BOARD_SIZE) return { ok: false, reason: "board is full" };
       var paid = state.wallet.spend("diamonds", CFG.RUSH_DIAMONDS);
       if (!paid.ok) return { ok: false, reason: "not enough diamonds", need: CFG.RUSH_DIAMONDS, have: state.wallet.balance("diamonds") };
@@ -2447,7 +2478,7 @@ header .gear-btn { margin-left: 4px; }
 
     refill();
     return {
-      state: B, refill: refill, get: get, active: active, accept: accept, release: release, decline: decline,
+      state: B, refill: refill, postAuthored: postAuthored, resume: resume, get: get, active: active, accept: accept, release: release, decline: decline,
       candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
       grade: grade, targetProfile: targetProfile
     };
@@ -6890,12 +6921,16 @@ header .gear-btn { margin-left: 4px; }
 
   var R = (root.Game && root.Game.Registry) || (typeof require === "function" ? require("./registry.js") : null);
 
-  /* A fresh game: the starting wallet from the registry, an empty
-     inventory, and nothing else yet (each system fills in its own). */
+  /* A fresh game: the starting wallet from the registry, three pine logs
+     in the shed for the new-player flow to turn, and the flow at its first
+     step. Each other system fills in its own section. */
+  var START_LOGS = { pine: 3 };
   function newGame() {
     var wallet = {};
     R.CURRENCY_ORDER.forEach(function (id) { wallet[id] = R.CURRENCIES[id].start; });
-    return { v: VERSION, wallet: wallet, inventory: { stacks: {}, items: [], nextId: 1 }, farm: null, mine: null };
+    var logs = {};
+    for (var w in START_LOGS) logs[w] = START_LOGS[w];
+    return { v: VERSION, wallet: wallet, inventory: { stacks: { log: logs }, items: [], nextId: 1 }, farm: null, mine: null, tutorial: { step: null, done: false } };
   }
 
   function memoryStore() {
@@ -6952,6 +6987,8 @@ header .gear-btn { margin-left: 4px; }
     if (!isObj(data) || !(data.v >= 1 && data.v <= VERSION)) return game;
     try { while (data.v < VERSION) data = MIGRATIONS[data.v](data); } catch (e) { return game; }
     for (var k in data) if (k !== "v" && isObj(data[k])) game[k] = data[k];
+    // a save from before the new-player flow: this player has played, so never walk them through it
+    if (!isObj(data.tutorial)) game.tutorial = { step: null, done: true };
     return game;
   }
 
@@ -6959,7 +6996,7 @@ header .gear-btn { margin-left: 4px; }
     try { storage.setItem(KEY, JSON.stringify(game)); return true; } catch (e) { return false; }
   }
 
-  var api = { KEY: KEY, VERSION: VERSION, COINS_PER_OLD_GEM: COINS_PER_OLD_GEM, newGame: newGame, memoryStore: memoryStore, pickStorage: pickStorage, load: load, write: write, migrate1: migrate1 };
+  var api = { KEY: KEY, START_LOGS: START_LOGS, VERSION: VERSION, COINS_PER_OLD_GEM: COINS_PER_OLD_GEM, newGame: newGame, memoryStore: memoryStore, pickStorage: pickStorage, load: load, write: write, migrate1: migrate1 };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});
   G.Save = api;
@@ -7056,13 +7093,19 @@ header .gear-btn { margin-left: 4px; }
     }
     function diamondsToFinish(p) { return Math.ceil(remainingMs(p) / CFG.DIAMOND_MS); }
 
-    function plant(i, woodId) {
+    /* Coins for a seed of this wood. */
+    function plantPrice(woodId) { return WOODS[woodId] ? WOODS[woodId].plantPrice || 0 : null; }
+    /* Plant a seed. It costs plantPrice coins; opt.free plants it for nothing
+       (the player watched an ad to plant, when short of coins). */
+    function plant(i, woodId, opt) {
       if (!WOODS[woodId]) return { ok: false, reason: "unknown wood" };
       if (i < 0 || i >= farm.plots.length) return { ok: false, reason: "no such plot" };
       if (farm.plots[i]) return { ok: false, reason: "plot is taken" };
+      var price = opt && opt.free ? 0 : plantPrice(woodId);
+      if (price > 0 && !wallet.spend("coins", price).ok) return { ok: false, reason: "not enough coins", price: price };
       farm.plots[i] = { wood: woodId, plantedAt: now(), skipped: 0 };
       changed();
-      return { ok: true };
+      return { ok: true, price: price };
     }
 
     /* Spend one diamond to skip DIAMOND_MS of growth. */
@@ -7162,7 +7205,7 @@ header .gear-btn { margin-left: 4px; }
       state: farm, shared: state, wallet: game.wallet, now: now,
       plotAt: plotAt, progress: progress, remainingMs: remainingMs, isMature: isMature, stage: stage,
       diamondsToFinish: diamondsToFinish,
-      plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
+      plant: plant, plantPrice: plantPrice, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
       fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
     };
   }
@@ -7181,6 +7224,277 @@ header .gear-btn { margin-left: 4px; }
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});
   G.Farm = api;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+    <script>
+/* ============================================================
+   The new-player flow: an authored first session. Pure, no DOM,
+   testable in Node (docs/new-player-flow.md is the brief).
+
+   The flow is an ordered list of steps. Each step is data:
+     id        saved, so steps can be reordered without breaking saves
+     unlock    tabs that appear when the step starts (LATHE always shows)
+     target    CSS selectors for the real control the coach points at;
+               the first one on screen gets the ring (tutorial-ui.js)
+     screen    where the step happens; the coach only shows there
+     title, text   the coach card's copy (no em dashes: player-facing)
+     done(ctx)     true once the player has done what the step asks
+     enter(ctx, t) runs once when the step starts (grants, the first board)
+     rescue(ctx, t) runs on every check; may hand out what the player needs
+               to go on (a pine log) or send them back a step (returns an id)
+     dismiss   the card has a GOT IT button that ends the step
+
+   ctx is how the flow sees the game, supplied by tutorial-ui.js and faked
+   in the tests. Everything is optional; a missing reading counts as 0:
+     screen() mode() removed() coverage() sheenRank() shape()
+     pieces(wood) logs(wood) blanks(wood) canDeliver(wood) delivered() activeWood()
+     selectedEmpty() planted(wood) grown(wood) harvestPhase()
+     coins() diamonds() plantPrice(wood)
+     grant({ coins, diamonds, logs: { wood: n } })
+     postFirstBoard(list) resumeBoard() takeOrder(wood)
+
+   The model owns the tutorial section of the save:
+     game.tutorial { step, done }
+   A save from before this flow existed is marked done on load (save.js).
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  /* Skipping the flow hands over what a player would have had by its end, and a bit to start with. */
+  var STARTER = { coins: 250, diamonds: 5 };
+  /* The speed-up step grants enough diamonds to finish an oak (5 x 2 minutes covers its 8). */
+  var GRANT_DIAMONDS = 5;
+  var CUT_FRACTION = 0.02;   // the practice cut is done once this much wood is off
+  var PAINT_COVER = 0.12;    // ...and the practice paint once this much of the piece has a coat
+  var SHAPE_GOOD = 0.6;      // the first order's shape is "close enough to paint" here
+
+  /* The first board: two easy orders with fixed seeds, so every new player sees the same two. */
+  var FIRST_BOARD = [
+    { seed: 1101, wood: "pine", kind: "rolling_pin", specKind: "dipped", sheen: "matte", client: "Mrs. Alder" },
+    { seed: 2202, wood: "oak", kind: "rolling_pin", specKind: "twotone", sheen: "satin", client: "Old Tom" }
+  ];
+  var TABS = ["lathe", "orders", "farm", "shop", "mine"];
+
+  function n(ctx, name, arg) { var f = ctx && ctx[name]; var v = typeof f === "function" ? f(arg) : 0; return v || 0; }
+  function s(ctx, name, arg) { var f = ctx && ctx[name]; return typeof f === "function" ? f(arg) : null; }
+  function call(ctx, name, arg) { var f = ctx && ctx[name]; return typeof f === "function" ? f(arg) : undefined; }
+  /* Can the player still make (or hand over) a piece of this wood? A rejected piece stays in the shed but cannot go. */
+  function hasWood(ctx, wood) { return n(ctx, "logs", wood) + n(ctx, "blanks", wood) > 0 || !!s(ctx, "canDeliver", wood); }
+
+  var STEPS = [
+    /* ---- the lathe, on a practice piece of real pine ---- */
+    { id: "cut", screen: "lathe", unlock: ["lathe"], target: ["#stage"],
+      title: "Your lathe",
+      text: "A pine log is spinning. Touch below it, then nudge your finger up to push the chisel in. Slow and steady cuts deep. Take off a little wood.",
+      done: function (c) { return n(c, "removed") >= CUT_FRACTION; } },
+    { id: "to_paint", screen: "lathe", target: ["#modePaint"],
+      title: "Nice cut",
+      text: "Now let's give it some colour. Tap PAINT.",
+      done: function (c) { var m = s(c, "mode"); return !!m && m !== "cut"; } },
+    { id: "paint", screen: "lathe", target: ["#swatches"],
+      title: "Paint it spinning",
+      text: "Pick a colour, then touch below the log and nudge up, just like cutting. The wide brush lays a coat, the liner a thin line. Slow and steady gives a solid coat.",
+      done: function (c) { return n(c, "coverage") >= PAINT_COVER; } },
+    { id: "to_finish", screen: "lathe", target: ["#modeFinish"],
+      title: "Looking good",
+      text: "Last comes the finish. Tap FINISH.",
+      done: function (c) { return s(c, "mode") === "finish"; } },
+    { id: "finish", screen: "lathe", target: ["#stage"],
+      title: "Spray the sheen",
+      text: "Touch below and nudge up to mist it. The more you spray, the glossier it gets. Watch the lamp catch the shine. Spray until it reads satin.",
+      done: function (c) { return n(c, "sheenRank") >= 1; } },
+    { id: "keep", screen: "lathe", target: ["#doneBtn"],
+      title: "Your first piece",
+      text: "Tap DONE to take it off the lathe. It goes in the shed.",
+      done: function (c) { return n(c, "pieces", "pine") >= 1 || n(c, "delivered") >= 1; } },
+
+    /* ---- the first commission ---- */
+    { id: "to_orders", unlock: ["orders"], target: ["#tabOrders"],
+      title: "Customers are waiting",
+      text: "People pay for turned pieces. Tap ORDERS to see who wants what.",
+      enter: function (c) { call(c, "postFirstBoard", FIRST_BOARD); },
+      done: function (c) { return s(c, "screen") === "orders"; } },
+    { id: "take", screen: "orders", target: ['[data-wood="pine"] [data-act="take"]', '[data-wood="pine"]'],
+      title: "Pick the pine one",
+      text: "Each order names a shape, a wood, a paint and a finish. You have pine logs, so take the pine rolling pin.",
+      done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; } },
+    { id: "turn", screen: "lathe", target: ["#profileBar"],
+      title: "Turn to the line",
+      text: "The dashed line is the shape they want, on the log and in the strip below it. Cut down to it. SHAPE shows how close you are.",
+      done: function (c) { return n(c, "shape") >= SHAPE_GOOD || (s(c, "mode") && s(c, "mode") !== "cut"); },
+      rescue: rescuePine },
+    { id: "order_paint", screen: "lathe", target: ["#modePaint", "#specBar"],
+      title: "Paint to the order",
+      text: "Close enough. Tap PAINT and match the WANTED strip. The colours it needs are marked in the palette. Then FINISH and spray to the sheen it asks for.",
+      done: function (c) { return s(c, "mode") === "finish" || n(c, "delivered") >= 1; },
+      rescue: rescuePine },
+    { id: "deliver", screen: "lathe", target: ['[data-act="give"]', "#doneBtn"],
+      title: "Deliver it",
+      text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay.",
+      done: function (c) { return n(c, "delivered") >= 1; },
+      rescue: rescuePine },
+
+    /* ---- the wood you don't have ---- */
+    { id: "to_farm", unlock: ["farm"], target: ["#tabFarm"],
+      title: "No oak in the shed",
+      text: "The other order wants oak, and you have none. Trees grow on the farm. Tap FARM.",
+      done: function (c) { return s(c, "screen") === "farm" || n(c, "planted", "oak") > 0; } },
+    { id: "plot", screen: "farm", target: [".plot.empty"],
+      title: "Pick a plot",
+      text: "Tap an empty plot.",
+      done: function (c) { return !!s(c, "selectedEmpty") || n(c, "planted", "oak") > 0; } },
+    { id: "plant", screen: "farm", target: ['[data-plant="oak"]', ".plot.empty"],
+      title: "Plant an oak",
+      text: "Tap OAK to plant it. Seeds cost coins. Trees grow in real time, even with the game closed, so keep some planted.",
+      enter: topUpOak,
+      rescue: function (c) { topUpOak(c); },
+      done: function (c) { return n(c, "planted", "oak") > 0; } },
+    { id: "speed", screen: "farm", target: ['[data-act="grownow"]', '[data-act="speedup"]', ".plot.growing"],
+      title: "No time to wait",
+      text: "Oak takes a while. Here are " + GRANT_DIAMONDS + " diamonds: each one skips two minutes. Tap GROW NOW to finish it.",
+      enter: function (c) { var d = GRANT_DIAMONDS - n(c, "diamonds"); if (d > 0) call(c, "grant", { diamonds: d }); },
+      done: function (c) { return n(c, "grown", "oak") > 0; },
+      rescue: function (c) { if (!n(c, "planted", "oak")) return "plot"; } },
+    { id: "harvest", screen: "farm", target: ['[data-act="harvest"]', ".plot.mature"],
+      title: "Ready to harvest",
+      text: "Tap the grown oak, then HARVEST to take it to the forest.",
+      done: function (c) { return s(c, "screen") === "harvest"; },
+      rescue: function (c) { if (!n(c, "grown", "oak") && !hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "plot"; } },
+
+    /* ---- the forest ---- */
+    { id: "chop", screen: "harvest", target: [],
+      title: "Chop it down",
+      text: "Swipe into the trunk from the side. A quick swing bites deeper. Keep chopping until it cracks. It falls the way you cut.",
+      done: function (c) { var p = s(c, "harvestPhase"); return p === "delimb" || p === "saw" || p === "done" || s(c, "screen") === "lathe"; } },
+    { id: "delimb", screen: "harvest", target: [],
+      title: "Clear the limbs",
+      text: "Swipe across each branch to cut it off. Two thirds of a limb off is enough.",
+      done: function (c) { var p = s(c, "harvestPhase"); return p === "saw" || p === "done" || s(c, "screen") === "lathe"; } },
+    { id: "saw", screen: "harvest", target: [],
+      title: "Saw the blank",
+      text: "Press where you want a cut and rub back and forth across it. Two cuts free the middle piece, your blank.",
+      done: function (c) { return s(c, "screen") === "lathe"; } },
+
+    /* ---- the oak order ---- */
+    { id: "oak_order", screen: "lathe", target: ['[data-act="give"]', "#profileBar"],
+      title: "Your own oak",
+      text: "The oak order is on the lathe. Same as before: turn to the line, paint to the strip, finish, then DONE and DELIVER.",
+      enter: function (c) { call(c, "takeOrder", "oak"); },
+      done: function (c) { return n(c, "delivered") >= 2; },
+      rescue: function (c) { if (!hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "to_farm"; } },
+
+    /* ---- graduation ---- */
+    { id: "graduate", unlock: ["shop", "mine"], target: ["#tabShop"],
+      title: "You're a woodturner",
+      text: "The board fills up with new orders now. Coins buy better tools at Arbor Freight. Tap SHOP.",
+      enter: function (c) { call(c, "resumeBoard"); },
+      done: function (c) { return s(c, "screen") === "shop"; } },
+    { id: "shop", screen: "shop", target: ['[data-buy="lighting"]'], dismiss: true,
+      title: "Arbor Freight",
+      text: "A halogen work light is a good first buy. The MINE tab is for diamonds: watch a short ad, crack the vein, 5 diamonds. Everything is open now. Have fun.",
+      done: function () { return false; } }
+  ];
+
+  function topUpOak(c) {
+    var need = n(c, "plantPrice", "oak") - n(c, "coins");
+    if (need > 0 && !n(c, "planted", "oak")) call(c, "grant", { coins: need });
+  }
+  /* The first order needs pine. If it all went into rejected pieces, a neighbour drops a log off. */
+  function rescuePine(c) {
+    if (n(c, "delivered") >= 1) return;
+    // a mounted log stays in the shed until DONE, so none left means none on the lathe either
+    if (!hasWood(c, "pine")) {
+      call(c, "grant", { logs: { pine: 1 }, note: "A neighbour dropped off a pine log." });
+    }
+  }
+
+  var BY_ID = {};
+  STEPS.forEach(function (st, i) { st.index = i; BY_ID[st.id] = st; });
+
+  function normalize(t) {
+    var out = { step: null, done: false };
+    if (!t || typeof t !== "object") return out;
+    out.done = !!t.done;
+    if (typeof t.step === "string" && BY_ID[t.step]) out.step = t.step;
+    return out;
+  }
+
+  /* game: the save object. opts.ctx: the game readings (see the top).
+     opts.onChange: called after any change worth saving.
+     opts.onStep(step|null): called when the step changes (null: the flow ended). */
+  function createTutorial(game, opts) {
+    opts = opts || {};
+    var onChange = opts.onChange || function () {};
+    var onStep = opts.onStep || function () {};
+    var ctx = opts.ctx || {};
+    game.tutorial = normalize(game.tutorial);
+    var T = game.tutorial;
+    if (!T.done && !T.step) T.step = STEPS[0].id;
+
+    function current() { return T.done ? null : BY_ID[T.step] || null; }
+    function unlocked(tab) {
+      if (T.done || tab === "lathe" || tab === "harvest") return true;
+      var cur = current(), upto = cur ? cur.index : STEPS.length - 1;
+      for (var i = 0; i <= upto; i++) if ((STEPS[i].unlock || []).indexOf(tab) >= 0) return true;
+      return false;
+    }
+    function go(id) {
+      var st = BY_ID[id];
+      if (!st) { finish(); return; }
+      T.step = id;
+      if (st.enter) st.enter(ctx, api);
+      onChange(); onStep(st);
+    }
+    function finish() {
+      if (T.done) return;
+      T.done = true; T.step = null;
+      onChange(); onStep(null);
+    }
+    /* Look at the game and move on as far as the player has got. Call often
+       (every second, and after anything the player does). */
+    function check() {
+      var guard = 0, cur = current();
+      while (cur && guard++ < STEPS.length * 2) {
+        if (cur.done(ctx)) { advance(); cur = current(); continue; }
+        var back = cur.rescue ? cur.rescue(ctx, api) : null;
+        if (back && BY_ID[back] && back !== cur.id) { go(back); cur = current(); continue; }
+        break;
+      }
+      return cur;
+    }
+    function advance() {
+      var cur = current();
+      if (!cur) return null;
+      var next = STEPS[cur.index + 1];
+      if (next) go(next.id); else finish();
+      return current();
+    }
+    /* GOT IT on a dismiss step. */
+    function dismiss() { var cur = current(); if (cur && cur.dismiss) advance(); }
+    /* Leave the flow: everything opens, the starter pack is handed over and the board fills. */
+    function skip() {
+      if (T.done) return;
+      call(ctx, "grant", { coins: STARTER.coins, diamonds: STARTER.diamonds });
+      finish();
+      call(ctx, "resumeBoard");
+    }
+
+    var api = {
+      state: T, current: current, unlocked: unlocked, check: check, advance: advance, dismiss: dismiss, skip: skip,
+      get done() { return T.done; }, isActive: function () { return !T.done; },
+      boardPaused: function () { return !T.done; }
+    };
+    return api;
+  }
+
+  var api = {
+    STEPS: STEPS, BY_ID: BY_ID, TABS: TABS, FIRST_BOARD: FIRST_BOARD, STARTER: STARTER, GRANT_DIAMONDS: GRANT_DIAMONDS,
+    CUT_FRACTION: CUT_FRACTION, PAINT_COVER: PAINT_COVER, SHAPE_GOOD: SHAPE_GOOD,
+    normalize: normalize, createTutorial: createTutorial
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  var G = root.Game || (root.Game = {});
+  G.Tutorial = api;
 })(typeof window !== "undefined" ? window : globalThis);
 </script>
     <script>
@@ -8502,6 +8816,7 @@ header .gear-btn { margin-left: 4px; }
 
   /* ---------------- selection and the panel ---------------- */
   function select(i) {
+    if (i !== selected) adWood = null;
     selected = i;
     for (var k = 0; k < els.length; k++) renderPlot(k);
     renderCtx(true);
@@ -8548,11 +8863,29 @@ header .gear-btn { margin-left: 4px; }
     return b;
   }
 
+  /* Short of coins for a seed: one finished ad plants it for free. With the
+     full unlock there are no ads, and a seed just costs coins. */
+  var adWood = null;
+  function adPlantAct(id) {
+    var w = WOODS[id], plot = selected;
+    var b = act("WATCH AN AD", "Plant the " + w.name.toLowerCase() + " for free", "primary", true, function () {
+      if (!root.MineUI) return;
+      root.MineUI.adProvider.show("plant a " + w.name.toLowerCase() + " for free", function (finished) {
+        if (!finished) { toast("The ad was closed early, so nothing was planted."); return; }
+        var r = farm.plant(plot, id, { free: true });
+        adWood = null;
+        if (r.ok) { toast(w.name + " planted. Thanks for watching."); select(plot); tick(); }
+      });
+    });
+    b.setAttribute("data-act", "adplant");
+    return b;
+  }
+
   function ctxSignature() {
     var p = farm.plotAt(selected);
     var extra = state.wallet.balance("diamonds") + "|" + farm.state.plots.length + "|" + (mine.isUnlocked() ? 1 : 0);
     if (selected < 0) return "none|" + extra;
-    if (!p) return "empty|" + selected + "|" + extra;
+    if (!p) return "empty|" + selected + "|" + extra + "|" + state.wallet.balance("coins") + "|" + adWood;
     var cost = farm.isMature(p) ? 0 : farm.diamondsToFinish(p);
     return [selected, p.wood, farm.stage(p), cost, state.wallet.balance("diamonds")].join("|");
   }
@@ -8574,15 +8907,21 @@ header .gear-btn { margin-left: 4px; }
     }
     if (!p) {
       line.innerHTML = "<b>Plot " + (selected + 1) + "</b> is empty. What will you grow?";
+      var coins = state.wallet.balance("coins");
       F.WOOD_ORDER.forEach(function (id) {
-        var w = WOODS[id];
-        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), (mine.isUnlocked() ? "Ready right away" : F.formatDuration(w.growMs) + " to grow") , "", true, function () {
+        var w = WOODS[id], price = farm.plantPrice(id);
+        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), price + " coins · " + (mine.isUnlocked() ? "ready right away" : F.formatDuration(w.growMs) + " to grow"), "", coins >= price, function () {
           var r = farm.plant(selected, id);
-          if (r.ok) { select(selected); tick(); }
+          if (r.ok) { adWood = null; select(selected); tick(); return; }
+          if (r.reason !== "not enough coins") return;
+          if (mine.isUnlocked()) { toast("A " + w.name.toLowerCase() + " seed costs " + r.price + " coins. You have " + state.wallet.balance("coins") + ". Orders pay coins."); return; }
+          adWood = id; renderCtx(true);
+          toast("A " + w.name.toLowerCase() + " seed costs " + r.price + " coins. You have " + state.wallet.balance("coins") + ". Or watch a short ad and plant it free.");
         });
         b.setAttribute("data-plant", id);
         row.appendChild(b);
       });
+      if (adWood && !mine.isUnlocked()) row.appendChild(adPlantAct(adWood));
       var la1 = landAct();
       if (la1) row.appendChild(la1);
     } else if (farm.isMature(p)) {
@@ -8644,14 +8983,33 @@ header .gear-btn { margin-left: 4px; }
   layoutPlots();
   renderWallet();
   persist();
-  /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js. */
-  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff });
+  /* The new-player flow (tutorial.js). Its readings of the game are filled in
+     by tutorial-ui.js; the hand-outs and the board live here with the state. */
+  var tutorialCtx = {
+    grant: function (g) {
+      var items = [];
+      if (g.logs) for (var w in g.logs) items.push({ kind: "log", key: w, n: g.logs[w] });
+      state.grant({ coins: g.coins, diamonds: g.diamonds, items: items });
+      if (g.note) toast(g.note);
+    },
+    postFirstBoard: function (list) { if (G.commissions) G.commissions.postAuthored(list); },
+    resumeBoard: function () { if (G.commissions) G.commissions.resume(); }
+  };
+  var tutorial = G.Tutorial.createTutorial(game, { ctx: tutorialCtx, onChange: persist });
+  G.tutorial = tutorial; G.tutorialCtx = tutorialCtx;
+  root.__farm.tutorial = tutorial;
+  /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js.
+     It waits while the new-player flow runs, which posts its own first orders. */
+  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff, paused: tutorial.boardPaused });
   G.commissions = board;
   root.__farm.board = board;
   /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */
   var shop = G.Shop.createShop(game, { state: state, onChange: persist });
   G.shop = shop;
   root.__farm.shop = shop;
+
+  // the guided flow's coach is not built yet: a new player skips straight to the starter pack
+  if (!tutorial.done) tutorial.skip();
 
   var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : /#shop\b/.test(location.hash) ? "shop" : "lathe";
   G.startScreen = startScreen;

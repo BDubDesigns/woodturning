@@ -268,6 +268,7 @@
 
   /* ---------------- selection and the panel ---------------- */
   function select(i) {
+    if (i !== selected) adWood = null;
     selected = i;
     for (var k = 0; k < els.length; k++) renderPlot(k);
     renderCtx(true);
@@ -314,11 +315,29 @@
     return b;
   }
 
+  /* Short of coins for a seed: one finished ad plants it for free. With the
+     full unlock there are no ads, and a seed just costs coins. */
+  var adWood = null;
+  function adPlantAct(id) {
+    var w = WOODS[id], plot = selected;
+    var b = act("WATCH AN AD", "Plant the " + w.name.toLowerCase() + " for free", "primary", true, function () {
+      if (!root.MineUI) return;
+      root.MineUI.adProvider.show("plant a " + w.name.toLowerCase() + " for free", function (finished) {
+        if (!finished) { toast("The ad was closed early, so nothing was planted."); return; }
+        var r = farm.plant(plot, id, { free: true });
+        adWood = null;
+        if (r.ok) { toast(w.name + " planted. Thanks for watching."); select(plot); tick(); }
+      });
+    });
+    b.setAttribute("data-act", "adplant");
+    return b;
+  }
+
   function ctxSignature() {
     var p = farm.plotAt(selected);
     var extra = state.wallet.balance("diamonds") + "|" + farm.state.plots.length + "|" + (mine.isUnlocked() ? 1 : 0);
     if (selected < 0) return "none|" + extra;
-    if (!p) return "empty|" + selected + "|" + extra;
+    if (!p) return "empty|" + selected + "|" + extra + "|" + state.wallet.balance("coins") + "|" + adWood;
     var cost = farm.isMature(p) ? 0 : farm.diamondsToFinish(p);
     return [selected, p.wood, farm.stage(p), cost, state.wallet.balance("diamonds")].join("|");
   }
@@ -340,15 +359,21 @@
     }
     if (!p) {
       line.innerHTML = "<b>Plot " + (selected + 1) + "</b> is empty. What will you grow?";
+      var coins = state.wallet.balance("coins");
       F.WOOD_ORDER.forEach(function (id) {
-        var w = WOODS[id];
-        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), (mine.isUnlocked() ? "Ready right away" : F.formatDuration(w.growMs) + " to grow") , "", true, function () {
+        var w = WOODS[id], price = farm.plantPrice(id);
+        var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), price + " coins · " + (mine.isUnlocked() ? "ready right away" : F.formatDuration(w.growMs) + " to grow"), "", coins >= price, function () {
           var r = farm.plant(selected, id);
-          if (r.ok) { select(selected); tick(); }
+          if (r.ok) { adWood = null; select(selected); tick(); return; }
+          if (r.reason !== "not enough coins") return;
+          if (mine.isUnlocked()) { toast("A " + w.name.toLowerCase() + " seed costs " + r.price + " coins. You have " + state.wallet.balance("coins") + ". Orders pay coins."); return; }
+          adWood = id; renderCtx(true);
+          toast("A " + w.name.toLowerCase() + " seed costs " + r.price + " coins. You have " + state.wallet.balance("coins") + ". Or watch a short ad and plant it free.");
         });
         b.setAttribute("data-plant", id);
         row.appendChild(b);
       });
+      if (adWood && !mine.isUnlocked()) row.appendChild(adPlantAct(adWood));
       var la1 = landAct();
       if (la1) row.appendChild(la1);
     } else if (farm.isMature(p)) {
@@ -410,14 +435,33 @@
   layoutPlots();
   renderWallet();
   persist();
-  /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js. */
-  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff });
+  /* The new-player flow (tutorial.js). Its readings of the game are filled in
+     by tutorial-ui.js; the hand-outs and the board live here with the state. */
+  var tutorialCtx = {
+    grant: function (g) {
+      var items = [];
+      if (g.logs) for (var w in g.logs) items.push({ kind: "log", key: w, n: g.logs[w] });
+      state.grant({ coins: g.coins, diamonds: g.diamonds, items: items });
+      if (g.note) toast(g.note);
+    },
+    postFirstBoard: function (list) { if (G.commissions) G.commissions.postAuthored(list); },
+    resumeBoard: function () { if (G.commissions) G.commissions.resume(); }
+  };
+  var tutorial = G.Tutorial.createTutorial(game, { ctx: tutorialCtx, onChange: persist });
+  G.tutorial = tutorial; G.tutorialCtx = tutorialCtx;
+  root.__farm.tutorial = tutorial;
+  /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js.
+     It waits while the new-player flow runs, which posts its own first orders. */
+  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff, paused: tutorial.boardPaused });
   G.commissions = board;
   root.__farm.board = board;
   /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */
   var shop = G.Shop.createShop(game, { state: state, onChange: persist });
   G.shop = shop;
   root.__farm.shop = shop;
+
+  // the guided flow's coach is not built yet: a new player skips straight to the starter pack
+  if (!tutorial.done) tutorial.skip();
 
   var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : /#shop\b/.test(location.hash) ? "shop" : "lathe";
   G.startScreen = startScreen;

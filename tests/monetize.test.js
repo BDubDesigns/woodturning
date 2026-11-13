@@ -2,6 +2,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { playedGame } = require("./helpers.js");
 const M = require("../src/js/monetize.js");
 const F = require("../src/js/farm.js");
 const S = require("../src/js/save.js");
@@ -12,7 +13,7 @@ const MIN = 60 * 1000;
 
 function setup() {
   const clock = { t: 1_000_000 };
-  const game = S.newGame();
+  const game = playedGame();
   let saves = 0;
   const mine = M.createMine(game, { onChange: () => saves++ });
   const farm = F.createFarm(game, { now: () => clock.t, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND, onChange: () => saves++ });
@@ -134,7 +135,7 @@ test("land can be bought with diamonds as well as coins", () => {
 
 test("saves round trip the mine and the unlock", () => {
   const store = S.memoryStore();
-  const g1 = S.newGame();
+  const g1 = playedGame();
   const m1 = M.createMine(g1);
   m1.mineReward("diamonds", true); m1.mineReward("diamonds", true); m1.unlock();
   assert.equal(S.write(store, g1), true);

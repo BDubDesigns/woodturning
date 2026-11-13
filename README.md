@@ -25,7 +25,10 @@ mine, monetization, distribution, and the one-month bet.
 
 - Farm (slice 2): plant a pine, oak, or walnut on a land plot and it grows in
   real time, including while the game is closed (growth is derived from a saved
-  timestamp, never a running timer). Diamonds speed it up, coins buy more land,
+  timestamp, never a running timer). A seed costs coins (pine 10, oak 30,
+  walnut 50, `plantPrice` in the registry); short of coins, one finished ad
+  plants it for free (no ads with the full unlock, so a seed just costs coins).
+  Diamonds speed it up, coins buy more land,
   and a fully grown tree is tapped, then HARVEST takes it to the forest. Trees
   are never chopped on the farm itself; `farm.fell` is the only way a tree
   leaves a plot, and the log goes to the shed, which is what commissions read.
@@ -107,6 +110,14 @@ mine, monetization, distribution, and the one-month bet.
   Model in `src/js/vein.js`, scene in `src/js/mine-scene.js`, and the payout is
   one function, `awardVein` in `src/js/monetize-ui.js`.
 
+- New-player flow (in progress): `src/js/tutorial.js` is the guided first
+  session as data, one step at a time (the brief is `docs/new-player-flow.md`).
+  A new game starts with no coins or diamonds and three pine logs in the shed;
+  the flow hands out what is needed as it goes, and skipping it grants the
+  starter pack (250 coins, 5 diamonds). While it runs the order board is paused
+  and shows two authored orders. Saves from before the flow skip it. Until the
+  coach screens land, the page skips it straight away.
+
 ## Play
 
 Open `lathe.html` in a browser. The gear in the header opens Settings, where
@@ -159,6 +170,7 @@ src/js/main.js      state, input, frame loop, UI
 src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
 src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
 src/js/farm-ui.js   farm screen, tabs, wallet, tap input
+src/js/tutorial.js  the new-player flow: ordered steps, unlocks, grants (pure)
 src/js/commissions.js     commission model: orders, target shapes, grading, the board (pure)
 src/js/commissions-ui.js  the commission board screen and the grade dialog
 src/js/shop.js      Arbor Freight model: upgrade lines, tiers, prices, buying (pure)

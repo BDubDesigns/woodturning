@@ -2,6 +2,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { playedGame } = require("./helpers.js");
 const F = require("../src/js/farm.js");
 const S = require("../src/js/save.js");
 const fs = require("node:fs");
@@ -11,7 +12,7 @@ const MIN = 60 * 1000;
 
 function setup(t0 = 1_000_000) {
   const clock = { t: t0 };
-  const game = S.newGame();
+  const game = playedGame();
   let saves = 0;
   const farm = F.createFarm(game, { now: () => clock.t, onChange: () => saves++ });
   return { clock, game, farm, saves: () => saves };
@@ -226,7 +227,7 @@ test("logs can be taken one at a time for a commission", () => {
 });
 
 test("old saves with chop progress load cleanly and drop it", () => {
-  const game = S.newGame();
+  const game = playedGame();
   game.farm = { plots: [{ wood: "walnut", plantedAt: 100, skipped: 0, hits: 2, notches: [{ side: -1, y: 0.4 }] }, null] };
   const farm = F.createFarm(game, { now: () => 200 });
   assert.deepEqual(farm.plotAt(0), { wood: "walnut", plantedAt: 100, skipped: 0 });
@@ -242,7 +243,7 @@ test("every change calls onChange so the page can save", () => {
 });
 
 test("a damaged farm save is repaired, not trusted", () => {
-  const game = S.newGame();
+  const game = playedGame();
   game.farm = {
     plots: [{ wood: "mahogany", plantedAt: 5 }, { wood: "pine", plantedAt: "soon" }, { wood: "oak", plantedAt: 100, skipped: -5, hits: "x", notches: [{ side: 3, y: 1 }] }]
   };
@@ -267,18 +268,30 @@ test("durations read naturally", () => {
 });
 
 // ---------- save ----------
-test("save: a fresh game starts with coins and diamonds", () => {
+test("save: a fresh game starts with three pine logs and the new-player flow, and no money", () => {
   const g = S.load(S.memoryStore());
-  assert.ok(g.wallet.coins > 0 && g.wallet.diamonds > 0);
+  assert.equal(g.wallet.coins, 0);
+  assert.equal(g.wallet.diamonds, 0);
+  assert.deepEqual(g.inventory.stacks.log, { pine: 3 });
+  assert.deepEqual(g.tutorial, { step: null, done: false });
   assert.equal(g.farm, null);
+});
+
+test("save: a save from before the new-player flow skips it", () => {
+  const st = S.memoryStore();
+  st.setItem(S.KEY, JSON.stringify({ v: S.VERSION, wallet: { coins: 40, diamonds: 1 } }));
+  assert.equal(S.load(st).tutorial.done, true);
+  const g = S.newGame();
+  assert.equal(S.write(st, g), true);
+  assert.equal(S.load(st).tutorial.done, false, "a new player who reloads mid-flow stays in it");
 });
 
 test("save: round trip keeps the wallet and the farm", () => {
   const st = S.memoryStore();
   const g = S.newGame();
-  g.wallet.coins = 12; g.wallet.diamonds = 3;
+  g.wallet.coins = 12 + F.WOODS.oak.plantPrice; g.wallet.diamonds = 3;
   const farm = F.createFarm(g, { now: () => 5 });
-  farm.plant(1, "oak");
+  assert.equal(farm.plant(1, "oak").ok, true);
   assert.equal(S.write(st, g), true);
   const back = S.load(st);
   assert.equal(back.wallet.coins, 12);

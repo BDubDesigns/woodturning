@@ -88,13 +88,19 @@
     }
     function diamondsToFinish(p) { return Math.ceil(remainingMs(p) / CFG.DIAMOND_MS); }
 
-    function plant(i, woodId) {
+    /* Coins for a seed of this wood. */
+    function plantPrice(woodId) { return WOODS[woodId] ? WOODS[woodId].plantPrice || 0 : null; }
+    /* Plant a seed. It costs plantPrice coins; opt.free plants it for nothing
+       (the player watched an ad to plant, when short of coins). */
+    function plant(i, woodId, opt) {
       if (!WOODS[woodId]) return { ok: false, reason: "unknown wood" };
       if (i < 0 || i >= farm.plots.length) return { ok: false, reason: "no such plot" };
       if (farm.plots[i]) return { ok: false, reason: "plot is taken" };
+      var price = opt && opt.free ? 0 : plantPrice(woodId);
+      if (price > 0 && !wallet.spend("coins", price).ok) return { ok: false, reason: "not enough coins", price: price };
       farm.plots[i] = { wood: woodId, plantedAt: now(), skipped: 0 };
       changed();
-      return { ok: true };
+      return { ok: true, price: price };
     }
 
     /* Spend one diamond to skip DIAMOND_MS of growth. */
@@ -194,7 +200,7 @@
       state: farm, shared: state, wallet: game.wallet, now: now,
       plotAt: plotAt, progress: progress, remainingMs: remainingMs, isMature: isMature, stage: stage,
       diamondsToFinish: diamondsToFinish,
-      plant: plant, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
+      plant: plant, plantPrice: plantPrice, speedUp: speedUp, finishNow: finishNow, landPrice: landPrice, buyLand: buyLand, landPriceDiamonds: landPriceDiamonds, buyLandWithDiamonds: buyLandWithDiamonds,
       fell: fell, firstMature: firstMature, logCount: logCount, takeLog: takeLog, touch: touch, grownWhileAway: grownWhileAway
     };
   }

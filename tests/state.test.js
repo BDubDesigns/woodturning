@@ -4,6 +4,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { playedGame } = require("./helpers.js");
 const R = require("../src/js/registry.js");
 const St = require("../src/js/state.js");
 const S = require("../src/js/save.js");
@@ -11,7 +12,7 @@ const F = require("../src/js/farm.js");
 const M = require("../src/js/monetize.js");
 
 function fresh(opts = {}) {
-  const game = S.newGame();
+  const game = playedGame();
   let saves = 0;
   const state = St.createState(game, { onChange: () => saves++, now: () => 1000, ...opts });
   return { game, state, saves: () => saves };
@@ -20,8 +21,8 @@ function fresh(opts = {}) {
 // ---------- registry ----------
 test("registry: the woods, currencies and item kinds the game ships with", () => {
   assert.deepEqual(R.CURRENCY_ORDER, ["coins", "diamonds"]);
-  assert.equal(R.CURRENCIES.coins.start, 250);
-  assert.equal(R.CURRENCIES.diamonds.start, 5);
+  assert.equal(R.CURRENCIES.coins.start, 0, "a new player earns their first coins in the tutorial");
+  assert.equal(R.CURRENCIES.diamonds.start, 0);
   assert.equal(R.CURRENCIES.diamonds.premium, true);
   assert.equal(R.CURRENCIES.coins.premium, false);
   assert.deepEqual(R.WOOD_ORDER.slice(0, 3), ["pine", "oak", "walnut"]);
@@ -55,12 +56,12 @@ test("wallet: earn and spend, and never below zero", () => {
 });
 
 test("wallet: a damaged wallet is repaired and unknown currencies dropped", () => {
-  const game = S.newGame();
+  const game = playedGame();
   game.wallet = { coins: -4, diamonds: 2.7, gems: 9 };
   const keep = game.wallet;
   St.createState(game);
   assert.equal(game.wallet, keep, "same object, so other holders still see it");
-  assert.deepEqual(game.wallet, { coins: 250, diamonds: 2 });
+  assert.deepEqual(game.wallet, { coins: R.CURRENCIES.coins.start, diamonds: 2 });
 });
 
 // ---------- inventory ----------
@@ -99,7 +100,7 @@ test("inventory: blanks and pieces are unique items with their data", () => {
 });
 
 test("inventory: a damaged inventory is repaired, not trusted", () => {
-  const game = S.newGame();
+  const game = playedGame();
   game.inventory = {
     stacks: { log: { pine: 2, oak: -1, ebony: 4, walnut: 1.8 }, nonsense: { a: 1 } },
     items: [{ id: 3, kind: "blank", wood: "oak" }, { id: 3, kind: "blank", wood: "pine" }, { id: 4, kind: "log" }, { id: 5, kind: "piece", wood: "teak" }, { kind: "piece" }, "x"],
@@ -134,7 +135,7 @@ test("pack and unpack keep float arrays small in the save", () => {
 // ---------- everything through one state ----------
 test("one state: the farm, the mine and the inventory share the wallet and the shed", () => {
   const clock = { t: 1_000_000 };
-  const game = S.newGame();
+  const game = playedGame();
   const state = St.createState(game, { now: () => clock.t });
   const mine = M.createMine(game, { state });
   const farm = F.createFarm(game, { state, now: () => clock.t, timersOff: mine.timersOff });

@@ -2,6 +2,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { playedGame } = require("./helpers.js");
 const C = require("../src/js/commissions.js");
 const P = require("../src/js/paint.js");
 const Cut = require("../src/js/cutting.js");
@@ -13,7 +14,7 @@ const MIN = 60 * 1000, SEG = Cut.CFG.SEG, R0 = Cut.CFG.R0;
 function setup(opts) {
   opts = opts || {};
   let t = opts.t0 || 1_000_000;
-  const game = opts.game || Save.newGame();
+  const game = opts.game || playedGame();
   let unlocked = !!opts.unlocked;
   const state = St.createState(game, { now: () => t });
   let seed = 42;
@@ -241,7 +242,7 @@ test("delivering pays coins, takes the piece from the shed, and clears the order
 });
 
 test("a broken commissions section in a save is repaired, not trusted", () => {
-  const game = Save.newGame();
+  const game = playedGame();
   game.commissions = { orders: [{ id: 3, kind: "spoon", wood: "pine" }, null, { id: 4, kind: "rolling_pin", wood: "elm", spec: {}, reward: 5 }], active: 3, nextId: "x", history: "no" };
   const s = setup({ game });
   assert.equal(s.board.state.active, null);
