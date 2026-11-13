@@ -2,7 +2,7 @@
 //   node tests/e2e-farm.mjs [path/to/page.html] [--shots dir]
 // Drives the real UI: plant, persistence across reloads, growth while the
 // page is closed (the saved clock is wound back, then the page is reopened),
-// diamond speed-up, land expansion, and chopping a mature tree with swipes.
+// diamond speed-up, land expansion, and harvesting (never chopping) a mature tree.
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import { resolve } from "node:path";
@@ -115,52 +115,40 @@ check((await plotClass(2)).includes("growing") && (await page.textContent("#wall
 await reload();
 check((await page.locator(".plot[data-i]").count()) === 3, "reload: the land is still owned");
 
-// ---- chop with real swipes
+// ---- no chop on the farm: a grown tree is only harvested
 await page.evaluate(() => { const f = __farm.farm; f.state.plots[0] = null; f.plant(0, "pine"); f.state.plots[0].plantedAt -= 10 * 60 * 1000; __farm.tick(); });
 check((await plotClass(0)).includes("mature"), "set up a mature pine");
+check((await page.textContent('.plot[data-i="0"]')).includes("Ready to harvest"), "a grown tree says it is ready to harvest");
+check((await page.locator("#tabHarvest").count()) === 0, "there is no HARVEST tab");
 const box = await page.locator('.plot[data-i="0"]').boundingBox();
-const swipe = async (fromLeft) => {
+for (const fromLeft of [true, false, true, false, true]) {
   const y = box.y + box.height * 0.6;
   const a = box.x + box.width * (fromLeft ? 0.15 : 0.85), b = box.x + box.width * (fromLeft ? 0.7 : 0.3);
-  await page.mouse.move(a, y);
-  await page.mouse.down();
+  await page.mouse.move(a, y); await page.mouse.down();
   for (let k = 1; k <= 6; k++) { await page.mouse.move(a + ((b - a) * k) / 6, y); await page.waitForTimeout(15); }
-  await page.mouse.up();
-  await page.waitForTimeout(80);
-};
-await swipe(true);
-let hits = await page.evaluate(() => __farm.farm.plotAt(0).hits);
-check(hits === 1, "one swipe lands one hit");
-check((await page.locator('.plot[data-i="0"] svg polygon[fill="#2a1a0e"]').count()) === 1, "the notch is drawn where it landed");
-await swipe(false);
-hits = await page.evaluate(() => __farm.farm.plotAt(0).hits);
-check(hits === 2, "a swipe from the other side lands too");
-check((await saved()).farm.plots[0].hits === 2, "chop progress is saved");
-await swipe(true);
-check((await page.evaluate(() => __farm.farm.plotAt(0).hits)) === 3, "three hits, tree still standing");
-check((await page.evaluate(() => __farm.farm.logCount("pine"))) === 0, "no log until it falls");
-await swipe(false);
-await page.waitForTimeout(150);
-check((await page.evaluate(() => __farm.farm.plotAt(0))) === null, "the fourth swipe fells the pine and the plot is free");
-check((await page.evaluate(() => __farm.farm.logCount("pine"))) === 1, "a pine log is in the shed");
-check((await page.textContent("#shed")).includes("Pine"), "the shed shows it");
-check((await page.textContent("#toast")).includes("Crack"), "a crack message plays");
-await page.waitForTimeout(1100);
-check((await page.locator(".ghost").count()) === 0, "the falling tree animation cleans itself up");
+  await page.mouse.up(); await page.waitForTimeout(60);
+}
+check((await page.evaluate(() => __farm.farm.plotAt(0) && __farm.farm.plotAt(0).wood)) === "pine", "swiping a grown tree does not chop it");
+check((await page.evaluate(() => __farm.farm.logCount("pine"))) === 0, "no log from swiping");
+await page.evaluate(() => { __farm.select(0); __farm.tick(); });
+check((await page.locator('[data-act="chop"]').count()) === 0, "the panel has no CHOP button");
+check((await page.locator('[data-act="harvest"].primary').count()) === 1, "HARVEST is the panel's main action for a grown tree");
+check((await page.textContent("#ctx")).includes("forest"), "the panel points to the forest");
+// a growing tree cannot be harvested
+await page.evaluate(() => { __farm.farm.state.plots[1] = null; __farm.farm.plant(1, "oak"); __farm.select(1); __farm.tick(); });
+check((await page.locator('[data-act="harvest"]').count()) === 0, "a growing tree has no HARVEST");
+check(await page.evaluate(() => { window.Game.harvestPlot = 1; window.Game.showScreen("harvest"); return document.getElementById("harvestScreen").hidden; }), "the forest will not open on a growing tree");
+// the HARVEST button opens the forest on this tree
+await page.evaluate(() => { __farm.select(0); __farm.tick(); });
+await page.click('[data-act="harvest"]');
+await page.waitForFunction(() => window.__harvest && window.__harvest.running);
+const hsrc = await page.evaluate(() => window.__harvest.source);
+check(hsrc && hsrc.plot === 0 && hsrc.wood === "pine", "HARVEST opens the forest on the tapped tree");
+await page.click("#tabFarm");
+// a log for the lathe checks below, as if this pine had been harvested
+await page.evaluate(() => { __farm.farm.fell(0); __farm.tick(); });
+check((await page.textContent("#shed")).includes("Pine"), "a felled pine shows in the shed");
 check((await saved()).inventory.stacks.log.pine === 1, "the log is saved in the shared inventory");
-
-// ---- an unripe tree cannot be chopped
-const hitsBefore = await page.evaluate(() => { __farm.farm.plant(0, "oak"); return __farm.farm.plotAt(0).hits; });
-await page.evaluate(() => __farm.tick());
-const b2 = await page.locator('.plot[data-i="0"]').boundingBox();
-await page.mouse.move(b2.x + 10, b2.y + b2.height * 0.6); await page.mouse.down();
-await page.mouse.move(b2.x + 80, b2.y + b2.height * 0.6, { steps: 5 }); await page.mouse.up();
-check((await page.evaluate(() => __farm.farm.plotAt(0).hits)) === hitsBefore, "swiping a growing tree does nothing");
-
-// ---- keyboard / tap alternative
-await page.evaluate(() => { const f = __farm.farm; f.state.plots[0].plantedAt -= 20 * 60 * 1000; __farm.select(0); __farm.tick(); });
-await page.click('[data-act="chop"]');
-check((await page.evaluate(() => __farm.farm.plotAt(0).hits)) === 1, "the CHOP button also lands a hit");
 
 if (shots) {
   await page.evaluate(() => { const f = __farm.farm; f.state.plots[1] = null; f.plant(1, "walnut"); f.state.plots[1].plantedAt -= 6 * 60 * 1000; __farm.tick(); });

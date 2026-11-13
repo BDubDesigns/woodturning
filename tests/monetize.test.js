@@ -75,25 +75,23 @@ test("the unlock removes timers: a planted tree is ready at once", () => {
   assert.equal(farm.stage(farm.plotAt(0)), "mature");
   farm.plant(1, "oak");
   assert.equal(farm.isMature(farm.plotAt(1)), true, "new plantings are ready at once");
-  // it can be chopped straight away, and no diamonds are charged
+  // it can be harvested straight away, and no diamonds are charged
   const d = game.wallet.diamonds;
-  for (let i = 0; i < F.WOODS.oak.hits; i++) assert.equal(farm.chopHit(1, { side: 1, y: 0.5 }).ok, true);
+  assert.equal(farm.fell(1).ok, true);
   assert.equal(farm.logCount("oak"), 1);
   assert.equal(game.wallet.diamonds, d);
   assert.deepEqual(farm.grownWhileAway(), [], "no welcome-back list when nothing waits");
 });
 
-test("no paywall on the core loop: a free game grows and chops with no diamonds or ads", () => {
+test("no paywall on the core loop: a free game grows and harvests with no diamonds or ads", () => {
   const { farm, game, clock, mine } = setup();
   game.wallet.diamonds = 0;
   assert.equal(mine.isUnlocked(), false);
   assert.equal(farm.plant(0, "pine").ok, true);
-  assert.equal(farm.chopHit(0, { side: 1, y: 0.5 }).ok, false, "not grown yet, and no way to be told to pay");
+  assert.equal(farm.fell(0).ok, false, "not grown yet, and no way to be told to pay");
   clock.t += F.WOODS.pine.growMs;      // just wait
   assert.equal(farm.isMature(farm.plotAt(0)), true);
-  let r;
-  for (let i = 0; i < F.WOODS.pine.hits; i++) r = farm.chopHit(0, { side: i % 2 ? 1 : -1, y: 0.5 });
-  assert.equal(r.felled, true);
+  assert.equal(farm.fell(0).ok, true);
   assert.equal(farm.logCount("pine"), 1, "the log arrives with an empty wallet");
   assert.equal(game.wallet.diamonds, 0);
   assert.equal(game.mine.adsWatched, 0);

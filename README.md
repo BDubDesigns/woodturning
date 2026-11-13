@@ -26,16 +26,17 @@ mine, monetization, distribution, and the one-month bet.
 - Farm (slice 2): plant a pine, oak, or walnut on a land plot and it grows in
   real time, including while the game is closed (growth is derived from a saved
   timestamp, never a running timer). Diamonds speed it up, coins buy more land,
-  and a mature tree can be chopped with swipes into the trunk. The log goes to
-  the shed, which is what commissions will read. The chop here is a small
-  stand-in behind `farm.chopHit`; the full Harvest slice replaces the interaction.
+  and a fully grown tree is tapped, then HARVEST takes it to the forest. Trees
+  are never chopped on the farm itself; `farm.fell` is the only way a tree
+  leaves a plot, and the log goes to the shed, which is what commissions read.
   Saves live in localStorage (`woodturning.save`).
 
-- Harvest (slice 1): the HARVEST tab is the forest. Chop a tree where you
+- Harvest (slice 1): the forest. There is no tab for it: it opens only from a
+  grown farm tree (tap the tree, then HARVEST). Chop the tree where you
   swipe, watch it crack and fall, clear the limbs with a blade, saw the log
   in two places, and the middle piece goes straight onto the lathe as the
-  blank. Canvas2D only, so it runs in every webview. The farm's quick chop
-  stays as it is; wiring a farm tree into the full harvest is a later step.
+  blank. Canvas2D only, so it runs in every webview. Asking for the forest
+  with no grown tree picked (a `#harvest` link, say) lands on the farm.
 
 - Paint and finish (slice 4): the lathe has CUT / PAINT / FINISH modes that
   share one input (touch below the log, nudge up; pressure is flow). PAINT lays
@@ -117,7 +118,7 @@ src/js/paint.js     paint, finish and spec model: coat per slice, grading (pure,
 src/js/main.js      state, input, frame loop, UI
 src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
 src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
-src/js/farm-ui.js   farm screen, tabs, wallet, swipe input
+src/js/farm-ui.js   farm screen, tabs, wallet, tap input
 src/js/view3d.js    Three.js view
 src/js/view2d.js    Canvas2D view (fallback and first-class view)
 src/js/audio.js     synthesised cut / motor / catch sounds
