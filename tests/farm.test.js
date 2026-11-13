@@ -193,30 +193,14 @@ test("new land can grow a different wood at the same time", () => {
   assert.deepEqual(woods, ["pine", "oak", "walnut"]);
 });
 
-test("chopping: only a mature tree can be chopped", () => {
-  const { farm } = setup();
-  assert.equal(farm.chopHit(0, { side: 1, y: 0.7 }).ok, false);
-  farm.plant(0, "pine");
-  const r = farm.chopHit(0, { side: 1, y: 0.7 });
-  assert.equal(r.ok, false);
-  assert.equal(farm.plotAt(0).hits, 0);
-});
-
-test("chopping: enough swipes fell the tree and put a log of that wood in the shed", () => {
+test("felling: only a grown tree can be felled, and its log goes to the shed", () => {
   const { farm, clock } = setup();
+  assert.equal(farm.fell(0).ok, false, "nothing growing");
   farm.plant(0, "oak");
+  assert.equal(farm.fell(0).ok, false, "not grown yet");
+  assert.equal(farm.plotAt(0).wood, "oak", "the young tree is untouched");
   clock.t += F.WOODS.oak.growMs;
-  const need = F.WOODS.oak.hits;
-  for (let h = 1; h < need; h++) {
-    const r = farm.chopHit(0, { side: h % 2 ? 1 : -1, y: 0.6 });
-    assert.equal(r.ok, true);
-    assert.equal(r.felled, false);
-    assert.equal(r.hits, h);
-  }
-  assert.equal(farm.plotAt(0).notches.length, need - 1);
-  const last = farm.chopHit(0, { side: 1, y: 0.6 });
-  assert.equal(last.felled, true);
-  assert.equal(last.wood, "oak");
+  assert.deepEqual(farm.fell(0), { ok: true, wood: "oak" });
   assert.equal(farm.plotAt(0), null);
   assert.equal(farm.logCount("oak"), 1);
   assert.equal(farm.logCount("pine"), 0);
@@ -224,16 +208,16 @@ test("chopping: enough swipes fell the tree and put a log of that wood in the sh
   assert.equal(farm.plant(0, "pine").ok, true);
 });
 
-test("harder woods take more swipes", () => {
-  assert.ok(F.WOODS.pine.hits < F.WOODS.oak.hits);
-  assert.ok(F.WOODS.oak.hits < F.WOODS.walnut.hits);
+test("there is no swipe chop on the farm: trees come down only through the harvest", () => {
+  const { farm } = setup();
+  assert.equal(farm.chopHit, undefined);
 });
 
 test("logs can be taken one at a time for a commission", () => {
   const { farm, clock } = setup();
   farm.plant(0, "pine");
   clock.t += F.WOODS.pine.growMs;
-  for (let h = 0; h < F.WOODS.pine.hits; h++) farm.chopHit(0, { side: 1, y: 0.5 });
+  farm.fell(0);
   assert.equal(farm.logCount("pine"), 1);
   assert.equal(farm.takeLog("oak"), false);
   assert.equal(farm.takeLog("pine"), true);
@@ -241,17 +225,11 @@ test("logs can be taken one at a time for a commission", () => {
   assert.equal(farm.takeLog("pine"), false);
 });
 
-test("chopping progress and notches survive a save and reload", () => {
-  const { farm, clock, game } = setup();
-  farm.plant(0, "walnut");
-  clock.t += F.WOODS.walnut.growMs;
-  farm.chopHit(0, { side: -1, y: 0.4 });
-  farm.chopHit(0, { side: 1, y: 0.8 });
-  const stored = S.memoryStore();
-  S.write(stored, game);
-  const farm2 = F.createFarm(S.load(stored), { now: () => clock.t });
-  assert.equal(farm2.plotAt(0).hits, 2);
-  assert.deepEqual(farm2.plotAt(0).notches, [{ side: -1, y: 0.4 }, { side: 1, y: 0.8 }]);
+test("old saves with chop progress load cleanly and drop it", () => {
+  const game = S.newGame();
+  game.farm = { plots: [{ wood: "walnut", plantedAt: 100, skipped: 0, hits: 2, notches: [{ side: -1, y: 0.4 }] }, null] };
+  const farm = F.createFarm(game, { now: () => 200 });
+  assert.deepEqual(farm.plotAt(0), { wood: "walnut", plantedAt: 100, skipped: 0 });
 });
 
 test("every change calls onChange so the page can save", () => {
@@ -273,7 +251,7 @@ test("a damaged farm save is repaired, not trusted", () => {
   assert.equal(farm.state.plots.length, 3);
   assert.equal(farm.plotAt(0), null);
   assert.equal(farm.plotAt(1), null);
-  assert.deepEqual(farm.plotAt(2), { wood: "oak", plantedAt: 100, skipped: 0, hits: 0, notches: [] });
+  assert.deepEqual(farm.plotAt(2), { wood: "oak", plantedAt: 100, skipped: 0 });
   assert.equal(farm.logCount("pine"), 0);
   assert.equal(farm.logCount("oak"), 2);
   assert.equal(farm.logCount("ebony"), 0);

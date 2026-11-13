@@ -24,7 +24,12 @@ async function open(wood, viewport) {
   const pg = await browser.newPage({ viewport });
   pg.on("pageerror", (e) => errors.push(e.message));
   pg.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-  await pg.goto(`file://${file}?seed=7&wood=${wood}#harvest`);
+  // the forest opens only from a grown farm tree: grow one, tap it, then HARVEST
+  await pg.goto(`file://${file}?seed=7#farm`);
+  await pg.waitForFunction(() => window.__farm);
+  await pg.evaluate((wood) => { const f = window.__farm.farm; f.state.plots[0] = null; f.plant(0, wood); f.state.plots[0].plantedAt -= 60 * 60 * 1000; window.__farm.tick(); }, wood);
+  await pg.click('.plot[data-i="0"]');
+  await pg.click('[data-act="harvest"]');
   await pg.waitForFunction(() => window.__harvest && window.__harvest.running);
   await pg.waitForTimeout(300);
   return pg;

@@ -84,10 +84,11 @@
     var seedUrl = /[?&]seed=(\d+)/.exec(root.location.search);
     var order = (root.Game && root.Game.Farm && root.Game.Farm.WOOD_ORDER) || ["pine", "oak", "walnut"];
     var woodUrl = /[?&]wood=(\w+)/.exec(root.location.search);
-    /* Where the tree comes from. opts.source() names a grown tree on the
-       farm ({ plot, wood }); felling it takes it off the farm, and its
-       blank is kept in the shed. With no grown tree the forest offers a
-       practice tree: it plays the same, and nothing it gives is kept. */
+    /* Where the tree comes from. opts.source() names the grown farm tree
+       the player picked ({ plot, wood }); felling it takes it off the
+       farm, and its blank is kept in the shed. The page only opens the
+       forest with one picked (farm-ui.js), so there is no practice tree
+       to pick; with no source the tree plays the same but is not kept. */
     var src = null;
     function pickSource() { src = opts.source ? opts.source() : null; if (src) src.felled = false; return src; }
     function pickWood(seed) {
@@ -969,7 +970,6 @@
     function hide() { running = false; audio.saw(0); pointer.active = false; pointer.id = null; }
     root.addEventListener("resize", function () { if (running) resize(); });
     document.getElementById("hSoundBtn").addEventListener("click", function () { audio.toggle(); });
-    document.getElementById("hNewTreeBtn").addEventListener("click", reset);
     begin();
 
     return { show: show, hide: hide, reset: reset, refresh: refresh, resize: resize, game: game, get source() { return src; }, get cam() { return cam; }, get saw() { return saw; },
@@ -988,8 +988,7 @@
     var h = host();
     if (!h) return null;
     var f = h.farm, G = root.Game, i = G.harvestPlot;
-    if (!(i >= 0 && f.isMature(f.plotAt(i)))) i = f.firstMature();
-    return i >= 0 ? { plot: i, wood: f.plotAt(i).wood } : null;
+    return i >= 0 && f.isMature(f.plotAt(i)) ? { plot: i, wood: f.plotAt(i).wood } : null;
   }
   function onFelled(src) {
     var h = host();
@@ -1020,8 +1019,15 @@
       }
       view.show();
     },
-    /* The farm asked to harvest a particular tree: start over on it unless a felled tree is mid-harvest. */
-    fresh: function () { if (view && !(view.source && view.source.felled) && view.game.phase !== "done") view.reset(); },
+    /* The farm asked to harvest a particular tree: start over on it, unless
+       it is the very tree already standing here. A tree felled earlier and
+       left mid-harvest is already a log in the shed, so nothing is lost. */
+    fresh: function () {
+      if (!view) return;
+      var s = view.source, want = root.Game.harvestPlot;
+      if (s && !s.felled && s.plot === want && view.game.phase !== "done") return;
+      view.reset();
+    },
     hide: function () { if (view) view.hide(); }
   };
 })(window);
