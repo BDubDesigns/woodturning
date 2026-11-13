@@ -31,7 +31,8 @@
     END_MARGIN: 2,
 
     BRUSH_FLOW: 8,     // coat built per second at full pressure under the middle of the brush
-    FLOW_FLOOR: 0.25,  // share of the flow still left at the lightest touch
+    FLOW_FLOOR: 0.04,  // share of the flow still left at the lightest touch
+    FLOW_EXP: 2,       // flow rises with pressure squared: a light touch lays a thin wash, a firm push a solid coat
     SPRAY_RATE: 1.6,   // gloss built per second at full pressure under the middle of the mist
     SPRAY_FLOOR: 0.3,
 
@@ -115,7 +116,8 @@
   };
 
   /* One timestep of painting. t = axial position 0..1, pressure 0..1,
-     colorKey a PALETTE key. Returns the amount laid (sum of alpha added). */
+     colorKey a PALETTE key. Returns the amount of paint laid (sum over slices
+     of the share of each slice the new paint covers this step). */
   Coating.prototype.brush = function (t, pressure, brushKey, colorKey, dt) {
     var c = this.cfg, n = c.SEG, spec = BRUSHES[brushKey], paint = PALETTE[colorKey];
     if (!spec || !paint) return 0;
@@ -125,20 +127,21 @@
     var hwS = spec.halfWidth / this.dx;
     var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
     var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
-    var rate = c.BRUSH_FLOW * spec.flow * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * p);
+    var rate = c.BRUSH_FLOW * spec.flow * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * Math.pow(p, c.FLOW_EXP));
     var laid = 0, N = paint.rgb;
     for (var i = lo; i <= hi; i++) {
       var w = kernel(brushKey, Math.abs(i - xc) * this.dx);
       if (w <= 0) continue;
       var a = Math.min(1, rate * w * dt);          // how much of the new paint lands this step
+      if (a < 1e-6) continue;
+      // a slice already solid with paint still takes the new colour over the old one
       var old = this.coat[i], na = old + (1 - old) * a;
-      if (na - old < 1e-6) continue;
       // "over" compositing in premultiplied form: the new colour covers a bit, the old shows through
       for (var k = 0; k < 3; k++) {
         this.color[i * 3 + k] = (this.color[i * 3 + k] * old * (1 - a) + N[k] * a) / na;
       }
       this.coat[i] = na;
-      laid += na - old;
+      laid += a;
     }
     if (laid > 0) this.version++;
     return laid;
