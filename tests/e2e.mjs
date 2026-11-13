@@ -287,6 +287,7 @@ for (const kind of ["3d", "2d"]) {
   const actual = await page.evaluate(() => window.__lathe.views.current.kind);
   console.log(`\n${kind.toUpperCase()} view (showing: ${actual})`);
   if (actual !== kind) { check(kind === "2d", "3D unavailable in this browser, skipped"); continue; }
+  const full = [];
   for (const t of [0.25, 0.75]) {
     await page.click("#newLogBtn");
     await page.waitForTimeout(100);
@@ -295,13 +296,16 @@ for (const kind of ["3d", "2d"]) {
     check(Math.abs(m.centreT - t) < 0.02, `cut at t=${m.centreT.toFixed(3)}, finger at t=${t}`);
     check(Math.abs(m.drawnX - c.x) < 18, `deepest point drawn at x=${m.drawnX.toFixed(0)}, finger x=${c.x.toFixed(0)}`);
     check(c.minY > c.woodBottom, `finger stayed below the wood (lowest wood ${c.woodBottom.toFixed(0)}, finger reached ${c.minY.toFixed(0)})`);
-    check(m.depth > 0.06 && m.depth <= 0.45, `40px nudge + hold cut ${(m.depth * 40).toFixed(1)} mm deep`);
+    // the stock motor is weak on purpose (shop.js LINES.motor), so a held full push cuts a real but modest groove
+    check(m.depth > 0.03 && m.depth <= 0.45, `40px nudge + hold cut ${(m.depth * 40).toFixed(1)} mm deep`);
+    full.push(m.depth);
   }
   // shallow nudge: cuts, but less
   await page.click("#newLogBtn");
   await carve(0.5, { push: 10, hold: 1200 });
   const shallow = await measure();
   check(shallow.depth > 0.005 && shallow.depth < 0.15, `10px nudge cut a shallow ${(shallow.depth * 40).toFixed(1)} mm`);
+  check(shallow.depth < Math.min.apply(null, full) / 2, `a light nudge cuts far less than a full push (${(shallow.depth * 40).toFixed(1)} mm vs ${(Math.min.apply(null, full) * 40).toFixed(1)} mm)`);
 
   // the RPM slider sets how fast wood comes off
   const setRpm = (v) => page.evaluate((v) => { const el = document.getElementById("rpm"); el.value = String(v); el.dispatchEvent(new Event("input")); }, v);
