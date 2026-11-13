@@ -17,9 +17,12 @@
 
   var storage = Save.pickStorage(root);
   var game = Save.load(storage);
-  var M = G.Monetize;
-  var mine = M.createMine(game, { onChange: persist });
-  var farm = F.createFarm(game, { onChange: persist, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND });
+  var M = G.Monetize, R = G.Registry;
+  // The one shared state: every tab reads and writes this wallet and inventory.
+  var state = G.State.createState(game, { onChange: persist });
+  G.state = state;
+  var mine = M.createMine(game, { state: state, onChange: persist });
+  var farm = F.createFarm(game, { state: state, onChange: persist, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND });
   function persist() { farm.touch(); Save.write(storage, game); renderWallet(); }
 
   var plotsEl = $("plots"), ctxEl = $("ctx"), shedEl = $("shed"), toastEl = $("toast");
@@ -57,7 +60,7 @@
       statsEl.style.display = "none";
     } else if (name === "mine") {
       titleEl.innerHTML = "THE <em>MINE</em>";
-      subEl.textContent = "WATCH AN AD · MINE DIAMONDS OR GEMS · NO TRICKS";
+      subEl.textContent = "WATCH AN AD · MINE DIAMONDS · NO TRICKS";
       statsEl.style.display = "none";
       if (root.MineUI) root.MineUI.show();
     } else {
@@ -75,11 +78,14 @@
   tabs.mine.addEventListener("click", function () { showScreen("mine"); });
 
   /* ---------------- wallet ---------------- */
-  var coinsEl = $("walletCoins"), diamondsEl = $("walletDiamonds"), gemsEl = $("walletGems"), unlockedEl = $("fullBadge");
+  /* One chip per registered currency: each <b data-currency="id"> shows that balance. */
+  var unlockedEl = $("fullBadge");
+  var walletEls = Array.prototype.slice.call(document.querySelectorAll("[data-currency]"));
   function renderWallet() {
-    coinsEl.textContent = String(game.wallet.coins);
-    diamondsEl.textContent = String(game.wallet.diamonds);
-    gemsEl.textContent = String(game.wallet.gems);
+    walletEls.forEach(function (el) {
+      var v = String(state.wallet.balance(el.getAttribute("data-currency")));
+      if (el.textContent !== v) el.textContent = v;
+    });
     unlockedEl.hidden = !mine.isUnlocked();
   }
 
@@ -164,7 +170,7 @@
         select(r.index);
         layoutPlots();
       } else if (r.reason === "not enough coins") {
-        toast("A new plot costs " + price + " coins or " + dprice + " diamonds. You have " + game.wallet.coins + " coins.");
+        toast("A new plot costs " + price + " coins or " + dprice + " diamonds. You have " + state.wallet.balance("coins") + " coins.");
       }
     });
     return btn;
@@ -205,7 +211,7 @@
   function renderLand() {
     var price = farm.landPrice();
     if (price === null) return;
-    var poor = game.wallet.coins < price;
+    var poor = state.wallet.balance("coins") < price;
     landBtn.className = "plot land" + (poor ? " poor" : "");
     landBtn.innerHTML = '<span class="plus">+</span><span class="plot-name">NEW LAND</span><span class="plot-time">' + price + ' coins</span>';
     landBtn.setAttribute("aria-label", "Buy a new plot of land for " + price + " coins");
@@ -270,13 +276,20 @@
     renderCtx(true);
   }
 
+  /* The shed shows the shared inventory: logs by wood, then a count of
+     each other kind of item (blanks, turned pieces). */
   function renderShed() {
-    var h = '<span class="k">SHED</span>', any = false;
-    F.WOOD_ORDER.forEach(function (id) {
-      var n = farm.logCount(id);
+    var inv = state.inventory, h = '<span class="k">SHED</span>', any = false;
+    inv.list("log").forEach(function (s) {
+      any = true;
+      h += '<span class="log" data-wood="' + s.key + '"><i style="background:' + WOODS[s.key].trunk + '"></i>' + WOODS[s.key].name + ' <b>' + s.count + "</b></span>";
+    });
+    R.ITEM_ORDER.forEach(function (kind) {
+      if (R.ITEMS[kind].stack) return;
+      var n = inv.count(kind);
       if (!n) return;
       any = true;
-      h += '<span class="log" data-wood="' + id + '"><i style="background:' + WOODS[id].trunk + '"></i>' + WOODS[id].name + ' <b>' + n + "</b></span>";
+      h += '<span class="log item" data-kind="' + kind + '">' + R.ITEMS[kind].many + ' <b>' + n + "</b></span>";
     });
     if (!any) h += "<span>No logs yet. Grow a tree and chop it down.</span>";
     if (shedEl.innerHTML !== h) shedEl.innerHTML = h;
@@ -295,10 +308,10 @@
   function landAct() {
     var cost = farm.landPriceDiamonds();
     if (cost === null) return null;
-    var b = act("NEW LAND", cost + (cost === 1 ? " diamond" : " diamonds") + ", or " + farm.landPrice() + " coins", "", game.wallet.diamonds >= cost, function () {
+    var b = act("NEW LAND", cost + (cost === 1 ? " diamond" : " diamonds") + ", or " + farm.landPrice() + " coins", "", state.wallet.balance("diamonds") >= cost, function () {
       var r = farm.buyLandWithDiamonds();
       if (r.ok) { toast("New land cleared for " + r.cost + (r.cost === 1 ? " diamond." : " diamonds.") + " Plot " + (r.index + 1) + " is ready."); layoutPlots(); select(r.index); }
-      else toast("New land takes " + cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + game.wallet.diamonds + ". The mine has more.");
+      else toast("New land takes " + cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + state.wallet.balance("diamonds") + ". The mine has more.");
     });
     b.setAttribute("data-act", "landdiamonds");
     return b;
@@ -306,11 +319,11 @@
 
   function ctxSignature() {
     var p = farm.plotAt(selected);
-    var extra = game.wallet.diamonds + "|" + farm.state.plots.length + "|" + (mine.isUnlocked() ? 1 : 0);
+    var extra = state.wallet.balance("diamonds") + "|" + farm.state.plots.length + "|" + (mine.isUnlocked() ? 1 : 0);
     if (selected < 0) return "none|" + extra;
     if (!p) return "empty|" + selected + "|" + extra;
     var cost = farm.isMature(p) ? 0 : farm.diamondsToFinish(p);
-    return [selected, p.wood, farm.stage(p), p.hits, cost, game.wallet.diamonds].join("|");
+    return [selected, p.wood, farm.stage(p), p.hits, cost, state.wallet.balance("diamonds")].join("|");
   }
 
   function renderCtx(force) {
@@ -350,8 +363,15 @@
       });
       chop.setAttribute("data-act", "chop");
       row.appendChild(chop);
+      var hv = act("HARVEST", "Fell, trim and saw it into a blank", "", true, function () {
+        G.harvestPlot = selected;
+        if (root.Lathe.harvestHost.fresh) root.Lathe.harvestHost.fresh();
+        showScreen("harvest");
+      });
+      hv.setAttribute("data-act", "harvest");
+      row.appendChild(hv);
     } else {
-      var st = farm.stage(p), cost = farm.diamondsToFinish(p), dia = game.wallet.diamonds;
+      var st = farm.stage(p), cost = farm.diamondsToFinish(p), dia = state.wallet.balance("diamonds");
       line.innerHTML = "<b>" + WOODS[p.wood].name + "</b> " + STAGE_LABEL[st].toLowerCase() + ", <span id=\"ctxTime\">" + F.formatDuration(farm.remainingMs(p)) + "</span> left.";
       var skip = F.formatDuration(F.CFG.DIAMOND_MS);
       var s1 = act("SPEED UP", "Skip " + skip + " for 1 diamond", "", dia >= 1, function () {
@@ -363,7 +383,7 @@
         var c = farm.diamondsToFinish(farm.plotAt(selected));
         var r = farm.finishNow(selected);
         if (r.ok) { toast("Grown! That took " + c + (c === 1 ? " diamond." : " diamonds.")); select(selected); tick(); }
-        else toast("Growing this now takes " + c + (c === 1 ? " diamond" : " diamonds") + ". You have " + game.wallet.diamonds + ".");
+        else toast("Growing this now takes " + c + (c === 1 ? " diamond" : " diamonds") + ". You have " + state.wallet.balance("diamonds") + ".");
       });
       s2.setAttribute("data-act", "grownow");
       row.appendChild(s1); row.appendChild(s2);
@@ -388,6 +408,13 @@
   document.addEventListener("visibilitychange", function () { persist(); if (!document.hidden) tick(); });
   root.addEventListener("pagehide", persist);
 
+  // set before the first screen shows: the harvest reads the farm through this
+  root.__farm = {
+    farm: farm, game: game, state: state, storage: storage, select: select, showScreen: showScreen, tick: tick,
+    mine: mine, persist: persist, toast: toast, renderWallet: renderWallet, tickFarm: tick,
+    get selected() { return selected; }
+  };
+
   /* ---------------- start ---------------- */
   var grew = farm.grownWhileAway();
   layoutPlots();
@@ -400,9 +427,4 @@
     if (current === "farm") { toast(pendingToast); pendingToast = ""; }
   }
 
-  root.__farm = {
-    farm: farm, game: game, storage: storage, select: select, showScreen: showScreen, tick: tick,
-    mine: mine, persist: persist, toast: toast, renderWallet: renderWallet, tickFarm: tick,
-    get selected() { return selected; }
-  };
 })(window);

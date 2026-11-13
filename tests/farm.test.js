@@ -266,9 +266,9 @@ test("every change calls onChange so the page can save", () => {
 test("a damaged farm save is repaired, not trusted", () => {
   const game = S.newGame();
   game.farm = {
-    plots: [{ wood: "mahogany", plantedAt: 5 }, { wood: "pine", plantedAt: "soon" }, { wood: "oak", plantedAt: 100, skipped: -5, hits: "x", notches: [{ side: 3, y: 1 }] }],
-    logs: { pine: -2, oak: 2.9, ebony: 4 }
+    plots: [{ wood: "mahogany", plantedAt: 5 }, { wood: "pine", plantedAt: "soon" }, { wood: "oak", plantedAt: 100, skipped: -5, hits: "x", notches: [{ side: 3, y: 1 }] }]
   };
+  game.inventory = { stacks: { log: { pine: -2, oak: 2.9, ebony: 4 } } };
   const farm = F.createFarm(game, { now: () => 200 });
   assert.equal(farm.state.plots.length, 3);
   assert.equal(farm.plotAt(0), null);
@@ -315,7 +315,9 @@ test("save: garbage, wrong version and blocked storage all fall back to a new ga
   st.setItem(S.KEY, JSON.stringify({ v: 999, wallet: { coins: 1e9, diamonds: 1e9 } }));
   assert.deepEqual(S.load(st), S.newGame());
   st.setItem(S.KEY, JSON.stringify({ v: S.VERSION, wallet: { coins: -5, diamonds: "lots" } }));
-  assert.deepEqual(S.load(st), S.newGame());
+  const junk = S.load(st);
+  F.createFarm(junk, { now: () => 0 });   // the wallet's owner repairs it on start
+  assert.deepEqual(junk.wallet, S.newGame().wallet);
   const broken = { getItem() { throw new Error("denied"); }, setItem() { throw new Error("denied"); } };
   assert.deepEqual(S.load(broken), S.newGame());
   assert.equal(S.write(broken, S.newGame()), false);
@@ -331,7 +333,7 @@ test("save: pickStorage falls back to memory when localStorage throws", () => {
 // ---------- copy ----------
 test("no em dashes in anything the player reads", () => {
   const root = path.join(__dirname, "..", "src");
-  for (const f of ["index.html", "js/farm.js", "js/farm-ui.js", "js/save.js", "style.css"]) {
+  for (const f of ["index.html", "js/farm.js", "js/farm-ui.js", "js/save.js", "js/state.js", "js/registry.js", "style.css"]) {
     const text = fs.readFileSync(path.join(root, f), "utf8");
     assert.ok(!/—|&mdash;/.test(text), `${f} has an em dash`);
   }

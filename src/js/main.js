@@ -1,7 +1,13 @@
 /* ============================================================
-   THE LATHE: wiring. Owns the shared state, turns pointer input
+   THE LATHE: wiring. Owns the lathe's state, turns pointer input
    into (axial position, pressure), steps the cutting model, and
    hands the result to whichever view is showing.
+
+   Stock: what is on the lathe. A log or a blank from the shared
+   inventory (state.js), or a practice blank that belongs to no one.
+   Real stock stays in the shed until DONE, which takes it out and
+   puts the turned piece in its place, with its profile and paint
+   kept so a commission can grade it. Practice work is never kept.
 
    Input model (see docs/lathe-feel-fix.md):
    - Touch down anywhere below the wood: the chisel snaps onto
@@ -35,6 +41,8 @@
       paintTool: "brush",               // brush | liner
       color: "crimson",                 // a P.PALETTE key
       spec: null,                       // the paint spec to match (a commission supplies this)
+      stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
+      wood: null,                       // the wood of the stock, null for practice
       flow: 0,                          // brush / spray activity 0..1, drives the sound
       rpm: 1100,
       spinAngle: 0,
@@ -155,8 +163,9 @@
     /* Mount a blank: the harvested one, or a practice blank when none is given. */
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
-    function mount(blank) {
+    function mount(blank, stock) {
       if (blank) S.work.load(blank); else S.work.reset();
+      setStock(stock || null);
       S.lastT = -1; S.everCut = false;
       S.pointer.active = false; S.pointer.id = null; S.pressure.up();
       statDepth.innerHTML = "0.0<small> mm</small>";
@@ -166,7 +175,117 @@
       drawProfile(); drawSpec(); updateSpecInfo();
     }
     L.mountBlank = mount;     // the harvest hands its blank over through this
-    document.getElementById("newLogBtn").addEventListener("click", function () { mount(null); });
+    document.getElementById("newLogBtn").addEventListener("click", function () { closeStock(); mount(null); });
+
+    /* ---------------- stock: the shed's logs and blanks, and DONE ---------------- */
+    var G = root.Game, R = G.Registry, St = G.State;
+    function shared() { return G.state || null; }
+    var stockBtn = document.getElementById("stockBtn"), stockLabel = document.getElementById("stockLabel");
+    var stockMenu = document.getElementById("stockMenu"), doneBtn = document.getElementById("doneBtn");
+    var ltoast = document.getElementById("ltoast"), ltoastTimer = 0;
+    function toast(msg) {
+      ltoast.textContent = msg; ltoast.classList.add("on");
+      clearTimeout(ltoastTimer);
+      ltoastTimer = setTimeout(function () { ltoast.classList.remove("on"); }, 3400);
+    }
+    function woodName(id) { return R.WOODS[id] ? R.WOODS[id].name : "Wood"; }
+    function stockName(st) {
+      if (!st) return "Practice";
+      return woodName(S.wood) + " " + R.ITEMS[st.kind].name.toLowerCase();
+    }
+    function setStock(st) {
+      var inv = shared() && shared().inventory;
+      S.stock = st; S.wood = null;
+      if (st && inv) {
+        if (st.kind === "log") S.wood = st.key;
+        else { var it = inv.get(st.id); S.wood = it ? it.wood : null; if (!it) S.stock = null; }
+      } else S.stock = null;
+      stockLabel.textContent = stockName(S.stock).toUpperCase();
+      doneBtn.setAttribute("aria-disabled", S.stock ? "false" : "true");
+    }
+    /* Mount something from the shed. Nothing leaves the shed until DONE. */
+    function mountStock(st) {
+      var inv = shared() && shared().inventory;
+      if (!st || !inv) { mount(null); return false; }
+      if (st.kind === "log") {
+        if (!inv.count("log", st.key)) return false;
+        mount(null, st);
+        return true;
+      }
+      var it = inv.get(st.id);
+      if (!it || it.kind !== "blank") return false;
+      mount({ species: it.wood, seed: it.seed, profile: St.unpack(it.profile), lengthUnits: it.lengthUnits, lengthRatio: it.lengthRatio, girthUnits: it.girthUnits }, { kind: "blank", id: it.id });
+      return true;
+    }
+    L.mountStock = mountStock;
+
+    function isMounted(st) {
+      var c = S.stock;
+      return !!c && !!st && c.kind === st.kind && (st.kind === "log" ? c.key === st.key : c.id === st.id);
+    }
+    function closeStock() { stockMenu.hidden = true; stockBtn.setAttribute("aria-expanded", "false"); }
+    function openStock() {
+      var inv = shared() && shared().inventory, h = "";
+      h += "<h2>WHAT TO TURN</h2><p>Pick a log or a blank from the shed. It stays in the shed until you press DONE. Switching starts over on the new wood.</p>";
+      h += '<div class="stock-list">';
+      h += '<button type="button" class="stock-opt" data-stock="practice" aria-pressed="' + (S.stock ? "false" : "true") + '"><i style="background:#c99a5e"></i><span><b>Practice blank</b><small>Free, but nothing you turn on it is kept</small></span></button>';
+      if (inv) {
+        inv.list("blank").forEach(function (it) {
+          var st = { kind: "blank", id: it.id }, w = R.WOODS[it.wood];
+          h += '<button type="button" class="stock-opt" data-stock="blank" data-id="' + it.id + '" aria-pressed="' + isMounted(st) + '"><i style="background:' + (w ? w.trunk : "#c99a5e") + '"></i><span><b>' + woodName(it.wood) + ' blank</b><small>Sawn in the forest, shaped like its log</small></span></button>';
+        });
+        inv.list("log").forEach(function (s) {
+          var st = { kind: "log", key: s.key }, w = R.WOODS[s.key];
+          h += '<button type="button" class="stock-opt" data-stock="log" data-key="' + s.key + '" aria-pressed="' + isMounted(st) + '"><i style="background:' + w.trunk + '"></i><span><b>' + w.name + ' log</b><small>A round log, straight from the shed</small></span><span class="n">' + s.count + "</span></button>";
+        });
+        if (!inv.count("blank") && !inv.count("log")) h += "<p>The shed is empty. Grow a tree on the farm, then chop or harvest it.</p>";
+      }
+      h += "</div>";
+      stockMenu.innerHTML = h;
+      stockMenu.hidden = false;
+      stockBtn.setAttribute("aria-expanded", "true");
+    }
+    stockBtn.addEventListener("click", function () { if (stockMenu.hidden) openStock(); else closeStock(); });
+    stockMenu.addEventListener("click", function (ev) {
+      var b = ev.target.closest ? ev.target.closest("[data-stock]") : null;
+      if (!b) return;
+      var kind = b.getAttribute("data-stock");
+      closeStock();
+      if (kind === "practice") { mount(null); return; }
+      var st = kind === "log" ? { kind: "log", key: b.getAttribute("data-key") } : { kind: "blank", id: parseInt(b.getAttribute("data-id"), 10) };
+      if (isMounted(st)) return;
+      if (mountStock(st)) toast(stockName(S.stock) + " on the lathe.");
+    });
+    // the menu sits on the stage: a tap on it is not a cut, and a tap anywhere else closes it
+    stockMenu.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+    stage.addEventListener("pointerdown", function (e) { if (!stockMenu.contains(e.target)) closeStock(); }, true);
+    root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !stockMenu.hidden) closeStock(); });
+
+    /* Take the piece off the lathe: the stock leaves the shed and the
+       turned piece goes in, with everything a commission needs to grade it. */
+    function finishPiece() {
+      var sh = shared();
+      if (!S.stock || !sh) { toast("Practice piece. Mount a log or blank from the shed to keep what you turn."); return null; }
+      var shape = L.shapeName(S.work);
+      if (shape === "Blank") { toast("Turn it first. Nothing has been cut yet."); return null; }
+      var wood = S.wood, from = S.stock.kind;
+      var took = from === "log" ? sh.inventory.take("log", S.stock.key) : sh.inventory.take("blank", S.stock.id);
+      if (!took) { setStock(null); toast("That wood is no longer in the shed, so this is now a practice piece."); return null; }
+      var m = S.spec ? P.matchSpec(S.spec, S.coat) : null;
+      var piece = sh.inventory.add("piece", {
+        wood: wood, from: from, shape: shape,
+        profile: St.pack(S.work.radius),
+        coat: { coat: St.pack(S.coat.coat, 3), color: St.pack(S.coat.color, 3), gloss: St.pack(S.coat.gloss, 3) },
+        sheen: m ? m.sheen : null,
+        spec: S.spec || null,
+        match: m ? Math.round(m.total * 1000) / 1000 : null,
+        removed: Math.round(S.work.removedFraction() * 1000) / 1000
+      });
+      mount(null);
+      toast(woodName(wood) + " piece added to the shed.");
+      return piece;
+    }
+    doneBtn.addEventListener("click", function () { audio.init(); closeStock(); finishPiece(); });
     var soundBtn = document.getElementById("soundBtn");
     soundBtn.addEventListener("click", function () {
       audio.setOn(!audio.on);
@@ -421,6 +540,7 @@
     setSpec(P.generateSpec());
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
+    S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;
     drawProfile();
     requestAnimationFrame(frame);
 
