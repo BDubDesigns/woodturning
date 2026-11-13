@@ -706,6 +706,26 @@ footer {
 .settings-card .act.danger.armed .an { color: #fff; }
 #latheStats, #harvestStats { margin-left: auto; }
 header .gear-btn { margin-left: 4px; }
+
+/* ---------- orders: practice, rush, turned down ---------- */
+.order .act.practice { border-style: dashed; border-color: #b8893a; background: #2a2119; }
+.order .act.practice .an { color: #e0b07a; }
+.order .act.short { opacity: 0.6; }
+.order.empty .row { justify-content: center; margin-top: 10px; }
+.order.empty .act { flex: 0 1 240px; text-align: center; }
+.g-reject { margin: 8px 0 14px; padding: 9px 12px; border-radius: 8px; background: rgba(192, 57, 43, 0.18); border: 1px solid #a33; color: #ffcfc6; font-size: 14px; line-height: 1.4; }
+.g-bonus { margin-left: 6px; padding: 1px 7px; border-radius: 5px; background: #f2c230; color: #1b1405; font-weight: 700; font-size: 12px; }
+.g-pick.no { opacity: 0.55; cursor: default; }
+.spec-tag.warn { color: #ff9b8a; }
+#orderNote {
+  position: absolute; left: 12px; right: 12px; top: 10px; margin: 0 auto; width: fit-content; z-index: 4; max-width: 560px;
+  padding: 7px 14px; border-radius: 8px; text-align: center; font-size: 14px; line-height: 1.35;
+  background: rgba(60, 18, 12, 0.88); color: #ffe0d8; border: 1px solid #c0392b; pointer-events: none;
+}
+#orderNote b { color: #ff9b8a; }
+#orderNote[hidden] { display: none; }
+/* the practice-only banner sits at the top of the stage; the lathe's toasts drop below it */
+#stage.has-note #ltoast { top: 78px; }
 </style>
     <style>
 /* Harvest screen: the forest. Shares the lathe's chrome (header, footer,
@@ -830,6 +850,7 @@ header .gear-btn { margin-left: 4px; }
         <div id="cutflash"></div>
         <div id="pmeter" aria-hidden="true"><i></i></div>
         <div id="ltoast" role="status" aria-live="polite"></div>
+        <div id="orderNote" role="status" hidden></div>
         <div id="stockMenu" role="dialog" aria-label="Choose what to turn" hidden></div>
         <div id="hint"><b>Touch below the log, then nudge up</b> to push the chisel in. Push harder to cut deeper.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.</div>
       </div>
@@ -2088,11 +2109,14 @@ header .gear-btn { margin-left: 4px; }
    The board holds up to BOARD_SIZE orders. A new one arrives every
    NEW_ORDER_MS while there is room, worked out from the saved clock
    like the farm's trees, so orders come in while the game is closed.
-   One order at a time is active: the one on the lathe.
+   rushNext() posts one at once for a diamond. One order at a time is
+   active: the one on the lathe.
 
-   Grading a turned piece (gradePiece) scores the shape against the
-   target, the paint against the spec, and the sheen, and pays a share
-   of the reward. Only the wood the order names can be delivered.
+   Grading a turned piece (grade) scores the shape against the target,
+   the paint against the spec, and the sheen. Below CFG.PASS the customer
+   turns it down and pays nothing; above it the pay rises with the grade,
+   with a bonus at CFG.FULL and up. Any wood can be turned against an
+   order for practice, but only the wood the order names can be delivered.
 
    The model owns the commissions section of the save:
      game.commissions { orders: [...], active, nextId, nextAt, seed, done, history }
@@ -2113,7 +2137,8 @@ header .gear-btn { margin-left: 4px; }
 
   var CFG = {
     BOARD_SIZE: 3,
-    NEW_ORDER_MS: 4 * MIN,     // one new order this often while the board has room
+    NEW_ORDER_MS: 3 * MIN,     // one new order this often while the board has room
+    RUSH_DIAMONDS: 1,          // ...or one straight away, for this many diamonds
     HISTORY: 12,               // delivered orders remembered for the board
     // the target never asks for more wood than any blank has, nor for a stick too thin to hold
     R_MAX: 0.66, R_MIN: 0.24,  // fractions of the lathe's blank radius R0
@@ -2123,8 +2148,10 @@ header .gear-btn { margin-left: 4px; }
     EDGE: 0.03,                // the ends sit in the centres and are not graded
     // how the grade is made up
     W_SHAPE: 0.55, W_PAINT: 0.35, W_SHEEN: 0.1,
-    PAY_FLOOR: 0.15,           // even a rough attempt in the right wood earns something
-    STARS: [0.5, 0.72, 0.88]   // grade needed for one, two, three stars
+    // pay: below PASS the customer turns the piece down (no pay, the piece stays in the shed);
+    // from PASS to FULL pay rises from MIN_PAY to all of the reward; at FULL and above, all of it plus BONUS
+    PASS: 0.5, FULL: 0.9, MIN_PAY: 0.3, BONUS: 0.1,
+    STARS: [0.5, 0.72, 0.9]    // grade needed for one, two, three stars
   };
 
   /* The kinds of piece. base: coins for a perfect pine one. shape(t, r):
@@ -2278,12 +2305,18 @@ header .gear-btn { margin-left: 4px; }
     var coating = work.coat instanceof P.Coating ? work.coat : coatingOf(work.coat);
     var m = P.matchSpec(order.spec, coating);
     var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish;
-    var woodOk = work.wood === order.wood;
-    var pay = woodOk ? Math.round(order.reward * (CFG.PAY_FLOOR + (1 - CFG.PAY_FLOOR) * Math.pow(g, 1.4))) : 0;
+    var woodOk = work.wood === order.wood, accepted = woodOk && g >= CFG.PASS;
     return {
       shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen,
-      total: g, stars: starsFor(g), woodOk: woodOk, pay: pay
+      total: g, stars: starsFor(g), woodOk: woodOk, accepted: accepted,
+      pay: accepted ? payFor(order.reward, g) : 0, bonus: accepted && g >= CFG.FULL
     };
+  }
+  /* What a grade earns on a reward, when the piece is accepted (see CFG.PASS..BONUS). */
+  function payFor(reward, g) {
+    if (g < CFG.PASS) return 0;
+    if (g >= CFG.FULL) return Math.round(reward * (1 + CFG.BONUS));
+    return Math.round(reward * (CFG.MIN_PAY + (1 - CFG.MIN_PAY) * (g - CFG.PASS) / (CFG.FULL - CFG.PASS)));
   }
 
   /* ---------------- the board ---------------- */
@@ -2388,6 +2421,7 @@ header .gear-btn { margin-left: 4px; }
       if (!it || it.kind !== "piece") return { ok: false, reason: "no such piece" };
       var g = grade(o, it);
       if (!g.woodOk) return { ok: false, reason: "wrong wood", grade: g };
+      if (!g.accepted) return { ok: false, reason: "rejected", grade: g };   // the piece stays in the shed
       if (!state.inventory.take("piece", pieceId)) return { ok: false, reason: "no such piece" };
       if (g.pay > 0) state.wallet.earn("coins", g.pay);
       B.orders.splice(B.orders.indexOf(o), 1);
@@ -2400,17 +2434,28 @@ header .gear-btn { margin-left: 4px; }
       return { ok: true, grade: g, order: o, pay: g.pay };
     }
 
+    /* Don't wait for the next order: post one now for RUSH_DIAMONDS diamonds. */
+    function rushNext() {
+      if (B.orders.length >= CFG.BOARD_SIZE) return { ok: false, reason: "board is full" };
+      var paid = state.wallet.spend("diamonds", CFG.RUSH_DIAMONDS);
+      if (!paid.ok) return { ok: false, reason: "not enough diamonds", need: CFG.RUSH_DIAMONDS, have: state.wallet.balance("diamonds") };
+      var o = post();
+      if (B.orders.length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
+      onChange();
+      return { ok: true, order: o };
+    }
+
     refill();
     return {
       state: B, refill: refill, get: get, active: active, accept: accept, release: release, decline: decline,
-      candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext,
+      candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
       grade: grade, targetProfile: targetProfile
     };
   }
 
   var api = {
     CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
-    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor,
+    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor, payFor: payFor,
     defaultBoard: defaultBoard, normalizeBoard: normalizeBoard, createBoard: createBoard
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -6361,6 +6406,7 @@ header .gear-btn { margin-left: 4px; }
       } else S.stock = null;
       stockLabel.textContent = stockName(S.stock).toUpperCase();
       doneBtn.setAttribute("aria-disabled", S.stock ? "false" : "true");
+      if (typeof updateOrderNote === "function") updateOrderNote();
     }
     /* Mount something from the shed. Nothing leaves the shed until DONE. */
     function mountStock(st) {
@@ -6523,8 +6569,7 @@ header .gear-btn { margin-left: 4px; }
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
       specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
       // with no commission on the lathe the spec is only for practice: say so, so it is never taken for an order
-      specTag.textContent = S.order ? "COMMISSION · " + S.order.client.toUpperCase() : "PRACTICE · NO ORDER";
-      specTag.classList.toggle("order", !!S.order);
+      updateOrderNote();
       drawSpec(); updateSpecInfo();
       return true;
     }
@@ -6566,6 +6611,30 @@ header .gear-btn { margin-left: 4px; }
       else toast("No " + woodName(o.wood).toLowerCase() + " in the shed. Grow one on the farm. You can practise the shape meanwhile.");
     }
     L.takeOrder = takeOrder;
+    /* Practise an order on a free practice blank: its shape and spec are on, the wood stays in the shed. */
+    function practiseOrder() {
+      syncOrder();
+      if (!S.order) return;
+      mount(null);
+      toast("Practice blank on the lathe. Turn it to the line; it can't be delivered.");
+    }
+    L.practiseOrder = practiseOrder;
+    /* With an order on, say plainly whether what is mounted can be delivered: any wood
+       can be turned to the order's shape for practice, but only its own wood is accepted. */
+    var orderNote = document.getElementById("orderNote");
+    function deliverable() { return !!S.order && !!S.stock && S.wood === S.order.wood; }
+    function updateOrderNote() {
+      if (!orderNote || !specTag) return;   // early in boot, before these are found
+      var o = S.order, ok = deliverable();
+      if (!o) { specTag.textContent = "PRACTICE · NO ORDER"; specTag.className = "spec-tag"; orderNote.hidden = true; stage.classList.remove("has-note"); return; }
+      var want = woodName(o.wood).toLowerCase();
+      specTag.textContent = ok ? "COMMISSION · " + o.client.toUpperCase() : "PRACTICE ONLY · NEEDS " + want.toUpperCase();
+      specTag.className = "spec-tag " + (ok ? "order" : "warn");
+      orderNote.hidden = ok;
+      stage.classList.toggle("has-note", !ok);
+      if (!ok) orderNote.innerHTML = "<b>Practice only.</b> " + (S.stock ? "This is " + woodName(S.wood).toLowerCase() : "This is a practice blank") +
+        ", so it can't be delivered. " + o.client + " needs " + want + ".";
+    }
     var shapeShown = -1;
     function updateShape() {
       if (!S.target || !G.Commissions) { profileLabel.textContent = "PROFILE"; return; }
@@ -6783,7 +6852,7 @@ header .gear-btn { margin-left: 4px; }
     setSpec(P.generateSpec());
     syncOrder();
     applyUpgrades();
-    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;
@@ -8711,14 +8780,19 @@ header .gear-btn { margin-left: 4px; }
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
-        h += act("TAKE IT", st.blanks || st.logs ? "Put the " + woodName(o.wood).toLowerCase() + " on the lathe" : "Practise the shape on the lathe", "primary", "take");
+        if (st.blanks || st.logs) {
+          h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
+          h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
+        } else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
         h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
       if (st.pieces) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
       h += "</div></article>";
     });
     for (var k = B.orders.length; k < C.CFG.BOARD_SIZE; k++) {
-      h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p></article>";
+      var dia = state.wallet.balance("diamonds"), cost = C.CFG.RUSH_DIAMONDS;
+      h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p>" +
+        '<div class="row">' + act("GET ONE NOW", cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + dia + ".", dia >= cost ? "" : "short", "rush") + "</div></article>";
     }
     listEl.innerHTML = h;
     var f = "", recent = B.history.slice(-5).reverse();
@@ -8747,6 +8821,10 @@ header .gear-btn { margin-left: 4px; }
       board.accept(id);
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();
+    } else if (what === "practise") {        // the order's shape and spec on a free practice blank, the real wood kept
+      board.accept(id);
+      G.showScreen("lathe");
+      if (root.Lathe.practiseOrder) root.Lathe.practiseOrder();
     } else if (what === "lathe") {
       G.showScreen("lathe");
       if (root.Lathe.takeOrder) root.Lathe.takeOrder();
@@ -8761,6 +8839,15 @@ header .gear-btn { margin-left: 4px; }
     } else if (what === "deliver") {
       choose(o);
     }
+  });
+  function o0(id) { var o = board.get(id); return o ? esc(o.client) : "The customer"; }
+  // GET ONE NOW on an empty slot: a diamond posts the next order straight away
+  listEl.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-act="rush"]') : null;
+    if (!b) return;
+    var r = board.rushNext();
+    if (r.ok) { toast("New order from " + r.order.client + "."); host.renderWallet(); render(true); }
+    else if (r.reason === "not enough diamonds") toast("That takes " + r.need + (r.need === 1 ? " diamond" : " diamonds") + ". You have " + r.have + ". The mine has more.");
   });
 
   /* ---------------- handing a piece over ---------------- */
@@ -8784,10 +8871,15 @@ header .gear-btn { margin-left: 4px; }
     if (!o || !g) return;
     var h = '<div class="grade-card"><h2 id="gradeTitle">' + esc(pieceName(o)) + " for " + esc(o.client) + "</h2>";
     h += gradeHtml(o, g);
-    h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + "</p>";
-    h += '<div class="row">' + act("DELIVER", "Hand it over for " + g.pay + " coins", "primary", "give") + act("KEEP IT", "It stays in the shed. Try again", "", "keep") + "</div></div>";
+    if (g.accepted) {
+      h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
+      h += '<div class="row">' + act("DELIVER", "Hand it over for " + g.pay + " coins", "primary", "give") + act("KEEP IT", "It stays in the shed. Try again", "", "keep") + "</div></div>";
+    } else {
+      h += '<p class="g-reject">' + esc(o.client) + " won't take it. A piece needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted; this one is " + Math.round(g.total * 100) + "%. It stays in the shed.</p>";
+      h += '<div class="row">' + act("KEEP IT", "Try another one", "primary", "keep") + "</div></div>";
+    }
     overlay.innerHTML = h; overlay.hidden = false;
-    overlay.querySelector('[data-act="give"]').addEventListener("click", function () { give(orderId, pieceId); });
+    if (g.accepted) overlay.querySelector('[data-act="give"]').addEventListener("click", function () { give(orderId, pieceId); });
     overlay.querySelector('[data-act="keep"]').addEventListener("click", function () { closeOverlay(); });
   }
   /* DELIVER on the board: pick which piece from the shed. */
@@ -8797,7 +8889,8 @@ header .gear-btn { margin-left: 4px; }
     var h = '<div class="grade-card"><h2 id="gradeTitle">Deliver ' + article(pieceName(o)) + " " + esc(pieceName(o).toLowerCase()) + "</h2><p class=\"g-note\">Pick the piece to hand to " + esc(o.client) + ".</p><div class=\"g-list\">";
     list.slice().reverse().forEach(function (it) {
       var g = board.preview(o.id, it.id);
-      h += '<button type="button" class="g-pick" data-piece="' + it.id + '">' + starsHtml(g.stars) + "<span><b>" + esc(woodName(it.wood)) + " " + esc((it.shape || "piece").toLowerCase()) + "</b><small>Shape " + Math.round(g.shape * 100) + "% · paint " + Math.round(g.paint * 100) + "%</small></span><span class=\"n\">" + COIN + g.pay + "</span></button>";
+      h += '<button type="button" class="g-pick' + (g.accepted ? "" : " no") + '" data-piece="' + it.id + '"' + (g.accepted ? "" : ' aria-disabled="true"') + ">" + starsHtml(g.stars) + "<span><b>" + esc(woodName(it.wood)) + " " + esc((it.shape || "piece").toLowerCase()) + "</b><small>" +
+        (g.accepted ? "Shape " + Math.round(g.shape * 100) + "% · paint " + Math.round(g.paint * 100) + "%" : "Turned down: under " + Math.round(C.CFG.PASS * 100) + "%") + '</small></span><span class="n">' + (g.accepted ? COIN + g.pay : "") + "</span></button>";
     });
     h += '</div><div class="row">' + act("CANCEL", "Keep them all", "", "keep") + "</div></div>";
     overlay.innerHTML = h; overlay.hidden = false;
@@ -8808,11 +8901,15 @@ header .gear-btn { margin-left: 4px; }
   }
   function give(orderId, pieceId) {
     var r = board.deliver(orderId, pieceId);
-    if (!r.ok) { closeOverlay(); toast(r.reason === "wrong wood" ? "That piece is the wrong wood for this order." : "That piece is no longer in the shed."); return; }
+    if (!r.ok) {
+      closeOverlay();
+      toast(r.reason === "wrong wood" ? "That piece is the wrong wood for this order." : r.reason === "rejected" ? o0(orderId) + " won't take that one. It needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted." : "That piece is no longer in the shed.");
+      return;
+    }
     var o = r.order, g = r.grade;
     var h = '<div class="grade-card done"><h2 id="gradeTitle">Delivered!</h2><div class="g-stars">' + starsHtml(g.stars) + "</div>";
     h += '<p class="g-pay big">+' + COIN + "<b>" + r.pay + "</b></p>";
-    h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : g.stars >= 1 ? " takes the " : " grumbles, but pays for the ") + esc(pieceName(o).toLowerCase()) + ".</p>";
+    h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : " takes the ") + esc(pieceName(o).toLowerCase()) + (g.bonus ? ", and adds a " + Math.round(C.CFG.BONUS * 100) + "% bonus" : "") + ".</p>";
     h += '<div class="row">' + act("BOARD", "See the other orders", "primary", "board") + act("OK", "Back to work", "", "keep") + "</div></div>";
     overlay.innerHTML = h; overlay.hidden = false;
     overlay.querySelector('[data-act="board"]').addEventListener("click", function () { closeOverlay(); G.showScreen("orders"); });
