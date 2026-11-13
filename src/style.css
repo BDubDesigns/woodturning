@@ -416,6 +416,8 @@ footer {
 .spec-row-top { top: 3px; }
 .spec-row-bot { bottom: 3px; }
 .spec-info { flex: 0 0 auto; min-width: 118px; max-width: 168px; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.spec-tag { font-size: 9.5px; letter-spacing: 0.2em; font-weight: 700; color: var(--faint); }
+.spec-tag.order { color: var(--ok); }
 .spec-name { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.06em; line-height: 1.1; color: var(--amber); }
 .spec-line { font-size: 12px; color: var(--dim); line-height: 1.2; }
 .spec-line b { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -537,7 +539,7 @@ footer {
 .o-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; color: #bfae8f; }
 .o-who b { color: #f3e7d3; font-weight: 600; }
 .o-pay { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: rgba(232, 163, 61, 0.14); border: 1px solid rgba(232, 163, 61, 0.5); }
-.o-pay b, .g-pay b, .b-hist b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
+.o-pay b, .g-pay b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
 .coin { vertical-align: -2px; }
 .o-name { margin: 2px 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .o-badge { font-size: 11.5px; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber); }
@@ -555,11 +557,19 @@ footer {
 .order .act.primary .an, .grade-card .act.primary .an { color: var(--amber); }
 #boardFoot { color: #bfae8f; font-size: 13.5px; }
 #boardFoot p { margin: 0 0 8px; line-height: 1.45; }
-.b-done { color: #f3e7d3; }
-.b-hist { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.b-hist li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(20, 15, 11, 0.55); }
-.b-hist li span:not(.stars) { flex: 1; color: #f3e7d3; }
-.b-hist li span.stars span { font-size: 14px; }
+.order.hist { padding-bottom: 10px; }
+.h-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.h-k { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.18em; color: var(--amber); }
+.h-n { font-size: 13px; color: #bfae8f; }
+.b-hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.b-hist li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.b-hist li:first-child { border-top: 0; }
+.b-hist .stars { flex: none; }
+.b-hist .stars span { font-size: 16px; }
+.h-what { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.h-what b { font-weight: 600; color: #f3e7d3; font-size: 14.5px; }
+.h-what small { color: #bfae8f; font-size: 12.5px; }
+.h-pay { flex: none; display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
 .b-help { color: var(--faint); font-size: 12.5px; }
 .stars span { color: rgba(255, 255, 255, 0.18); font-size: 18px; letter-spacing: 1px; }
 .stars span.on { color: #f6c46a; text-shadow: 0 0 6px rgba(246, 196, 106, 0.5); }

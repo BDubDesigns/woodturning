@@ -253,6 +253,24 @@
       g.fillStyle = "#0d0906"; g.fillRect(-10, floorY, w + 20, h - floorY + 10);
       g.fillStyle = "rgba(232,163,61,0.10)"; g.fillRect(-10, floorY, w + 20, 1.5);
 
+      // the work light hung from the rafters, top centre: a pool of light under it, and the lamp itself
+      var lv = Math.max(0, Math.min(3, S.lightLevel | 0)), lx = w / 2, ly = Math.max(10, Math.min(28, cy - rPx * 2.4));
+      var pool = g.createRadialGradient(lx, cy, rPx * 0.4, lx, cy, len * (0.55 + lv * 0.08));
+      pool.addColorStop(0, "rgba(255,226,170," + (0.1 + lv * 0.03).toFixed(2) + ")"); pool.addColorStop(1, "rgba(255,226,170,0)");
+      g.fillStyle = pool; g.fillRect(-10, 0, w + 20, floorY);
+      g.strokeStyle = "#111"; g.lineWidth = 1.2;
+      var lampW = lv < 2 ? 0 : (lv === 2 ? 90 : 140);
+      g.beginPath();
+      if (lampW) { g.moveTo(lx - lampW * 0.4, 0); g.lineTo(lx - lampW * 0.4, ly); g.moveTo(lx + lampW * 0.4, 0); g.lineTo(lx + lampW * 0.4, ly); }
+      else { g.moveTo(lx, 0); g.lineTo(lx, ly - 6); }
+      g.stroke();
+      var halo = g.createRadialGradient(lx, ly + 3, 0, lx, ly + 3, 26 + lampW * 0.4);
+      halo.addColorStop(0, "rgba(255,240,205,0.75)"); halo.addColorStop(1, "rgba(255,220,160,0)");
+      g.fillStyle = halo; g.fillRect(lx - 30 - lampW * 0.4, ly - 26, 60 + lampW * 0.8, 56);
+      if (lv === 0) { g.fillStyle = "#1a1a1a"; g.fillRect(lx - 3, ly - 7, 6, 6); g.fillStyle = "#ffe2a8"; g.beginPath(); g.arc(lx, ly + 2, 5, 0, Math.PI * 2); g.fill(); }
+      else if (lv === 1) { g.fillStyle = "#e0b321"; g.fillRect(lx - 12, ly - 5, 24, 9); g.fillStyle = "#fff0d0"; g.fillRect(lx - 10, ly + 3, 20, 3); }
+      else { g.fillStyle = "#d8dadc"; g.fillRect(lx - lampW / 2, ly, lampW, 4); g.fillStyle = "#fff8ee"; g.fillRect(lx - lampW / 2 + 2, ly + 4, lampW - 4, 2); }
+
       // bed rails + supports
       g.fillStyle = "#39423e";
       g.fillRect(Lp.left - len * 0.1, bedY, len * 1.2, rPx * 0.32);

@@ -434,6 +434,8 @@ footer {
 .spec-row-top { top: 3px; }
 .spec-row-bot { bottom: 3px; }
 .spec-info { flex: 0 0 auto; min-width: 118px; max-width: 168px; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.spec-tag { font-size: 9.5px; letter-spacing: 0.2em; font-weight: 700; color: var(--faint); }
+.spec-tag.order { color: var(--ok); }
 .spec-name { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.06em; line-height: 1.1; color: var(--amber); }
 .spec-line { font-size: 12px; color: var(--dim); line-height: 1.2; }
 .spec-line b { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -555,7 +557,7 @@ footer {
 .o-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; color: #bfae8f; }
 .o-who b { color: #f3e7d3; font-weight: 600; }
 .o-pay { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: rgba(232, 163, 61, 0.14); border: 1px solid rgba(232, 163, 61, 0.5); }
-.o-pay b, .g-pay b, .b-hist b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
+.o-pay b, .g-pay b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
 .coin { vertical-align: -2px; }
 .o-name { margin: 2px 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .o-badge { font-size: 11.5px; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber); }
@@ -573,11 +575,19 @@ footer {
 .order .act.primary .an, .grade-card .act.primary .an { color: var(--amber); }
 #boardFoot { color: #bfae8f; font-size: 13.5px; }
 #boardFoot p { margin: 0 0 8px; line-height: 1.45; }
-.b-done { color: #f3e7d3; }
-.b-hist { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.b-hist li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(20, 15, 11, 0.55); }
-.b-hist li span:not(.stars) { flex: 1; color: #f3e7d3; }
-.b-hist li span.stars span { font-size: 14px; }
+.order.hist { padding-bottom: 10px; }
+.h-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.h-k { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.18em; color: var(--amber); }
+.h-n { font-size: 13px; color: #bfae8f; }
+.b-hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.b-hist li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.b-hist li:first-child { border-top: 0; }
+.b-hist .stars { flex: none; }
+.b-hist .stars span { font-size: 16px; }
+.h-what { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.h-what b { font-weight: 600; color: #f3e7d3; font-size: 14.5px; }
+.h-what small { color: #bfae8f; font-size: 12.5px; }
+.h-pay { flex: none; display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
 .b-help { color: var(--faint); font-size: 12.5px; }
 .stars span { color: rgba(255, 255, 255, 0.18); font-size: 18px; letter-spacing: 1px; }
 .stars span.on { color: #f6c46a; text-shadow: 0 0 6px rgba(246, 196, 106, 0.5); }
@@ -755,6 +765,7 @@ footer {
           <span class="spec-row-k spec-row-bot">YOURS</span>
         </div>
         <div class="spec-info">
+          <div class="spec-tag" id="specTag">PRACTICE</div>
           <div class="spec-name" id="specName">Solid Crimson</div>
           <div class="spec-line"><b id="specMatch">0</b><small>% match</small></div>
           <div class="spec-line spec-sheen" id="specSheen">Wanted: Gloss</div>
@@ -2614,7 +2625,34 @@ footer {
     var rimLight = new THREE.DirectionalLight(0xffb066, 0.9);
     rimLight.position.set(-2, 4, -6);
     scene.add(rimLight);
-    scene.add(new THREE.AmbientLight(0x604c33, 0.5));
+    var ambient = new THREE.AmbientLight(0x604c33, 0.5);
+    scene.add(ambient);
+
+    /* ---------------- the work light ----------------
+       A lamp over the lathe, raking down across the piece so beads and coves
+       read as light and shadow. It comes in tiers (S.lightLevel, 0 up), so
+       the workshop can buy better ones: each is brighter, whiter and wider.
+       [intensity, colour, cone angle, ambient, name]. */
+    var WORK_LIGHTS = [
+      [38, 0xffd9a8, 0.62, 0.5, "Bare bulb"],
+      [54, 0xffe9c8, 0.7, 0.55, "Halogen work light"],
+      [70, 0xfff3e2, 0.8, 0.58, "LED shop panel"],
+      [86, 0xfffaf2, 0.9, 0.62, "Studio light bar"]
+    ];
+    L.WORK_LIGHTS = WORK_LIGHTS.map(function (w) { return w[4]; });
+    var workLight = new THREE.SpotLight(0xffd9a8, 0, 18, 0.62, 0.6, 1.4);
+    workLight.position.set(0.4, CENTER_Y + 4.8, 2.6);
+    workLight.target.position.set(0, CENTER_Y - 0.2, 0);
+    scene.add(workLight); scene.add(workLight.target);
+    var lightShown = -1;
+    function syncLight() {
+      var lv = Math.max(0, Math.min(WORK_LIGHTS.length - 1, S.lightLevel | 0));
+      if (lv === lightShown) return;
+      lightShown = lv;
+      var w = WORK_LIGHTS[lv];
+      workLight.intensity = w[0]; workLight.color.setHex(w[1]); workLight.angle = w[2]; ambient.intensity = w[3];
+      if (fixtureLevel !== lv) { fixtureLevel = lv; buildFixture(lv); }
+    }
 
     var ironMat = new THREE.MeshStandardMaterial({ color: 0x46524c, roughness: 0.52, metalness: 0.45 });
     var ironDark = new THREE.MeshStandardMaterial({ color: 0x2c3234, roughness: 0.46, metalness: 0.5 });
@@ -2683,40 +2721,179 @@ footer {
       scene.add(inst);
     })();
 
-    /* ---------------- the lathe machine ---------------- */
+    /* ---------------- the lathe machine ----------------
+       Built from a few dozen cheap primitives: a cast-iron stand with a timber
+       shelf, twin bed ways, a rounded headstock with its belt cover, spindle,
+       spur drive, outboard handwheel, motor and switch box, a tailstock with
+       quill, live centre and handwheel, and the banjo under the tool rest.
+       Castings wear a hammertone finish (one small noise texture as a bump
+       map). Only the big parts cast shadows. */
     var lathe = new THREE.Group();
     scene.add(lathe);
-    function box(w, h, d, mat, x, y, z) {
-      var ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-      ms.position.set(x, y, z); ms.castShadow = true; ms.receiveShadow = true;
-      lathe.add(ms); return ms;
+    var hammer = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 128;
+      var g = c.getContext("2d"), img = g.createImageData(128, 128), d = img.data;
+      for (var i = 0; i < d.length; i += 4) { var v = 110 + Math.random() * 90; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+      g.putImageData(img, 0, 0);
+      g.globalAlpha = 0.35;
+      for (var k = 0; k < 260; k++) { g.fillStyle = Math.random() < 0.5 ? "#000" : "#fff"; g.beginPath(); g.arc(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 3, 0, Math.PI * 2); g.fill(); }
+      var t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+      return t;
+    })();
+    var castMat = new THREE.MeshStandardMaterial({ color: 0x46625a, roughness: 0.58, metalness: 0.35, bumpMap: hammer, bumpScale: 0.6 });
+    var castDark = new THREE.MeshStandardMaterial({ color: 0x2b3532, roughness: 0.62, metalness: 0.3, bumpMap: hammer, bumpScale: 0.4 });
+    var waysMat = new THREE.MeshStandardMaterial({ color: 0x8c949a, roughness: 0.34, metalness: 0.8 });
+    var blackMat = new THREE.MeshStandardMaterial({ color: 0x15181a, roughness: 0.5, metalness: 0.2 });
+    var timberMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.9, metalness: 0 });
+    var ironMat = castMat, ironDark = castDark;
+    function add(mesh, x, y, z, shadow) {
+      mesh.position.set(x, y, z);
+      if (shadow) { mesh.castShadow = true; mesh.receiveShadow = true; }
+      lathe.add(mesh); return mesh;
     }
-    box(8.6, 0.34, 0.62, ironMat, 0, 0.92, -0.28);
-    box(8.6, 0.34, 0.62, ironMat, 0, 0.92, 0.34);
-    box(8.9, 0.16, 1.5, ironDark, 0, 1.12, 0.02);
-    box(0.34, 0.95, 1.15, ironMat, -3.7, 0.48, 0);
-    box(0.34, 0.95, 1.15, ironMat, 3.7, 0.48, 0);
-    box(1.4, 0.12, 1.3, ironDark, -3.7, 0.05, 0);
-    box(1.4, 0.12, 1.3, ironDark, 3.7, 0.05, 0);
-    box(1.15, 1.65, 1.3, ironMat, -3.95, 1.95, 0);   // headstock (left)
-    box(1.3, 0.3, 1.44, ironDark, -3.95, 2.9, 0);
-    box(1.0, 1.35, 1.1, ironMat, 3.95, 1.8, 0);      // tailstock (right)
-    box(1.14, 0.26, 1.24, ironDark, 3.95, 2.58, 0);
-    var chuck = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.55, 24), ironDark);
-    chuck.rotation.z = Math.PI / 2; chuck.position.set(-3.28, CENTER_Y, 0); chuck.castShadow = true;
-    lathe.add(chuck);
-    var tailCone = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.62, 20), steelDark);
-    tailCone.rotation.z = Math.PI / 2; tailCone.position.set(3.42, CENTER_Y, 0); tailCone.castShadow = true;
-    lathe.add(tailCone);
-    var tailBar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 14), steelMat);
-    tailBar.rotation.z = Math.PI / 2; tailBar.position.set(3.78, CENTER_Y, 0);
-    lathe.add(tailBar);
+    function box(w, h, d, mat, x, y, z, shadow) { return add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat), x, y, z, shadow); }
+    /* a box with rounded edges: a rounded rectangle (w x h, corner r) extruded d deep, centred */
+    function rbox(w, h, d, r, mat, x, y, z, shadow) {
+      var sh = new THREE.Shape(), hw = w / 2 - r, hh = h / 2 - r;
+      sh.moveTo(-hw, -h / 2); sh.lineTo(hw, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -hh);
+      sh.lineTo(w / 2, hh); sh.quadraticCurveTo(w / 2, h / 2, hw, h / 2); sh.lineTo(-hw, h / 2);
+      sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, hh); sh.lineTo(-w / 2, -hh); sh.quadraticCurveTo(-w / 2, -h / 2, -hw, -h / 2);
+      var bev = Math.min(r, d * 0.2);
+      var geo = new THREE.ExtrudeGeometry(sh, { depth: d - bev * 2, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.6, bevelSegments: 2, curveSegments: 4 });
+      geo.translate(0, 0, -(d - bev * 2) / 2);
+      return add(new THREE.Mesh(geo, mat), x, y, z, shadow);
+    }
+    function cylX(r0, r1, len, mat, x, y, z, seg, shadow) {
+      var m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, len, seg || 20), mat);
+      m.rotation.z = Math.PI / 2; return add(m, x, y, z, shadow);
+    }
+    function wheel(rad, x, y, z) {               // a handwheel seen side-on along the axis: rim, hub, spokes, crank knob
+      var g = new THREE.Group();
+      var rim = new THREE.Mesh(new THREE.TorusGeometry(rad, rad * 0.11, 8, 28), castDark); rim.rotation.y = Math.PI / 2; g.add(rim);
+      var hub = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.22, rad * 0.22, rad * 0.4, 14), castDark); hub.rotation.z = Math.PI / 2; g.add(hub);
+      for (var k = 0; k < 3; k++) {
+        var sp = new THREE.Mesh(new THREE.BoxGeometry(rad * 0.08, rad * 1.9, rad * 0.1), castDark);
+        sp.rotation.x = k * Math.PI / 3; g.add(sp);
+      }
+      var knob = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.09, rad * 0.09, rad * 0.55, 10), blackMat);
+      knob.rotation.z = Math.PI / 2; knob.position.set(rad * 0.28, rad * 0.8, 0); g.add(knob);
+      g.position.set(x, y, z); lathe.add(g); return g;
+    }
+
+    // the stand: a splayed cast leg at each end, feet, a stretcher and a timber shelf with offcuts on it
+    var BED_Y = 1.2;
+    [-3.55, 3.55].forEach(function (lx) {
+      var leg = new THREE.Shape();
+      leg.moveTo(-0.72, 0); leg.lineTo(0.72, 0); leg.lineTo(0.42, BED_Y - 0.24); leg.lineTo(-0.42, BED_Y - 0.24); leg.closePath();
+      var hole = new THREE.Path(); hole.moveTo(-0.3, 0.22); hole.lineTo(0.3, 0.22); hole.lineTo(0.17, 0.7); hole.lineTo(-0.17, 0.7); hole.closePath();
+      leg.holes.push(hole);
+      var lg = new THREE.ExtrudeGeometry(leg, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 1 });
+      lg.translate(0, 0, -0.1);
+      var m = new THREE.Mesh(lg, castDark); m.rotation.y = Math.PI / 2; add(m, lx, 0, 0.05, true);
+      box(0.34, 0.07, 1.6, castDark, lx, 0.035, 0.05, false);
+    });
+    box(6.9, 0.12, 0.16, castDark, 0, 0.36, -0.15, false);
+    box(6.9, 0.07, 1.0, timberMat, 0, 0.45, 0.05, true);
+    box(1.6, 0.16, 0.24, timberMat, -1.6, 0.57, 0.1, false).rotation.y = 0.12;
+    box(1.1, 0.13, 0.2, timberMat, -1.5, 0.71, -0.02, false).rotation.y = -0.2;
+    cylX(0.17, 0.17, 1.2, timberMat, 1.4, 0.66, 0.15, 14, false);
+
+    // the bed: two ground ways on a cast girder
+    box(8.6, 0.26, 0.5, castMat, 0, BED_Y - 0.13, 0.02, true);
+    box(8.5, 0.12, 0.2, waysMat, 0, BED_Y + 0.06, -0.17, true);
+    box(8.5, 0.12, 0.2, waysMat, 0, BED_Y + 0.06, 0.21, true);
+    var WAY_TOP = BED_Y + 0.12;
+
+    // headstock (left): a rounded casting, the belt cover domed over it, the spindle boss and spur drive
+    rbox(1.2, 1.25, 1.25, 0.14, castMat, -3.95, WAY_TOP + 0.62, 0.02, true);
+    var dome = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 1.1, 28), castMat);   // the belt cover: half sunk in the casting
+    dome.rotation.x = Math.PI / 2; add(dome, -3.98, WAY_TOP + 1.1, 0.02, true);
+    cylX(0.3, 0.36, 0.34, castMat, -3.22, CENTER_Y, 0, 24, true);        // spindle boss
+    var chuck = cylX(0.2, 0.2, 0.16, steelDark, -3.0, CENTER_Y, 0, 18, false);   // spur drive
+    var spur = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 10), steelMat);
+    spur.rotation.z = -Math.PI / 2; add(spur, -2.88, CENTER_Y, 0, false);
+    wheel(0.36, -4.7, CENTER_Y, 0.02);                                      // outboard handwheel
+    // the motor slung behind and below, and the switch box on the front of the headstock
+    cylX(0.3, 0.3, 0.9, castDark, -3.75, 0.82, -0.45, 20, true);
+    cylX(0.31, 0.31, 0.08, blackMat, -3.27, 0.82, -0.45, 20, false);
+    var sw = rbox(0.56, 0.44, 0.16, 0.05, blackMat, -3.95, WAY_TOP + 0.62, 0.72, false);
+    var stopBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 14), new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.4 }));
+    stopBtn.rotation.x = Math.PI / 2; add(stopBtn, -4.08, WAY_TOP + 0.62, 0.82, false);
+    var goBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.06, 14), new THREE.MeshStandardMaterial({ color: 0x3f8a3c, roughness: 0.4 }));
+    goBtn.rotation.x = Math.PI / 2; add(goBtn, -3.86, WAY_TOP + 0.72, 0.82, false);
+    var dial = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.07, 16), steelDark);
+    dial.rotation.x = Math.PI / 2; add(dial, -3.84, WAY_TOP + 0.52, 0.82, false);
+
+    // tailstock (right): casting, quill, live centre, handwheel, lock lever
+    rbox(0.95, 0.92, 1.0, 0.12, castMat, 3.95, WAY_TOP + 0.46, 0.02, true);
+    cylX(0.3, 0.26, 0.9, castMat, 3.9, CENTER_Y, 0.02, 22, true);         // the barrel the quill runs in
+    var tailBar = cylX(0.11, 0.11, 0.5, steelMat, 3.33, CENTER_Y, 0, 16, false);   // quill
+    var tailCone = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.4, 20), steelDark);
+    tailCone.rotation.z = Math.PI / 2; add(tailCone, 2.95 + 0.2 - 0.05, CENTER_Y, 0, false);
+    cylX(0.06, 0.06, 0.4, steelDark, 4.5, CENTER_Y, 0.02, 10, false);
+    wheel(0.3, 4.7, CENTER_Y, 0.02);
+    var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.55, 8), blackMat);
+    lever.rotation.z = -0.6; add(lever, 3.7, CENTER_Y + 0.42, 0.25, false);
+
+    // the banjo slides under the ways and carries the post; the tool rest bar sits on it
+    box(0.55, 0.2, 1.5, castMat, 1.7, BED_Y - 0.36, 0.55, true);
     var restBar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 5.4, 14), steelMat);
     restBar.rotation.z = Math.PI / 2; restBar.position.set(0, CENTER_Y - 0.92, 1.28);
     restBar.castShadow = true; lathe.add(restBar);
-    box(0.5, 0.85, 0.5, ironMat, 1.7, 0.72, 1.28);
-    var restPost = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.55, 12), steelDark);
-    restPost.position.set(1.7, 1.32, 1.28); lathe.add(restPost);
+    var restPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.36, 12), castMat);
+    add(restPost, 1.7, CENTER_Y - 1.1, 1.28, false);
+    var banjoLock = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8), blackMat);
+    banjoLock.rotation.x = 1.0; add(banjoLock, 1.95, BED_Y - 0.36, 1.32, false);
+
+    /* ---------------- the work light, hung from the rafters ----------------
+       A small fixture at the very top of the frame, on a cord that runs up out
+       of sight. It is drawn for the tier the workshop owns (S.lightLevel), and
+       the spot light shines from it, so the light the piece gets comes from
+       the lamp the player can see. */
+    var fixture = new THREE.Group(), fixtureLevel = -1;
+    scene.add(fixture);
+    var glowTex = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 64;
+      var g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, "rgba(255,240,205,1)"); gr.addColorStop(0.35, "rgba(255,220,160,0.45)"); gr.addColorStop(1, "rgba(255,200,120,0)");
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    function buildFixture(lv) {
+      while (fixture.children.length) fixture.remove(fixture.children[0]);
+      var lit = new THREE.MeshBasicMaterial({ color: [0xffe2a8, 0xfff0d0, 0xfff8ee, 0xffffff][lv] });
+      var glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      function part(geo, mat, x, y, z) { var m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fixture.add(m); return m; }
+      function cord(x, len) { part(new THREE.CylinderGeometry(0.012, 0.012, len, 5), blackMat, x, len / 2, 0); }
+      if (lv === 0) {                       // a bare bulb in a socket on a flex
+        cord(0, 3);
+        part(new THREE.CylinderGeometry(0.05, 0.06, 0.14, 10), blackMat, 0, -0.06, 0);
+        part(new THREE.SphereGeometry(0.11, 14, 10), lit, 0, -0.2, 0);
+        glow.scale.set(0.9, 0.9, 1); glow.position.set(0, -0.2, 0.05);
+      } else if (lv === 1) {                // a yellow halogen work light on a short pipe, face down
+        cord(0, 3);
+        var body = part(new THREE.BoxGeometry(0.46, 0.16, 0.3), new THREE.MeshStandardMaterial({ color: 0xe0b321, roughness: 0.45, metalness: 0.2 }), 0, -0.1, 0);
+        body.rotation.x = 0.35;
+        var face = part(new THREE.PlaneGeometry(0.38, 0.22), lit, 0, -0.185, 0.03); face.rotation.x = Math.PI / 2 + 0.35;
+        glow.scale.set(1.3, 0.9, 1); glow.position.set(0, -0.24, 0.08);
+      } else {                              // a long LED panel (or two) on chains
+        var wide = lv === 2 ? 1.7 : 2.6;
+        cord(-wide * 0.4, 3); cord(wide * 0.4, 3);
+        part(new THREE.BoxGeometry(wide, 0.06, 0.26), new THREE.MeshStandardMaterial({ color: 0xd8dadc, roughness: 0.4, metalness: 0.5 }), 0, -0.03, 0);
+        var strip = part(new THREE.PlaneGeometry(wide - 0.08, 0.2), lit, 0, -0.065, 0); strip.rotation.x = Math.PI / 2;
+        if (lv >= 3) { var strip2 = part(new THREE.BoxGeometry(wide, 0.06, 0.26), new THREE.MeshStandardMaterial({ color: 0xd8dadc, roughness: 0.4, metalness: 0.5 }), 0, -0.03, -0.34); var s2 = part(new THREE.PlaneGeometry(wide - 0.08, 0.2), lit, 0, -0.065, -0.34); s2.rotation.x = Math.PI / 2; }
+        glow.scale.set(wide * 1.5, 0.7, 1); glow.position.set(0, -0.1, 0.05);
+      }
+      fixture.add(glow);
+    }
+    var _ray = new THREE.Vector3();
+    function hangFixture() {               // just inside the top edge of the frame, a little in front of the lathe
+      camera.updateMatrixWorld();
+      _ray.set(0, 0.94, 0.5).unproject(camera).sub(camera.position).normalize();
+      var zf = 0.9, t = (zf - camera.position.z) / _ray.z;
+      fixture.position.set(0, camera.position.y + _ray.y * t, zf);
+      workLight.position.set(0.2, fixture.position.y - 0.25, zf);
+    }
 
     /* ---------------- the workpiece ---------------- */
     var woodTex = makeWoodTexture();
@@ -3204,6 +3381,7 @@ footer {
       camBase.copy(camera.position);
       camera.lookAt(0, CENTER_Y - 0.12, 0);
       camera.updateProjectionMatrix();
+      hangFixture();
       computeLayout();
     }
 
@@ -3257,6 +3435,7 @@ footer {
       },
       frame: function (dt) {
         syncGhost();
+        syncLight();
         frameN++;
         showTip();
         showTool();
@@ -3560,6 +3739,24 @@ footer {
       g.fillStyle = bg; g.fillRect(-10, -10, w + 20, h + 20);
       g.fillStyle = "#0d0906"; g.fillRect(-10, floorY, w + 20, h - floorY + 10);
       g.fillStyle = "rgba(232,163,61,0.10)"; g.fillRect(-10, floorY, w + 20, 1.5);
+
+      // the work light hung from the rafters, top centre: a pool of light under it, and the lamp itself
+      var lv = Math.max(0, Math.min(3, S.lightLevel | 0)), lx = w / 2, ly = Math.max(10, Math.min(28, cy - rPx * 2.4));
+      var pool = g.createRadialGradient(lx, cy, rPx * 0.4, lx, cy, len * (0.55 + lv * 0.08));
+      pool.addColorStop(0, "rgba(255,226,170," + (0.1 + lv * 0.03).toFixed(2) + ")"); pool.addColorStop(1, "rgba(255,226,170,0)");
+      g.fillStyle = pool; g.fillRect(-10, 0, w + 20, floorY);
+      g.strokeStyle = "#111"; g.lineWidth = 1.2;
+      var lampW = lv < 2 ? 0 : (lv === 2 ? 90 : 140);
+      g.beginPath();
+      if (lampW) { g.moveTo(lx - lampW * 0.4, 0); g.lineTo(lx - lampW * 0.4, ly); g.moveTo(lx + lampW * 0.4, 0); g.lineTo(lx + lampW * 0.4, ly); }
+      else { g.moveTo(lx, 0); g.lineTo(lx, ly - 6); }
+      g.stroke();
+      var halo = g.createRadialGradient(lx, ly + 3, 0, lx, ly + 3, 26 + lampW * 0.4);
+      halo.addColorStop(0, "rgba(255,240,205,0.75)"); halo.addColorStop(1, "rgba(255,220,160,0)");
+      g.fillStyle = halo; g.fillRect(lx - 30 - lampW * 0.4, ly - 26, 60 + lampW * 0.8, 56);
+      if (lv === 0) { g.fillStyle = "#1a1a1a"; g.fillRect(lx - 3, ly - 7, 6, 6); g.fillStyle = "#ffe2a8"; g.beginPath(); g.arc(lx, ly + 2, 5, 0, Math.PI * 2); g.fill(); }
+      else if (lv === 1) { g.fillStyle = "#e0b321"; g.fillRect(lx - 12, ly - 5, 24, 9); g.fillStyle = "#fff0d0"; g.fillRect(lx - 10, ly + 3, 20, 3); }
+      else { g.fillStyle = "#d8dadc"; g.fillRect(lx - lampW / 2, ly, lampW, 4); g.fillStyle = "#fff8ee"; g.fillRect(lx - lampW / 2 + 2, ly + 4, lampW - 4, 2); }
 
       // bed rails + supports
       g.fillStyle = "#39423e";
@@ -5731,6 +5928,7 @@ footer {
       paintTool: "brush",               // brush | liner
       color: "crimson",                 // a P.PALETTE key
       spec: null,                       // the paint spec to match (a commission supplies this)
+      lightLevel: 0,                    // the workshop's work light tier (view3d WORK_LIGHTS)
       order: null,                      // the commission being turned (commissions.js), or null
       target: null,                     // its target profile: SEG radii, drawn as a ghost to turn down to
       stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
@@ -6047,7 +6245,7 @@ footer {
 
     /* the paint spec: what the painting has to look like. A commission supplies one;
        until commissions land the lathe rolls its own so there is always something to match. */
-    var specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
+    var specTag = document.getElementById("specTag"), specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
     var specCanvas = document.getElementById("specCanvas"), specCtx = specCanvas.getContext("2d");
     function setSpec(spec) {
       if (!P.validSpec(spec)) return false;
@@ -6055,6 +6253,9 @@ footer {
       var need = P.specPaints(spec);
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
       specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
+      // with no commission on the lathe the spec is only for practice: say so, so it is never taken for an order
+      specTag.textContent = S.order ? "COMMISSION · " + S.order.client.toUpperCase() : "PRACTICE · NO ORDER";
+      specTag.classList.toggle("order", !!S.order);
       drawSpec(); updateSpecInfo();
       return true;
     }
@@ -8182,15 +8383,15 @@ footer {
       h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p></article>";
     }
     listEl.innerHTML = h;
-    var f = "";
-    if (B.done) f += '<p class="b-done">' + B.done + (B.done === 1 ? " commission" : " commissions") + " delivered.</p>";
-    var recent = B.history.slice(-3).reverse();
+    var f = "", recent = B.history.slice(-5).reverse();
     if (recent.length) {
+      f += '<section class="order hist" aria-label="Delivered commissions"><div class="h-top"><span class="h-k">DELIVERED</span><span class="h-n">' + B.done + (B.done === 1 ? " commission" : " commissions") + "</span></div>";
       f += '<ul class="b-hist">' + recent.map(function (r) {
-        return "<li>" + starsHtml(r.stars) + "<span>" + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + " for " + esc(r.client) + "</span><b>" + COIN + "+" + r.pay + "</b></li>";
-      }).join("") + "</ul>";
+        var w = R.WOODS[r.wood];
+        return '<li>' + starsHtml(r.stars) + '<span class="h-what"><b>' + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + "</b><small>for " + esc(r.client) + (w ? " · " + w.name : "") + '</small></span><span class="h-pay">' + COIN + "+" + r.pay + "</span></li>";
+      }).join("") + "</ul></section>";
     }
-    f += '<p class="b-help">Turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p>';
+    f += '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p>';
     footEl.innerHTML = f;
   }
   function tickClock() {

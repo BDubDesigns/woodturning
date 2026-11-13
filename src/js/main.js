@@ -41,6 +41,7 @@
       paintTool: "brush",               // brush | liner
       color: "crimson",                 // a P.PALETTE key
       spec: null,                       // the paint spec to match (a commission supplies this)
+      lightLevel: 0,                    // the workshop's work light tier (view3d WORK_LIGHTS)
       order: null,                      // the commission being turned (commissions.js), or null
       target: null,                     // its target profile: SEG radii, drawn as a ghost to turn down to
       stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
@@ -357,7 +358,7 @@
 
     /* the paint spec: what the painting has to look like. A commission supplies one;
        until commissions land the lathe rolls its own so there is always something to match. */
-    var specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
+    var specTag = document.getElementById("specTag"), specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
     var specCanvas = document.getElementById("specCanvas"), specCtx = specCanvas.getContext("2d");
     function setSpec(spec) {
       if (!P.validSpec(spec)) return false;
@@ -365,6 +366,9 @@
       var need = P.specPaints(spec);
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
       specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
+      // with no commission on the lathe the spec is only for practice: say so, so it is never taken for an order
+      specTag.textContent = S.order ? "COMMISSION · " + S.order.client.toUpperCase() : "PRACTICE · NO ORDER";
+      specTag.classList.toggle("order", !!S.order);
       drawSpec(); updateSpecInfo();
       return true;
     }

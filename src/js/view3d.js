@@ -136,7 +136,34 @@
     var rimLight = new THREE.DirectionalLight(0xffb066, 0.9);
     rimLight.position.set(-2, 4, -6);
     scene.add(rimLight);
-    scene.add(new THREE.AmbientLight(0x604c33, 0.5));
+    var ambient = new THREE.AmbientLight(0x604c33, 0.5);
+    scene.add(ambient);
+
+    /* ---------------- the work light ----------------
+       A lamp over the lathe, raking down across the piece so beads and coves
+       read as light and shadow. It comes in tiers (S.lightLevel, 0 up), so
+       the workshop can buy better ones: each is brighter, whiter and wider.
+       [intensity, colour, cone angle, ambient, name]. */
+    var WORK_LIGHTS = [
+      [38, 0xffd9a8, 0.62, 0.5, "Bare bulb"],
+      [54, 0xffe9c8, 0.7, 0.55, "Halogen work light"],
+      [70, 0xfff3e2, 0.8, 0.58, "LED shop panel"],
+      [86, 0xfffaf2, 0.9, 0.62, "Studio light bar"]
+    ];
+    L.WORK_LIGHTS = WORK_LIGHTS.map(function (w) { return w[4]; });
+    var workLight = new THREE.SpotLight(0xffd9a8, 0, 18, 0.62, 0.6, 1.4);
+    workLight.position.set(0.4, CENTER_Y + 4.8, 2.6);
+    workLight.target.position.set(0, CENTER_Y - 0.2, 0);
+    scene.add(workLight); scene.add(workLight.target);
+    var lightShown = -1;
+    function syncLight() {
+      var lv = Math.max(0, Math.min(WORK_LIGHTS.length - 1, S.lightLevel | 0));
+      if (lv === lightShown) return;
+      lightShown = lv;
+      var w = WORK_LIGHTS[lv];
+      workLight.intensity = w[0]; workLight.color.setHex(w[1]); workLight.angle = w[2]; ambient.intensity = w[3];
+      if (fixtureLevel !== lv) { fixtureLevel = lv; buildFixture(lv); }
+    }
 
     var ironMat = new THREE.MeshStandardMaterial({ color: 0x46524c, roughness: 0.52, metalness: 0.45 });
     var ironDark = new THREE.MeshStandardMaterial({ color: 0x2c3234, roughness: 0.46, metalness: 0.5 });
@@ -205,40 +232,179 @@
       scene.add(inst);
     })();
 
-    /* ---------------- the lathe machine ---------------- */
+    /* ---------------- the lathe machine ----------------
+       Built from a few dozen cheap primitives: a cast-iron stand with a timber
+       shelf, twin bed ways, a rounded headstock with its belt cover, spindle,
+       spur drive, outboard handwheel, motor and switch box, a tailstock with
+       quill, live centre and handwheel, and the banjo under the tool rest.
+       Castings wear a hammertone finish (one small noise texture as a bump
+       map). Only the big parts cast shadows. */
     var lathe = new THREE.Group();
     scene.add(lathe);
-    function box(w, h, d, mat, x, y, z) {
-      var ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-      ms.position.set(x, y, z); ms.castShadow = true; ms.receiveShadow = true;
-      lathe.add(ms); return ms;
+    var hammer = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 128;
+      var g = c.getContext("2d"), img = g.createImageData(128, 128), d = img.data;
+      for (var i = 0; i < d.length; i += 4) { var v = 110 + Math.random() * 90; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+      g.putImageData(img, 0, 0);
+      g.globalAlpha = 0.35;
+      for (var k = 0; k < 260; k++) { g.fillStyle = Math.random() < 0.5 ? "#000" : "#fff"; g.beginPath(); g.arc(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 3, 0, Math.PI * 2); g.fill(); }
+      var t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+      return t;
+    })();
+    var castMat = new THREE.MeshStandardMaterial({ color: 0x46625a, roughness: 0.58, metalness: 0.35, bumpMap: hammer, bumpScale: 0.6 });
+    var castDark = new THREE.MeshStandardMaterial({ color: 0x2b3532, roughness: 0.62, metalness: 0.3, bumpMap: hammer, bumpScale: 0.4 });
+    var waysMat = new THREE.MeshStandardMaterial({ color: 0x8c949a, roughness: 0.34, metalness: 0.8 });
+    var blackMat = new THREE.MeshStandardMaterial({ color: 0x15181a, roughness: 0.5, metalness: 0.2 });
+    var timberMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.9, metalness: 0 });
+    var ironMat = castMat, ironDark = castDark;
+    function add(mesh, x, y, z, shadow) {
+      mesh.position.set(x, y, z);
+      if (shadow) { mesh.castShadow = true; mesh.receiveShadow = true; }
+      lathe.add(mesh); return mesh;
     }
-    box(8.6, 0.34, 0.62, ironMat, 0, 0.92, -0.28);
-    box(8.6, 0.34, 0.62, ironMat, 0, 0.92, 0.34);
-    box(8.9, 0.16, 1.5, ironDark, 0, 1.12, 0.02);
-    box(0.34, 0.95, 1.15, ironMat, -3.7, 0.48, 0);
-    box(0.34, 0.95, 1.15, ironMat, 3.7, 0.48, 0);
-    box(1.4, 0.12, 1.3, ironDark, -3.7, 0.05, 0);
-    box(1.4, 0.12, 1.3, ironDark, 3.7, 0.05, 0);
-    box(1.15, 1.65, 1.3, ironMat, -3.95, 1.95, 0);   // headstock (left)
-    box(1.3, 0.3, 1.44, ironDark, -3.95, 2.9, 0);
-    box(1.0, 1.35, 1.1, ironMat, 3.95, 1.8, 0);      // tailstock (right)
-    box(1.14, 0.26, 1.24, ironDark, 3.95, 2.58, 0);
-    var chuck = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.55, 24), ironDark);
-    chuck.rotation.z = Math.PI / 2; chuck.position.set(-3.28, CENTER_Y, 0); chuck.castShadow = true;
-    lathe.add(chuck);
-    var tailCone = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.62, 20), steelDark);
-    tailCone.rotation.z = Math.PI / 2; tailCone.position.set(3.42, CENTER_Y, 0); tailCone.castShadow = true;
-    lathe.add(tailCone);
-    var tailBar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 14), steelMat);
-    tailBar.rotation.z = Math.PI / 2; tailBar.position.set(3.78, CENTER_Y, 0);
-    lathe.add(tailBar);
+    function box(w, h, d, mat, x, y, z, shadow) { return add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat), x, y, z, shadow); }
+    /* a box with rounded edges: a rounded rectangle (w x h, corner r) extruded d deep, centred */
+    function rbox(w, h, d, r, mat, x, y, z, shadow) {
+      var sh = new THREE.Shape(), hw = w / 2 - r, hh = h / 2 - r;
+      sh.moveTo(-hw, -h / 2); sh.lineTo(hw, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -hh);
+      sh.lineTo(w / 2, hh); sh.quadraticCurveTo(w / 2, h / 2, hw, h / 2); sh.lineTo(-hw, h / 2);
+      sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, hh); sh.lineTo(-w / 2, -hh); sh.quadraticCurveTo(-w / 2, -h / 2, -hw, -h / 2);
+      var bev = Math.min(r, d * 0.2);
+      var geo = new THREE.ExtrudeGeometry(sh, { depth: d - bev * 2, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.6, bevelSegments: 2, curveSegments: 4 });
+      geo.translate(0, 0, -(d - bev * 2) / 2);
+      return add(new THREE.Mesh(geo, mat), x, y, z, shadow);
+    }
+    function cylX(r0, r1, len, mat, x, y, z, seg, shadow) {
+      var m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, len, seg || 20), mat);
+      m.rotation.z = Math.PI / 2; return add(m, x, y, z, shadow);
+    }
+    function wheel(rad, x, y, z) {               // a handwheel seen side-on along the axis: rim, hub, spokes, crank knob
+      var g = new THREE.Group();
+      var rim = new THREE.Mesh(new THREE.TorusGeometry(rad, rad * 0.11, 8, 28), castDark); rim.rotation.y = Math.PI / 2; g.add(rim);
+      var hub = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.22, rad * 0.22, rad * 0.4, 14), castDark); hub.rotation.z = Math.PI / 2; g.add(hub);
+      for (var k = 0; k < 3; k++) {
+        var sp = new THREE.Mesh(new THREE.BoxGeometry(rad * 0.08, rad * 1.9, rad * 0.1), castDark);
+        sp.rotation.x = k * Math.PI / 3; g.add(sp);
+      }
+      var knob = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.09, rad * 0.09, rad * 0.55, 10), blackMat);
+      knob.rotation.z = Math.PI / 2; knob.position.set(rad * 0.28, rad * 0.8, 0); g.add(knob);
+      g.position.set(x, y, z); lathe.add(g); return g;
+    }
+
+    // the stand: a splayed cast leg at each end, feet, a stretcher and a timber shelf with offcuts on it
+    var BED_Y = 1.2;
+    [-3.55, 3.55].forEach(function (lx) {
+      var leg = new THREE.Shape();
+      leg.moveTo(-0.72, 0); leg.lineTo(0.72, 0); leg.lineTo(0.42, BED_Y - 0.24); leg.lineTo(-0.42, BED_Y - 0.24); leg.closePath();
+      var hole = new THREE.Path(); hole.moveTo(-0.3, 0.22); hole.lineTo(0.3, 0.22); hole.lineTo(0.17, 0.7); hole.lineTo(-0.17, 0.7); hole.closePath();
+      leg.holes.push(hole);
+      var lg = new THREE.ExtrudeGeometry(leg, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 1 });
+      lg.translate(0, 0, -0.1);
+      var m = new THREE.Mesh(lg, castDark); m.rotation.y = Math.PI / 2; add(m, lx, 0, 0.05, true);
+      box(0.34, 0.07, 1.6, castDark, lx, 0.035, 0.05, false);
+    });
+    box(6.9, 0.12, 0.16, castDark, 0, 0.36, -0.15, false);
+    box(6.9, 0.07, 1.0, timberMat, 0, 0.45, 0.05, true);
+    box(1.6, 0.16, 0.24, timberMat, -1.6, 0.57, 0.1, false).rotation.y = 0.12;
+    box(1.1, 0.13, 0.2, timberMat, -1.5, 0.71, -0.02, false).rotation.y = -0.2;
+    cylX(0.17, 0.17, 1.2, timberMat, 1.4, 0.66, 0.15, 14, false);
+
+    // the bed: two ground ways on a cast girder
+    box(8.6, 0.26, 0.5, castMat, 0, BED_Y - 0.13, 0.02, true);
+    box(8.5, 0.12, 0.2, waysMat, 0, BED_Y + 0.06, -0.17, true);
+    box(8.5, 0.12, 0.2, waysMat, 0, BED_Y + 0.06, 0.21, true);
+    var WAY_TOP = BED_Y + 0.12;
+
+    // headstock (left): a rounded casting, the belt cover domed over it, the spindle boss and spur drive
+    rbox(1.2, 1.25, 1.25, 0.14, castMat, -3.95, WAY_TOP + 0.62, 0.02, true);
+    var dome = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 1.1, 28), castMat);   // the belt cover: half sunk in the casting
+    dome.rotation.x = Math.PI / 2; add(dome, -3.98, WAY_TOP + 1.1, 0.02, true);
+    cylX(0.3, 0.36, 0.34, castMat, -3.22, CENTER_Y, 0, 24, true);        // spindle boss
+    var chuck = cylX(0.2, 0.2, 0.16, steelDark, -3.0, CENTER_Y, 0, 18, false);   // spur drive
+    var spur = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 10), steelMat);
+    spur.rotation.z = -Math.PI / 2; add(spur, -2.88, CENTER_Y, 0, false);
+    wheel(0.36, -4.7, CENTER_Y, 0.02);                                      // outboard handwheel
+    // the motor slung behind and below, and the switch box on the front of the headstock
+    cylX(0.3, 0.3, 0.9, castDark, -3.75, 0.82, -0.45, 20, true);
+    cylX(0.31, 0.31, 0.08, blackMat, -3.27, 0.82, -0.45, 20, false);
+    var sw = rbox(0.56, 0.44, 0.16, 0.05, blackMat, -3.95, WAY_TOP + 0.62, 0.72, false);
+    var stopBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 14), new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.4 }));
+    stopBtn.rotation.x = Math.PI / 2; add(stopBtn, -4.08, WAY_TOP + 0.62, 0.82, false);
+    var goBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.06, 14), new THREE.MeshStandardMaterial({ color: 0x3f8a3c, roughness: 0.4 }));
+    goBtn.rotation.x = Math.PI / 2; add(goBtn, -3.86, WAY_TOP + 0.72, 0.82, false);
+    var dial = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.07, 16), steelDark);
+    dial.rotation.x = Math.PI / 2; add(dial, -3.84, WAY_TOP + 0.52, 0.82, false);
+
+    // tailstock (right): casting, quill, live centre, handwheel, lock lever
+    rbox(0.95, 0.92, 1.0, 0.12, castMat, 3.95, WAY_TOP + 0.46, 0.02, true);
+    cylX(0.3, 0.26, 0.9, castMat, 3.9, CENTER_Y, 0.02, 22, true);         // the barrel the quill runs in
+    var tailBar = cylX(0.11, 0.11, 0.5, steelMat, 3.33, CENTER_Y, 0, 16, false);   // quill
+    var tailCone = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.4, 20), steelDark);
+    tailCone.rotation.z = Math.PI / 2; add(tailCone, 2.95 + 0.2 - 0.05, CENTER_Y, 0, false);
+    cylX(0.06, 0.06, 0.4, steelDark, 4.5, CENTER_Y, 0.02, 10, false);
+    wheel(0.3, 4.7, CENTER_Y, 0.02);
+    var lever = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.55, 8), blackMat);
+    lever.rotation.z = -0.6; add(lever, 3.7, CENTER_Y + 0.42, 0.25, false);
+
+    // the banjo slides under the ways and carries the post; the tool rest bar sits on it
+    box(0.55, 0.2, 1.5, castMat, 1.7, BED_Y - 0.36, 0.55, true);
     var restBar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 5.4, 14), steelMat);
     restBar.rotation.z = Math.PI / 2; restBar.position.set(0, CENTER_Y - 0.92, 1.28);
     restBar.castShadow = true; lathe.add(restBar);
-    box(0.5, 0.85, 0.5, ironMat, 1.7, 0.72, 1.28);
-    var restPost = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.55, 12), steelDark);
-    restPost.position.set(1.7, 1.32, 1.28); lathe.add(restPost);
+    var restPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.36, 12), castMat);
+    add(restPost, 1.7, CENTER_Y - 1.1, 1.28, false);
+    var banjoLock = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8), blackMat);
+    banjoLock.rotation.x = 1.0; add(banjoLock, 1.95, BED_Y - 0.36, 1.32, false);
+
+    /* ---------------- the work light, hung from the rafters ----------------
+       A small fixture at the very top of the frame, on a cord that runs up out
+       of sight. It is drawn for the tier the workshop owns (S.lightLevel), and
+       the spot light shines from it, so the light the piece gets comes from
+       the lamp the player can see. */
+    var fixture = new THREE.Group(), fixtureLevel = -1;
+    scene.add(fixture);
+    var glowTex = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 64;
+      var g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, "rgba(255,240,205,1)"); gr.addColorStop(0.35, "rgba(255,220,160,0.45)"); gr.addColorStop(1, "rgba(255,200,120,0)");
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    function buildFixture(lv) {
+      while (fixture.children.length) fixture.remove(fixture.children[0]);
+      var lit = new THREE.MeshBasicMaterial({ color: [0xffe2a8, 0xfff0d0, 0xfff8ee, 0xffffff][lv] });
+      var glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      function part(geo, mat, x, y, z) { var m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fixture.add(m); return m; }
+      function cord(x, len) { part(new THREE.CylinderGeometry(0.012, 0.012, len, 5), blackMat, x, len / 2, 0); }
+      if (lv === 0) {                       // a bare bulb in a socket on a flex
+        cord(0, 3);
+        part(new THREE.CylinderGeometry(0.05, 0.06, 0.14, 10), blackMat, 0, -0.06, 0);
+        part(new THREE.SphereGeometry(0.11, 14, 10), lit, 0, -0.2, 0);
+        glow.scale.set(0.9, 0.9, 1); glow.position.set(0, -0.2, 0.05);
+      } else if (lv === 1) {                // a yellow halogen work light on a short pipe, face down
+        cord(0, 3);
+        var body = part(new THREE.BoxGeometry(0.46, 0.16, 0.3), new THREE.MeshStandardMaterial({ color: 0xe0b321, roughness: 0.45, metalness: 0.2 }), 0, -0.1, 0);
+        body.rotation.x = 0.35;
+        var face = part(new THREE.PlaneGeometry(0.38, 0.22), lit, 0, -0.185, 0.03); face.rotation.x = Math.PI / 2 + 0.35;
+        glow.scale.set(1.3, 0.9, 1); glow.position.set(0, -0.24, 0.08);
+      } else {                              // a long LED panel (or two) on chains
+        var wide = lv === 2 ? 1.7 : 2.6;
+        cord(-wide * 0.4, 3); cord(wide * 0.4, 3);
+        part(new THREE.BoxGeometry(wide, 0.06, 0.26), new THREE.MeshStandardMaterial({ color: 0xd8dadc, roughness: 0.4, metalness: 0.5 }), 0, -0.03, 0);
+        var strip = part(new THREE.PlaneGeometry(wide - 0.08, 0.2), lit, 0, -0.065, 0); strip.rotation.x = Math.PI / 2;
+        if (lv >= 3) { var strip2 = part(new THREE.BoxGeometry(wide, 0.06, 0.26), new THREE.MeshStandardMaterial({ color: 0xd8dadc, roughness: 0.4, metalness: 0.5 }), 0, -0.03, -0.34); var s2 = part(new THREE.PlaneGeometry(wide - 0.08, 0.2), lit, 0, -0.065, -0.34); s2.rotation.x = Math.PI / 2; }
+        glow.scale.set(wide * 1.5, 0.7, 1); glow.position.set(0, -0.1, 0.05);
+      }
+      fixture.add(glow);
+    }
+    var _ray = new THREE.Vector3();
+    function hangFixture() {               // just inside the top edge of the frame, a little in front of the lathe
+      camera.updateMatrixWorld();
+      _ray.set(0, 0.94, 0.5).unproject(camera).sub(camera.position).normalize();
+      var zf = 0.9, t = (zf - camera.position.z) / _ray.z;
+      fixture.position.set(0, camera.position.y + _ray.y * t, zf);
+      workLight.position.set(0.2, fixture.position.y - 0.25, zf);
+    }
 
     /* ---------------- the workpiece ---------------- */
     var woodTex = makeWoodTexture();
@@ -726,6 +892,7 @@
       camBase.copy(camera.position);
       camera.lookAt(0, CENTER_Y - 0.12, 0);
       camera.updateProjectionMatrix();
+      hangFixture();
       computeLayout();
     }
 
@@ -779,6 +946,7 @@
       },
       frame: function (dt) {
         syncGhost();
+        syncLight();
         frameN++;
         showTip();
         showTool();

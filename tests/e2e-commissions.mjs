@@ -54,6 +54,7 @@ check(st.order === first.id && st.target, "the order is on the lathe with its ta
 check(st.stock && st.stock.kind === "log" && st.wood === "pine", "the pine log from the shed is mounted");
 check(st.spec === st.wantSpec, "the spec card shows the order's paint spec");
 check(st.btn === "BOARD", "NEW SPEC becomes BOARD while an order is on");
+check(/COMMISSION/.test(await page.locator("#specTag").textContent()), "the spec card says it is a commission");
 check(/SHAPE\s*\d+%/.test(st.label), `the profile strip shows a live shape score (${st.label})`);
 
 // the ghost is drawn in the 2D view: a pixel on the dashed target line is pale
@@ -118,7 +119,10 @@ if (shots) await page.screenshot({ path: `${shots}/delivered.png` });
 await page.locator('#gradeOverlay [data-act="board"]').click();
 await page.waitForTimeout(300);
 check(await page.locator(".order.empty").count() === 1, "an empty slot waits for the next order");
-check(/1 commission delivered/.test(await page.locator("#boardFoot").textContent()), "the board counts it");
+check(/DELIVERED\s*1 commission/.test(await page.locator("#boardFoot").textContent()), "the board counts it");
+check(await page.locator("#boardFoot .order.hist li").count() === 1, "and lists it in its own panel");
+check(await page.evaluate(() => getComputedStyle(document.querySelector("#boardFoot .stars span.on")).color) === "rgb(246, 196, 106)", "with gold stars");
+check(/PRACTICE/.test(await page.locator("#specTag").textContent()), "with no order on, the lathe's spec card says it is practice");
 
 console.log("\nWRONG WOOD AND DECLINE");
 const oak = await page.evaluate(() => {

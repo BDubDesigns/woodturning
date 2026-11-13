@@ -123,15 +123,15 @@
       h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p></article>";
     }
     listEl.innerHTML = h;
-    var f = "";
-    if (B.done) f += '<p class="b-done">' + B.done + (B.done === 1 ? " commission" : " commissions") + " delivered.</p>";
-    var recent = B.history.slice(-3).reverse();
+    var f = "", recent = B.history.slice(-5).reverse();
     if (recent.length) {
+      f += '<section class="order hist" aria-label="Delivered commissions"><div class="h-top"><span class="h-k">DELIVERED</span><span class="h-n">' + B.done + (B.done === 1 ? " commission" : " commissions") + "</span></div>";
       f += '<ul class="b-hist">' + recent.map(function (r) {
-        return "<li>" + starsHtml(r.stars) + "<span>" + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + " for " + esc(r.client) + "</span><b>" + COIN + "+" + r.pay + "</b></li>";
-      }).join("") + "</ul>";
+        var w = R.WOODS[r.wood];
+        return '<li>' + starsHtml(r.stars) + '<span class="h-what"><b>' + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + "</b><small>for " + esc(r.client) + (w ? " · " + w.name : "") + '</small></span><span class="h-pay">' + COIN + "+" + r.pay + "</span></li>";
+      }).join("") + "</ul></section>";
     }
-    f += '<p class="b-help">Turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p>';
+    f += '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p>';
     footEl.innerHTML = f;
   }
   function tickClock() {
