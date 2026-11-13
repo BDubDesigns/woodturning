@@ -14,7 +14,12 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch();
 for (const [label, viewport] of [["desktop", { width: 1100, height: 760 }], ["phone", { width: 390, height: 760 }]]) {
   const pg = await browser.newPage({ viewport, deviceScaleFactor: 2 });
-  await pg.goto(`file://${page_}?seed=7${wood ? "&wood=" + wood : ""}#harvest`);
+  // the forest opens only from a grown farm tree: grow one, tap it, then HARVEST
+  await pg.goto(`file://${page_}?seed=7#farm`);
+  await pg.waitForFunction(() => window.__farm);
+  await pg.evaluate((wood) => { const f = window.__farm.farm; f.state.plots[0] = null; f.plant(0, wood); f.state.plots[0].plantedAt -= 60 * 60 * 1000; window.__farm.tick(); }, wood || "oak");
+  await pg.click('.plot[data-i="0"]');
+  await pg.click('[data-act="harvest"]');
   await pg.waitForFunction(() => window.__harvest && window.__harvest.running);
   const snap = async (name) => { await pg.waitForTimeout(250); await pg.screenshot({ path: `${out}/${prefix}${label}-${name}.png` }); };
   // a standing tree with a deep notch from each side, not yet through
