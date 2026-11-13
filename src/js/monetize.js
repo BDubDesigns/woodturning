@@ -13,8 +13,13 @@
      - The full-unlock removes ads and every timer. It never removes
        or adds anything to the core loop, since the core loop is free.
 
+   The mine itself: one finished ad lets the player into the mine
+   (`enterMine`), where they crack a diamond vein by hand. Cracking
+   it pays DIAMONDS_PER_VEIN once (`claimVein`) and uses up the
+   visit. The visit is saved, so leaving halfway loses nothing.
+
    State lives in the save as `game.mine`:
-     { unlocked, adsWatched, gemsSold }
+     { unlocked, adsWatched, gemsSold, pass }
    and `game.wallet.gems`. The model owns both and is handed the
    wallet and the save object, same as the farm.
 
@@ -25,7 +30,8 @@
   "use strict";
 
   var CFG = {
-    DIAMONDS_PER_AD: 3,        // mine diamonds: one finished ad pays this many
+    DIAMONDS_PER_AD: 3,        // old direct trade, kept for the model API; the screen now uses the vein
+    DIAMONDS_PER_VEIN: 5,      // cracking the vein in the mine pays this many diamonds
     GEMS_PER_AD: 1,            // mine gems: one finished ad pays this many
     COINS_PER_GEM: 25,         // what a gem sells for
     AD_SECONDS: 5,             // length of the house ad
@@ -33,7 +39,7 @@
     COINS_PER_DIAMOND_LAND: 10 // land can also be bought with diamonds at this rate (see farm.js)
   };
 
-  function defaultMine() { return { unlocked: false, adsWatched: 0, gemsSold: 0 }; }
+  function defaultMine() { return { unlocked: false, adsWatched: 0, gemsSold: 0, pass: false }; }
 
   function count(n) { return typeof n === "number" && isFinite(n) && n >= 0 ? Math.floor(n) : 0; }
 
@@ -44,6 +50,7 @@
     out.unlocked = m.unlocked === true;
     out.adsWatched = count(m.adsWatched);
     out.gemsSold = count(m.gemsSold);
+    out.pass = m.pass === true;
     return out;
   }
 
@@ -79,6 +86,31 @@
       return { ok: true, kind: kind, amount: t.amount };
     }
 
+    /* Let the player into the mine. Same rule as the trade: an ad that
+       ran to the end, or the full game. A closed ad lets nobody in and
+       costs nothing. Entering twice without cracking keeps one visit. */
+    function enterMine(adFinished) {
+      if (mine.pass) return { ok: true, already: true };
+      if (!needsAd()) return { ok: true };          // full game: walk straight in, nothing to keep
+      if (adFinished !== true) return { ok: false, reason: "ad not finished" };
+      mine.adsWatched += 1;
+      mine.pass = true;
+      onChange();
+      return { ok: true };
+    }
+    function hasPass() { return mine.pass === true || isUnlocked(); }
+
+    /* The vein cracked: pay it, once per visit. This is the one place the
+       mine scene's reward is decided. */
+    function claimVein() {
+      if (!hasPass()) return { ok: false, reason: "no visit" };
+      var n = CFG.DIAMONDS_PER_VEIN;
+      wallet.diamonds += n;
+      mine.pass = false;
+      onChange();
+      return { ok: true, kind: "diamonds", amount: n };
+    }
+
     function sellGems(n) {
       var have = wallet.gems;
       var qty = n === undefined || n === "all" ? have : Math.floor(n);
@@ -104,7 +136,8 @@
     return {
       state: mine, wallet: wallet,
       isUnlocked: isUnlocked, needsAd: needsAd, timersOff: isUnlocked,
-      mineReward: mineReward, sellGems: sellGems, unlock: unlock
+      mineReward: mineReward, enterMine: enterMine, hasPass: hasPass, claimVein: claimVein,
+      sellGems: sellGems, unlock: unlock
     };
   }
 

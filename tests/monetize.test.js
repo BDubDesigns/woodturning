@@ -192,3 +192,37 @@ test("the full-unlock price is a single number, 5 or 10", () => {
   assert.ok(M.CFG.UNLOCK_PRICE_USD === 5 || M.CFG.UNLOCK_PRICE_USD === 10);
   assert.equal(M.priceLabel(), "$" + M.CFG.UNLOCK_PRICE_USD);
 });
+
+test("the mine: one finished ad lets you in, cracking the vein pays exactly once", () => {
+  const { game, mine } = setup();
+  const d0 = game.wallet.diamonds;
+  assert.equal(mine.hasPass(), false);
+  assert.equal(mine.claimVein().ok, false, "no visit, no pay");
+  assert.equal(mine.enterMine(false).ok, false, "a closed ad lets nobody in");
+  assert.equal(mine.state.adsWatched, 0);
+  assert.equal(mine.enterMine(true).ok, true);
+  assert.equal(mine.state.adsWatched, 1);
+  assert.equal(mine.hasPass(), true);
+  assert.equal(mine.enterMine(true).already, true, "walking back in keeps the one visit");
+  assert.equal(mine.state.adsWatched, 1);
+  assert.deepEqual(mine.claimVein(), { ok: true, kind: "diamonds", amount: M.CFG.DIAMONDS_PER_VEIN });
+  assert.equal(M.CFG.DIAMONDS_PER_VEIN, 5);
+  assert.equal(game.wallet.diamonds, d0 + 5);
+  assert.equal(mine.claimVein().ok, false, "the visit is used up");
+  assert.equal(game.wallet.diamonds, d0 + 5);
+});
+
+test("the mine visit survives a save, and the full game walks straight in every time", () => {
+  const { game, mine } = setup();
+  mine.enterMine(true);
+  const again = M.createMine(JSON.parse(JSON.stringify(game)));
+  assert.equal(again.hasPass(), true, "a saved visit is still there after a reload");
+  assert.equal(M.normalizeMine({ pass: "yes" }).pass, false);
+  mine.claimVein();
+  mine.unlock();
+  const d0 = game.wallet.diamonds;
+  assert.equal(mine.enterMine().ok, true, "no ad needed");
+  assert.equal(mine.state.pass, false, "nothing to keep");
+  mine.claimVein(); mine.claimVein();
+  assert.equal(game.wallet.diamonds, d0 + 10);
+});

@@ -218,6 +218,25 @@
 
       <div id="mineScreen" class="screen" hidden>
         <div id="mineBody"></div>
+        <div id="mineScene" hidden>
+          <div id="mstage">
+            <canvas id="mcanvas" aria-label="The mine: swipe the pick across the rock to crack the diamond vein"></canvas>
+            <div class="vein-hud" aria-hidden="true"><span class="vk">VEIN</span><span class="vbar"><i id="veinBar"></i></span></div>
+            <div id="mhint"><b>Swipe across the rock</b> to swing the pick. Fast swings hit hardest.</div>
+            <div id="mresult" role="status" aria-live="polite" hidden></div>
+          </div>
+          <footer class="mine-foot-bar">
+            <button class="ctl-btn" id="mLeaveBtn" title="Back to the mine entrance">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+              LEAVE
+            </button>
+            <div class="mine-strikes">SWINGS <b id="mSwings">0</b></div>
+            <button class="ctl-btn" id="mSoundBtn" data-sound aria-pressed="true" title="Toggle sound">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="snd-waves" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="snd-waves" d="M18.5 5.5a9.4 9.4 0 0 1 0 13"/></svg>
+              SOUND
+            </button>
+          </footer>
+        </div>
       </div>
     </div>
 
@@ -235,6 +254,8 @@
     <script src="js/save.js"></script>
     <script src="js/farm.js"></script>
     <script src="js/monetize.js"></script>
+    <script src="js/vein.js"></script>
+    <script src="js/mine-scene.js"></script>
     <script src="js/farm-ui.js"></script>
     <script src="js/monetize-ui.js"></script>
   </body>

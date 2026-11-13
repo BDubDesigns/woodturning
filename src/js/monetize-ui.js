@@ -1,6 +1,7 @@
 /* ============================================================
-   The mine screen: the ad trade, selling gems, the full unlock,
-   and the ad overlay. Draws from the monetization model
+   The mine screen: the entrance (one ad gets you in), the mine
+   scene itself (mine-scene.js: crack the vein by hand), selling
+   gems, the full unlock, and the ad overlay. Draws from the monetization model
    (monetize.js) and the shared game state farm-ui.js exposes as
    __farm. Wording rules: say what a thing costs and what it
    gives, in plain numbers, and never hide the close button.
@@ -34,7 +35,7 @@
         '<div class="ad-card">' +
           '<div class="ad-tag">AD</div>' +
           '<div class="ad-title" id="adTitle">Ad break</div>' +
-          '<div class="ad-body">This is where a real ad plays in the store version. For now it is a short wait. Stay to the end to mine ' + esc(reward) + '.</div>' +
+          '<div class="ad-body">This is where a real ad plays in the store version. For now it is a short wait. Stay to the end to ' + esc(reward) + '.</div>' +
           '<div class="ad-time" id="adTime" aria-live="off"></div>' +
           '<div class="ad-bar"><i id="adBar"></i></div>' +
           '<button type="button" class="act ad-close" id="adClose"><span class="an">CLOSE</span><span class="ad">Leave now. You get nothing and lose nothing.</span></button>' +
@@ -80,24 +81,24 @@
     noteTimer = setTimeout(function () { note = ""; var e2 = $("mineNote"); if (e2) e2.classList.remove("on"); }, 4200);
   }
 
-  function mineButton(kind) {
-    var t = M.trade(kind), free = !mine.needsAd();
-    var label = free ? "MINE " + t.amount + " " + t.noun.toUpperCase() : "MINE " + kind.toUpperCase();
-    var desc;
-    if (kind === "diamonds") desc = free ? "No ad. Instant." : "Watch one ad, get " + plural(t.amount, "diamond", "diamonds");
-    else desc = (free ? "No ad. " : "Watch one ad, get " + plural(t.amount, "gem", "gems") + ". ") + "A gem sells for " + CFG.COINS_PER_GEM + " coins";
-    return '<button type="button" class="act primary" data-act="mine-' + kind + '"><span class="an">' + label + '</span><span class="ad">' + desc + "</span></button>";
+  function enterButton() {
+    var free = !mine.needsAd(), pass = mine.state.pass;
+    var desc = pass ? "Your visit is saved. The vein is waiting"
+      : free ? "No ad. Walk straight in"
+      : "Watch one ad of about " + CFG.AD_SECONDS + " seconds";
+    return '<button type="button" class="act primary" data-act="enter-mine"><span class="an">' + (pass ? "BACK TO THE VEIN" : "ENTER THE MINE") + '</span><span class="ad">' + desc + "</span></button>";
   }
 
   function render() {
     var free = !mine.needsAd(), gems = game.wallet.gems, un = mine.isUnlocked();
     var h = "";
 
+    var vein = plural(CFG.DIAMONDS_PER_VEIN, "diamond", "diamonds");
     h += '<section class="mine-card" aria-labelledby="mTradeH"><h2 id="mTradeH">THE TRADE</h2>';
     h += free
-      ? "<p>You own the full game, so there are no ads. Mining is free and pays the same.</p>"
-      : "<p>Watch one ad of about " + CFG.AD_SECONDS + " seconds, then pick what you mine. You get exactly that, every time. No dice, no hidden rates.</p>";
-    h += '<div class="row">' + mineButton("diamonds") + mineButton("gems") + "</div>";
+      ? "<p>You own the full game, so there are no ads. Walk in, crack the diamond vein, and it pays " + vein + ". Crack as many as you like.</p>"
+      : "<p>Watch one ad of about " + CFG.AD_SECONDS + " seconds to get into the mine. Swing a pick at the diamond vein until it cracks open. It pays exactly " + vein + ", every time. No dice, no hidden rates.</p>";
+    h += '<div class="row">' + enterButton() + "</div>";
     h += '<div class="mine-note" id="mineNote" role="status" aria-live="polite"></div></section>';
 
     h += '<section class="mine-card" aria-labelledby="mGemsH"><h2 id="mGemsH">GEMS</h2>';
@@ -131,32 +132,95 @@
     if (note) { var el = $("mineNote"); el.textContent = note; el.classList.add("on"); }
   }
 
+  /* ---------------- the mine scene ---------------- */
+  var sceneEl = $("mineScene"), resultEl = $("mresult"), hintEl = $("mhint"), barEl = $("veinBar"), swingsEl = $("mSwings");
+  var inScene = false, paid = null;
+  var scene = G.MineScene.create({
+    stage: $("mstage"), canvas: $("mcanvas"),
+    crystals: CFG.DIAMONDS_PER_VEIN,
+    onStrike: function (ev) {
+      hintEl.classList.add("off");
+      if (ev.type === "tink") { flashHint("Too slow. <b>Swing faster</b> to bite into the rock."); return; }
+      barEl.style.width = (100 * ev.hp / scene.vein.maxHp).toFixed(1) + "%";
+      swingsEl.textContent = String(scene.vein.strikes);
+    },
+    onBroken: function () { paid = awardVein(); },
+    onSettled: showResult
+  });
+
+  /* The one place the vein's reward is paid. Wire a new wallet here. */
+  function awardVein() { return mine.claimVein(); }
+
+  var hintTimer = 0;
+  function flashHint(html) {
+    hintEl.innerHTML = html; hintEl.classList.remove("off");
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () { hintEl.classList.add("off"); }, 1600);
+  }
+
+  function showResult() {
+    var ok = paid && paid.ok, again = !mine.needsAd();
+    resultEl.innerHTML =
+      '<div class="mresult-card">' +
+        "<h2>VEIN CRACKED</h2>" +
+        (ok ? '<p class="mgain">+' + paid.amount + " <span>" + (paid.amount === 1 ? "diamond" : "diamonds") + "</span></p>" : "<p>The rock is open.</p>") +
+        "<p>In " + plural(scene.vein.strikes, "swing", "swings") + ". You have " + game.wallet.diamonds + " diamonds.</p>" +
+        '<div class="row">' +
+          (again ? '<button type="button" class="act primary" data-act="mine-again"><span class="an">CRACK ANOTHER</span><span class="ad">No ad. Full game</span></button>' : "") +
+          '<button type="button" class="act' + (again ? "" : " primary") + '" data-act="mine-leave"><span class="an">BACK TO THE ENTRANCE</span><span class="ad">' + (again ? "Done for now" : "Another visit takes another ad") + "</span></button>" +
+        "</div>" +
+      "</div>";
+    resultEl.hidden = false;
+  }
+
+  function openScene(fresh) {
+    inScene = true; paid = null;
+    if (fresh || !scene.vein || scene.vein.broken) scene.reset();
+    resultEl.hidden = true; resultEl.innerHTML = "";
+    hintEl.innerHTML = "<b>Swipe across the rock</b> to swing the pick. Fast swings hit hardest.";
+    hintEl.classList.remove("off");
+    barEl.style.width = (100 * scene.vein.hp / scene.vein.maxHp).toFixed(1) + "%";
+    swingsEl.textContent = String(scene.vein.strikes);
+    body.hidden = true; sceneEl.hidden = false;
+    scene.show();
+  }
+  function closeScene() {
+    var cracked = scene.vein && scene.vein.broken;
+    inScene = false;
+    scene.hide();
+    sceneEl.hidden = true; body.hidden = false;
+    render();
+    if (!cracked && mine.state.pass) say("Your visit is saved. Come back any time to crack the vein.");
+  }
+
   /* ---------------- actions ---------------- */
-  function startMining(kind) {
+  function enterMine() {
     if (busy) return;
-    var t = M.trade(kind);
-    if (!mine.needsAd()) {
-      var r = mine.mineReward(kind, true);
-      if (r.ok) { host.renderWallet(); render(); say("Mined " + plural(r.amount, t.noun, t.noun) + "."); }
-      return;
-    }
+    if (mine.hasPass()) { mine.enterMine(true); openScene(false); return; }
     busy = true;
-    adProvider.show(plural(t.amount, t.noun, t.noun), function (finished) {
+    adProvider.show("get into the mine", function (finished) {
       busy = false;
-      var r = mine.mineReward(kind, finished);
+      var r = mine.enterMine(finished);
       host.renderWallet();
-      render();
-      if (r.ok) say("Mined " + plural(r.amount, t.noun, t.noun) + ". Thanks for watching.");
-      else say("Ad closed early. No reward, and nothing spent.");
+      if (r.ok) openScene(true);
+      else { render(); say("Ad closed early. You stay outside, and nothing is spent."); }
     });
   }
+
+  sceneEl.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("[data-act], button") : null;
+    if (!b) return;
+    var a = b.getAttribute("data-act") || b.id;
+    if (a === "mine-leave" || a === "mLeaveBtn") closeScene();
+    else if (a === "mine-again") { mine.enterMine(true); openScene(true); }
+    else if (a === "mSoundBtn") { if (root.Lathe && root.Lathe.audio) root.Lathe.audio.toggle(); }
+  });
 
   body.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
     if (!b) return;
     var a = b.getAttribute("data-act");
-    if (a === "mine-diamonds") startMining("diamonds");
-    else if (a === "mine-gems") startMining("gems");
+    if (a === "enter-mine") enterMine();
     else if (a === "sell-gems") {
       var r = mine.sellGems("all");
       host.renderWallet(); render();
@@ -173,8 +237,11 @@
     }
   });
 
-  root.MineUI = { show: render, adProvider: adProvider, payProvider: payProvider };
-  root.__mine = { mine: mine, adProvider: adProvider, payProvider: payProvider };
+  function showMine() { if (inScene) { body.hidden = true; sceneEl.hidden = false; scene.show(); } else render(); }
+  function hideMine() { scene.hide(); }
+
+  root.MineUI = { show: showMine, hide: hideMine, adProvider: adProvider, payProvider: payProvider, awardVein: awardVein };
+  root.__mine = { mine: mine, adProvider: adProvider, payProvider: payProvider, scene: scene, inScene: function () { return inScene; } };
 
   // a game that opens on #mine: farm-ui ran showScreen before this file loaded
   if (!$("mineScreen").hidden) render();

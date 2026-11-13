@@ -61,6 +61,16 @@ mine, monetization, distribution, and the one-month bet.
   purchase until the Play Store slice wires AdMob and Play Billing. Play Pass
   notes are in `docs/play-pass.md` (open question, not applied for).
 
+- The mine: the MINE tab's ad no longer pays out directly. One finished ad
+  (about 5 seconds, close button always there) lets you into the mine: a
+  timbered shaft with a diamond vein in the middle. Swipe the pick across it;
+  fast swings bite, slow drags just tink. Each strike throws rock chunks, dust
+  and sparks and opens a crack where it landed, and the old cracks creep. When
+  it breaks the diamonds tumble out and fly to the wallet: exactly 5, every
+  time. Leaving halfway keeps the visit. The full unlock walks straight in.
+  Model in `src/js/vein.js`, scene in `src/js/mine-scene.js`, and the payout is
+  one function, `awardVein` in `src/js/monetize-ui.js`.
+
 ## Play
 
 Open `lathe.html` in a browser. The FARM, HARVEST, LATHE and MINE tabs switch

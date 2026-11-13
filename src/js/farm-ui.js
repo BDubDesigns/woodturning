@@ -45,6 +45,7 @@
     L.audio.lathe(name === "lathe");        // and so does its motor
     harvestStatsEl.style.display = name === "harvest" ? "" : "none";
     if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();
+    if (name !== "mine" && root.MineUI) root.MineUI.hide();   // the mine scene sleeps too
     if (name === "farm") {
       titleEl.innerHTML = "THE <em>FARM</em>";
       subEl.textContent = "PLANT · WAIT · CHOP · GROWS WHILE YOU ARE AWAY";
@@ -57,7 +58,7 @@
       statsEl.style.display = "none";
     } else if (name === "mine") {
       titleEl.innerHTML = "THE <em>MINE</em>";
-      subEl.textContent = "WATCH AN AD · MINE DIAMONDS OR GEMS · NO TRICKS";
+      subEl.textContent = "WATCH AN AD · CRACK THE VEIN · " + M.CFG.DIAMONDS_PER_VEIN + " DIAMONDS";
       statsEl.style.display = "none";
       if (root.MineUI) root.MineUI.show();
     } else {
