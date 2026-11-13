@@ -372,7 +372,7 @@
     }
 
     /* ---------------- main loop ---------------- */
-    var CHIP_SCALE = 120 / C.SEG;   // chip/sound tuning was done at 120 slices
+    var CHIP_SCALE = (120 / C.SEG) * 2.8;   // chip/sound tuning was done at 120 slices and the old, ~3x faster removal rate
     var lastFrame = performance.now(), frameN = 0;
     function frame(nowMs) {
       requestAnimationFrame(frame);
@@ -391,7 +391,7 @@
         if (p.active) {
           S.lastT = p.t;
           if (S.mode === "cut") {
-            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1) * CHIP_SCALE;
+            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);

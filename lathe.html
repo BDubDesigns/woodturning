@@ -743,7 +743,10 @@ footer {
       pass may go (PASS_DEPTH at full pressure).
 
    2. Removal is rate-capped. Each slice loses at most `rate`
-      units/sec, so a fast whip spends almost no time over a slice
+      units/sec, where rate = tip rate x RATE_SCALE x the RPM factor
+      x the pressure factor (see removalRate). Faster spin and a
+      harder push both take wood off quicker; a light touch at low
+      RPM barely shaves. A fast whip spends almost no time over a slice
       and only scores it, while a slow steady pass reaches the full
       pass depth. Going deeper than one pass takes another pass:
       a slice's pass reference resets once the tool leaves it, or
@@ -775,15 +778,41 @@ footer {
     PASS_DEPTH: 0.36,    // max depth one pass can reach at full pressure (about 14 mm)
     NOSE_RADIUS: 0.1,    // fins narrower than this ball get rounded into beads (about 4 mm)
 
+    // Removal speed. rate = TIPS[tip].rate * RATE_SCALE * rpmFactor * pressureFactor
+    RATE_SCALE: 1,       // global knob for how fast wood comes off
+    RPM_REF: 1100,       // the default spindle speed; rpmFactor is 1 here
+    RPM_EXP: 1,          // rpmFactor = (rpm / RPM_REF) ^ RPM_EXP, so double the RPM cuts about twice as fast
+    RPM_MIN: 200,        // the slider range; rpm is clamped to it
+    RPM_MAX: 2400,
+    PRESS_RATE_MIN: 0.12, // pressureFactor at the lightest touch
+    PRESS_RATE_EXP: 1.6,  // pressureFactor = MIN + (1 - MIN) * p ^ EXP: a hard push cuts much faster than a nudge
+
     CATCH_WINDOW: 0.035, // seconds: pressure slammed 0 -> full faster than this is a catch
     CATCH_COOLDOWN: 0.9
   };
 
   var TIPS = {
     // halfWidth in world units; rate = max units/sec removed at the kernel centre
-    gouge: { halfWidth: 0.5, rate: 0.5, name: "Gouge" },
-    skew:  { halfWidth: 0.19, rate: 0.7, name: "Skew" }
+    // (before RATE_SCALE, RPM and pressure; see removalRate)
+    gouge: { halfWidth: 0.5, rate: 0.16, name: "Gouge" },
+    skew:  { halfWidth: 0.19, rate: 0.22, name: "Skew" }
   };
+
+  function rpmFactor(rpm, cfg) {
+    cfg = cfg || CFG;
+    var r = rpm == null ? cfg.RPM_REF : Math.min(cfg.RPM_MAX, Math.max(cfg.RPM_MIN, rpm));
+    return Math.pow(r / cfg.RPM_REF, cfg.RPM_EXP);
+  }
+  function pressureFactor(pressure, cfg) {
+    cfg = cfg || CFG;
+    var p = Math.min(1, Math.max(0, pressure));
+    return cfg.PRESS_RATE_MIN + (1 - cfg.PRESS_RATE_MIN) * Math.pow(p, cfg.PRESS_RATE_EXP);
+  }
+  /* Max units/sec a tip removes at its kernel centre for this pressure and RPM. */
+  function removalRate(tipKey, pressure, rpm, cfg) {
+    cfg = cfg || CFG;
+    return TIPS[tipKey].rate * cfg.RATE_SCALE * rpmFactor(rpm, cfg) * pressureFactor(pressure, cfg);
+  }
 
   /* Cut kernel: weight 0..1 by distance from the tip centre (world units).
      Both shapes reach 0 with zero slope at the edge, so no step is ever cut. */
@@ -866,9 +895,10 @@ footer {
   };
 
   /* One timestep of cutting. t = axial position 0..1 (fractional),
-     pressure 0..1, rateScale lets a catch slow the cut. Returns the
+     pressure 0..1, rateScale lets a catch slow the cut, rpm is the
+     spindle speed (defaults to RPM_REF). Returns the
      removed amount (sum of r^2 deltas, proportional to volume). */
-  Workpiece.prototype.cut = function (t, pressure, tipKey, dt, rateScale) {
+  Workpiece.prototype.cut = function (t, pressure, tipKey, dt, rateScale, rpm) {
     var c = this.cfg, n = c.SEG, r = this.radius, ref = this.passRef;
     var spec = TIPS[tipKey];
     var p = Math.min(1, Math.max(0, pressure));
@@ -878,7 +908,7 @@ footer {
     var hwS = spec.halfWidth / this.dx;
     var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
     var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
-    var rate = spec.rate * (rateScale == null ? 1 : rateScale) * (0.35 + 0.65 * p);
+    var rate = removalRate(tipKey, p, rpm, c) * (rateScale == null ? 1 : rateScale);
     var removed = 0, i, w, nr;
 
     // Slices the tool is not on start a fresh pass next time it arrives.
@@ -1028,7 +1058,7 @@ footer {
     return "Cylinder";
   }
 
-  var api = { CFG: CFG, TIPS: TIPS, kernel: kernel, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
+  var api = { CFG: CFG, TIPS: TIPS, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var L = root.Lathe || (root.Lathe = {});
   for (var key in api) L[key] = api[key];
@@ -4795,7 +4825,7 @@ footer {
     }
 
     /* ---------------- main loop ---------------- */
-    var CHIP_SCALE = 120 / C.SEG;   // chip/sound tuning was done at 120 slices
+    var CHIP_SCALE = (120 / C.SEG) * 2.8;   // chip/sound tuning was done at 120 slices and the old, ~3x faster removal rate
     var lastFrame = performance.now(), frameN = 0;
     function frame(nowMs) {
       requestAnimationFrame(frame);
@@ -4814,7 +4844,7 @@ footer {
         if (p.active) {
           S.lastT = p.t;
           if (S.mode === "cut") {
-            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1) * CHIP_SCALE;
+            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);
