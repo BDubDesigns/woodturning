@@ -3283,6 +3283,7 @@ footer {
 
     FLUSH: 0.16,          // a stub this short is flush with the log
     CLEAN: 0.32,          // ...and up to twice that still looks clean, so a stubborn short stub never blocks the saw
+    CLEAN_FRAC: 1 / 3,    // a limb with at least 2/3 of its length cut off is done too: the rest is trimmed flush
     DELIMB_SPEED: 6.0,    // finger speed (units/sec) for a full-power slash
     SLASH_POWER: 0.1,     // thickness one full slash removes
 
@@ -3713,8 +3714,10 @@ footer {
 
   /* ----- delimb ----- */
   /* One definition of "clean", used by the counter and the phase gate alike:
-     a limb is done once what is left of it is no longer than CLEAN. */
-  Harvest.prototype.limbClean = function (L) { return L.stub <= H.CLEAN; };
+     a limb is done once what is left of it is no longer than CLEAN, or no
+     longer than a third of the limb (2/3 of it cut away). */
+  function cleanStub(L) { return Math.max(H.CLEAN, L.b.len * H.CLEAN_FRAC); }
+  Harvest.prototype.limbClean = function (L) { return L.stub <= cleanStub(L) + 1e-9; };
   Harvest.prototype.limbsLeft = function () {
     var n = 0;
     for (var i = 0; i < this.limbs.length; i++) if (!this.limbClean(this.limbs[i])) n++;
@@ -3766,12 +3769,18 @@ footer {
   };
   Harvest.prototype._hitLimb = function (L, arc, power, hx, hy) {
     var bin = Math.min(L.dmg.length - 1, Math.floor(arc / (L.b.len / L.dmg.length)));
-    L.dmg[bin] += power;
-    if (bin > 0) L.dmg[bin - 1] += power * 0.4;
-    if (bin < L.dmg.length - 1) L.dmg[bin + 1] += power * 0.4;
+    // swipes rarely land in exactly the same place, so a hit also scores well on
+    // its neighbours: back-and-forth swipes over one stretch add up to a cut
+    for (var j = -2; j <= 2; j++) {
+      var bj = bin + j;
+      if (bj >= 0 && bj < L.dmg.length) L.dmg[bj] += power * (j === 0 ? 1 : Math.abs(j) === 1 ? 0.8 : 0.4);
+    }
     var need = branchThick(L.b, arc);
     this.emit({ type: "slash", x: hx, y: hy, id: L.id, power: power / H.SLASH_POWER });
     if (L.dmg[bin] < need) return;
+    // a cut that takes off 2/3 of the limb or more is as good as one at the log:
+    // the whole limb comes away and leaves a flush stub
+    if (arc <= cleanStub(L)) arc = Math.min(arc, H.FLUSH);
     // cut through: everything past arc comes away
     var piece = { id: L.id, b: L.b, from: arc, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: true };
     var wp = L.wp, k, X, Y;
@@ -4014,6 +4023,38 @@ footer {
     }
     return out;
   }
+  /* Pine sprays, drawn once per wood: a thin twig with fine needles fanning
+     forward off both sides, longest at the base and shortening to the tip,
+     dark at the twig and lighter at the needle ends. A bough is a handful of
+     these laid over a dark mass, so it reads as needles without stroking
+     thousands of lines every frame. tones: [base, tip] colour pairs. */
+  var SPRAY_W = 160, SPRAY_H = 80;
+  function makeNeedleSprays(tones, twig) {
+    var out = [], r = mkRng(4242);
+    for (var ti = 0; ti < tones.length; ti++) {
+      for (var v = 0; v < 2; v++) {
+        var c = document.createElement("canvas"); c.width = SPRAY_W; c.height = SPRAY_H;
+        var g = c.getContext("2d"), cy = SPRAY_H / 2, x0 = 4, x1 = SPRAY_W - 6, n = 40, i, side;
+        g.lineCap = "round";
+        for (var pass = 0; pass < 2; pass++) {          // base needles, then lighter tips over them
+          g.strokeStyle = tones[ti][pass]; g.lineWidth = pass ? 1.3 : 1.7; g.beginPath();
+          for (i = 0; i < n; i++) {
+            var t = (i + r() * 0.6) / n, x = lerp(x0, x1, t), bend = Math.sin(t * Math.PI) * 3 * (v ? -1 : 1);
+            for (side = -1; side <= 1; side += 2) {
+              var len = (38 - 24 * t) * (0.75 + 0.4 * r()) * (pass ? 0.55 : 1);
+              var a = (0.5 + 0.45 * r()) * (side < 0 ? 1.08 : 1);   // forward-swept, the underside a touch wider
+              var sx0 = x + (pass ? Math.cos(a) * len * 0.8 : 0), sy0 = cy + bend + (pass ? side * Math.sin(a) * len * 0.8 : 0);
+              g.moveTo(sx0, sy0); g.lineTo(sx0 + Math.cos(a) * len, sy0 + side * Math.sin(a) * len);
+            }
+          }
+          g.stroke();
+        }
+        g.strokeStyle = twig; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x0, cy); g.quadraticCurveTo(SPRAY_W / 2, cy + 3 * (v ? -1 : 1), x1 - 10, cy); g.stroke();
+        out.push(c);
+      }
+    }
+    return out;
+  }
   function mkRng(seed) {
     var a = (seed >>> 0) || 1;
     return function () {
@@ -4072,6 +4113,11 @@ footer {
         canopy: [shade(w.leaf, 0.4), shade(w.leaf, 0.7), mixHex(w.leaf, w.leaf2, 0.45), shade(w.leaf2, 1.1)],
         needles: w.shape === "conifer"
       };
+      if (k.needles) {
+        var C = k.canopy;
+        // shadow, mid and sunlit sprays: [needle colour, tip colour]
+        k.sprays = makeNeedleSprays([[shade(C[0], 0.85), C[1]], [C[1], C[2]], [C[2], mixHex(C[3], "#e8f0c0", 0.25)]], shade(bk, 0.45));
+      }
       return k;
     }
     function look() { return lookOf(game.tree.wood); }
@@ -4644,116 +4690,95 @@ footer {
        shows, and the leader carries shrinking sprigs up to a single spike.
        Boughs are drawn bottom to top so each one's tufts hang over the next. */
     function drawConifer(list, sw) {
-      var C = look().canopy, F = game.tree.type.foliage, items = list.slice().sort(function (a, b) { return (a.b.leader ? 99 : a.b.y) - (b.b.leader ? 99 : b.b.y); });
-      g.lineCap = "round"; g.lineJoin = "round";
+      var lk = look(), C = lk.canopy, SP = lk.sprays, F = game.tree.type.foliage;
+      var items = list.slice().sort(function (a, b) { return (a.b.leader ? 99 : a.b.y) - (b.b.leader ? 99 : b.b.y); });
       for (var i = 0; i < items.length; i++) {
         var it = items[i], jit = foliage(it.b).jit;
         if (it.b.leader) spire(it.b, it.a0, it.a1, jit); else tier(it.b, it.a0, it.a1, jit);
       }
       function J(jit, k) { return jit[((k % jit.length) + jit.length) % jit.length]; }
-      function fillShape(poly, y0, y1) {
-        g.beginPath(); g.moveTo(poly[0].x + sw(poly[0].y), poly[0].y);
-        for (var k = 1; k < poly.length; k++) g.lineTo(poly[k].x + sw(poly[k].y), poly[k].y);
-        g.closePath();
-        var gr = g.createLinearGradient(0, y1, 0, y0);
-        gr.addColorStop(0, C[2]); gr.addColorStop(0.45, C[1]); gr.addColorStop(1, C[0]);
-        g.fillStyle = gr; g.fill();
-      }
-      function needles(pts, dx, dy, len, col, width, jit, off) {
-        g.strokeStyle = col; g.lineWidth = width; g.beginPath();
-        for (var k = 0; k < pts.length; k++) {
-          var p = pts[k], l = len * (0.7 + 0.6 * J(jit, k + off)), a = 0.5 * (J(jit, k * 3 + off) - 0.5);
-          var ex = dx * Math.cos(a) - dy * Math.sin(a), ey = dx * Math.sin(a) + dy * Math.cos(a);
-          g.moveTo(p.x + sw(p.y), p.y); g.lineTo(p.x + sw(p.y) + ex * l, p.y + ey * l);
-        }
-        g.stroke();
-      }
-      // a point on a polyline, by fraction of its points
-      function along(poly, t) {
-        var x = t * (poly.length - 1), k = Math.min(poly.length - 2, Math.floor(x)), f = x - k;
-        return { x: lerp(poly[k].x, poly[k + 1].x, f), y: lerp(poly[k].y, poly[k + 1].y, f) };
-      }
-      /* A ragged tuft of needles: a spiky oval along direction `ang`, long
-         spikes between short ones so the outline is feathery, not smooth. */
-      function tuftPath(cx, cy, ang, rx, ry, jit, k0) {
-        var N = 18, ca = Math.cos(ang), sa = Math.sin(ang), k;
+      /* The dark mass under a bough's sprays: soft-edged ovals, so the
+         bough has body and the trunk does not show through it. */
+      function massPath(t, jit, k0) {
+        var N = 12, ca = Math.cos(t.a), sa = Math.sin(t.a), k;
         for (k = 0; k < N; k++) {
-          var th = k / N * TAU, sp = k % 2 ? 0.5 + 0.2 * J(jit, k0 + k) : 0.95 + 0.55 * J(jit, k0 + k * 3);
-          var lx = Math.cos(th) * rx * sp, ly = Math.sin(th) * ry * sp * (Math.sin(th) < 0 ? 1.25 : 1);   // hangs a bit lower than it rises
-          var x = cx + lx * ca - ly * sa, y = cy + lx * sa + ly * ca;
+          var th = k / N * TAU, sp = k % 2 ? 0.78 : 0.95 + 0.2 * J(jit, k0 + k);
+          var lx = Math.cos(th) * t.rx * sp, ly = Math.sin(th) * t.ry * sp * (Math.sin(th) < 0 ? 1.2 : 1);
+          var x = t.x + lx * ca - ly * sa, y = t.y + lx * sa + ly * ca;
           if (k === 0) g.moveTo(x + sw(y), y); else g.lineTo(x + sw(y), y);
         }
         g.closePath();
       }
-      function paintTufts(tf, jit) {
-        if (!tf.length) return;
-        var y0 = 1e9, y1 = -1e9, k;
-        for (k = 0; k < tf.length; k++) { y0 = Math.min(y0, tf[k].y - tf[k].ry * 1.6); y1 = Math.max(y1, tf[k].y + tf[k].ry * 1.4); }
-        g.beginPath();
-        for (k = 0; k < tf.length; k++) tuftPath(tf[k].x, tf[k].y, tf[k].a, tf[k].rx, tf[k].ry, jit, k * 7);
-        var gr = g.createLinearGradient(0, y1, 0, y0);
-        gr.addColorStop(0, C[1]); gr.addColorStop(0.55, C[0]); gr.addColorStop(1, shade(C[0], 0.8));
-        g.fillStyle = gr; g.fill();
-        // needle texture: a few lit strokes fanning out across each tuft's upper side
-        var lit = [], hi = [];
-        for (k = 0; k < tf.length; k++) {
-          var t = tf[k];
-          for (var q = 0; q < 3; q++) {
-            var a = t.a + (J(jit, k * 5 + q) - 0.5) * 1.6, u = J(jit, k * 11 + q) - 0.5;
-            var px = t.x + Math.cos(t.a) * u * t.rx, py = t.y + Math.sin(t.a) * u * t.rx + t.ry * 0.15;
-            (q < 2 ? lit : hi).push({ x: px, y: py, dx: Math.cos(a + 0.5), dy: Math.sin(a + 0.5), l: t.rx * 0.45 });
-          }
+      /* Sprays are pre-drawn sprites (see makeNeedleSprays), laid from their
+         base at (x, y) along angle a, `len` long. Tone 0 shadow, 1 mid, 2 sunlit. */
+      function spray(p, jit) {
+        var im = SP[p.tone * 2 + (p.v ? 1 : 0)], k = p.len / SPRAY_W, up = Math.cos(p.a) < 0 ? 1 : -1;
+        g.save(); g.translate(p.x + sw(p.y), p.y); g.rotate(p.a); g.scale(k, up * k);
+        g.drawImage(im, -6, -SPRAY_H / 2);
+        g.restore();
+      }
+      function paint(mass, sprays, jit) {
+        if (mass.length) {
+          var y0 = 1e9, y1 = -1e9, k;
+          for (k = 0; k < mass.length; k++) { y0 = Math.min(y0, mass[k].y - mass[k].ry); y1 = Math.max(y1, mass[k].y + mass[k].ry); }
+          g.beginPath();
+          for (k = 0; k < mass.length; k++) massPath(mass[k], jit, k * 7);
+          var gr = g.createLinearGradient(0, y1, 0, y0);
+          gr.addColorStop(0, shade(C[1], 0.95)); gr.addColorStop(0.5, shade(C[1], 0.75)); gr.addColorStop(1, C[0]);
+          g.fillStyle = gr; g.fill();
         }
-        strokes(lit, C[1], 0.02); strokes(hi, C[2], 0.016);
+        for (var tone = 0; tone < 3; tone++) for (var q = 0; q < sprays.length; q++) if (sprays[q].tone === tone) spray(sprays[q], jit);
       }
-      function strokes(list, col, w) {
-        g.strokeStyle = col; g.lineWidth = w; g.beginPath();
-        for (var k = 0; k < list.length; k++) { var p = list[k]; g.moveTo(p.x + sw(p.y), p.y); g.lineTo(p.x + sw(p.y) + p.dx * p.l, p.y + p.dy * p.l); }
-        g.stroke();
-      }
-      /* One bough: tufts strung along it from near the stem to past the tip,
-         biggest in the middle, so it reads as a feathery spray with sky and
-         trunk showing between boughs. Only tufts on the stretch a0..a1. */
+      /* One bough: a dark mass along the limb, fullest by the trunk, covered
+         in needle sprays that droop and sweep out past its tip: shadowed ones
+         hanging below, sunlit ones on top. Only the stretch a0..a1 is drawn,
+         and a stub left by a cut keeps no needles near the log. */
       function tier(b, a0, a1, jit) {
-        var tf = [], start = 0, step = F.tuft * 0.5, k = 0, s;
-        for (s = start; s <= b.len + 1e-6; s += step, k++) {
-          if (s < a0 - 1e-6 || s > a1 + 1e-6) continue;
+        var mass = [], sprays = [], step = F.tuft * 0.55, k = 0, s, cut = a1 < b.len - 0.02, from = cut ? Math.max(a0, 0.45) : a0;
+        for (s = 0; s <= b.len + 1e-6; s += step, k++) {
+          if (s < from - 1e-6 || s > a1 + 1e-6) continue;
           var P = arcPoint(b, s), u = s / Math.max(0.01, b.len);
           // fullest next to the trunk, thinning toward the tip, so the tree is thick through its middle
-          var rx = F.tuft * (1.05 - 0.6 * Math.pow(u, 0.9)) * (0.85 + 0.3 * J(jit, k));
-          var ta = P.ang + (J(jit, k + 30) - 0.5) * 0.5;
-          tf.push({ x: P.x, y: P.y - rx * 0.1, a: ta, rx: rx, ry: rx * 0.72 });
-          // the spray is deep, not a single row: tufts above and hanging below the bough
-          if (J(jit, k + 50) < 0.75) tf.push({ x: P.x + Math.cos(ta) * rx * 0.3, y: P.y + rx * 0.5, a: ta + b.s * 0.3, rx: rx * 0.7, ry: rx * 0.5 });
-          if (J(jit, k + 60) < 0.8) tf.push({ x: P.x + Math.cos(ta) * rx * 0.2, y: P.y - rx * 0.6, a: ta - b.s * 0.35, rx: rx * 0.75, ry: rx * 0.48 });
+          var rx = F.tuft * (0.9 - 0.5 * Math.pow(u, 0.9)) * (0.85 + 0.3 * J(jit, k));
+          var ta = P.ang + (J(jit, k + 30) - 0.5) * 0.3, L = F.tuft * (1.9 - 0.9 * u) * (0.85 + 0.3 * J(jit, k + 40));
+          mass.push({ x: P.x + Math.cos(ta) * rx * 0.3, y: P.y - rx * 0.2, a: ta, rx: rx, ry: rx * 0.62 });
+          sprays.push({ x: P.x, y: P.y, a: ta - b.s * (0.1 + 0.2 * J(jit, k + 70)), len: L, tone: 1, v: k % 2 });
+          sprays.push({ x: P.x, y: P.y - rx * 0.2, a: ta - b.s * (0.55 + 0.35 * J(jit, k + 80)), len: L * 0.8, tone: 0, v: (k + 1) % 2 });
+          if (k % 2) sprays.push({ x: P.x, y: P.y - rx * 0.35, a: ta - b.s * (1.0 + 0.3 * J(jit, k + 85)), len: L * 0.6, tone: 0, v: 1 });
+          if (J(jit, k + 60) < 0.7) sprays.push({ x: P.x, y: P.y + rx * 0.15, a: ta + b.s * (0.25 + 0.3 * J(jit, k + 90)), len: L * 0.75, tone: 2, v: k % 2 });
         }
-        if (a0 < 0.02 && a1 > b.len * 0.5) {                  // a core mass over the trunk, so its centre never shows through
-          var Q = arcPoint(b, 0), cr = F.tuft * 0.95;
-          tf.push({ x: Q.x * 0.2, y: Q.y - cr * 0.1, a: 0, rx: cr, ry: cr * 0.62 });
-          tf.push({ x: -Q.x * 0.1, y: Q.y + cr * 0.45, a: 0, rx: cr * 0.9, ry: cr * 0.5 });
+        if (a0 < 0.02 && !cut) {                                 // a core mass over the trunk, so its centre never shows through
+          // sprays fanning out from the trunk to both sides cover it, the far side's hanging lower
+          var Q = arcPoint(b, 0), cr = F.tuft * 0.75, out = Math.atan2(0, b.s), back = Math.atan2(0, -b.s);
+          mass.push({ x: 0, y: Q.y, a: 0, rx: cr, ry: cr * 0.55 });
+          sprays.push({ x: -b.s * cr * 0.5, y: Q.y + cr * 0.15, a: out - b.s * 0.25, len: F.tuft * 1.5, tone: 1, v: 0 });
+          sprays.push({ x: b.s * cr * 0.4, y: Q.y - cr * 0.1, a: back + b.s * 0.55, len: F.tuft * 1.2, tone: 0, v: 1 });
+          sprays.push({ x: -b.s * cr * 0.2, y: Q.y + cr * 0.4, a: Math.PI / 2 + b.s * 0.9, len: F.tuft * 1.1, tone: 2, v: 1 });
         }
-        if (a1 >= b.len - 0.02) {                               // the tip: a narrower tuft reaching past the end
+        if (!cut) {                                              // the tip: a spray reaching past the end
           var E = arcPoint(b, b.len);
-          tf.push({ x: E.x + Math.cos(E.ang) * F.tuft * 0.5, y: E.y + Math.sin(E.ang) * F.tuft * 0.5, a: E.ang, rx: F.tuft * 0.65, ry: F.tuft * 0.28 });
+          sprays.push({ x: E.x - Math.cos(E.ang) * F.tuft * 0.2, y: E.y, a: E.ang - b.s * 0.15, len: F.tuft * 1.1, tone: 1, v: 0 });
         }
-        paintTufts(tf, jit);
+        paint(mass, sprays, jit);
       }
-      /* The top: the leader carries short sprigs that shrink to a single
+      /* The top: the leader carries short sprays that shrink to a single
          spike, so the tree narrows to a point. */
       function spire(b, a0, a1, jit) {
-        var tf = [], n = 9, k;
+        var mass = [], sprays = [], n = 10, k, from = a1 < b.len - 0.02 ? Math.max(a0, 0.45) : a0;
         for (k = 0; k < n; k++) {
-          var s = b.len * (0.02 + 0.9 * k / n);
-          if (s < a0 - 1e-6 || s > a1 + 1e-6) continue;
-          var P = arcPoint(b, s), f = 1 - k / n, side = k % 2 ? 1 : -1, r0 = F.tuft * (0.25 + 0.6 * f);
-          var a = P.ang + side * (1.15 - 0.4 * (1 - f)) * (b.s >= 0 ? 1 : 1);
-          tf.push({ x: P.x + Math.cos(a) * r0 * 0.6, y: P.y + Math.sin(a) * r0 * 0.6 - r0 * 0.2, a: a - side * 0.6, rx: r0, ry: r0 * 0.6 });
+          var s = b.len * (0.02 + 0.88 * k / n);
+          if (s < from - 1e-6 || s > a1 + 1e-6) continue;
+          var P = arcPoint(b, s), f = 1 - k / n, side = k % 2 ? 1 : -1, r0 = F.tuft * (0.22 + 0.55 * f);
+          var a = P.ang + side * (1.25 - 0.45 * (1 - f));          // out to each side, sweeping up near the top
+          mass.push({ x: P.x + Math.cos(a) * r0 * 0.4, y: P.y - r0 * 0.15, a: a, rx: r0 * 0.6, ry: r0 * 0.35 });
+          sprays.push({ x: P.x, y: P.y, a: a - side * 0.25, len: r0 * 2.1, tone: k % 3 === 0 ? 2 : 1, v: k % 2 });
+          sprays.push({ x: P.x, y: P.y - r0 * 0.2, a: a - side * 0.7, len: r0 * 1.5, tone: 0, v: (k + 1) % 2 });
         }
         if (a1 >= b.len - 0.02) {
-          var E = arcPoint(b, b.len);
-          tf.push({ x: E.x + Math.cos(E.ang) * 0.1, y: E.y + Math.sin(E.ang) * 0.1, a: E.ang, rx: F.tuft * 0.4, ry: F.tuft * 0.14 });
+          var E = arcPoint(b, b.len * 0.9);
+          sprays.push({ x: E.x, y: E.y, a: E.ang, len: F.tuft * 0.7, tone: 2, v: 0 });
         }
-        paintTufts(tf, jit);
+        paint(mass, sprays, jit);
       }
     }
     function limbStub(b) {
