@@ -319,3 +319,28 @@ test("no em or en dashes in player-facing copy", () => {
     for (const s of strings) assert.ok(!/[–—]/.test(s), f + ": " + s);
   }
 });
+
+test("a solid coat can be painted over: every slice takes the new colour", () => {
+  const c = new P.Coating(), ink = P.PALETTE.ink.rgb;
+  // solid cobalt, held on every spot long enough that the coat sits at exactly 1
+  for (let t = 0.1; t <= 0.9; t += 0.02) dwell(c, t, 1, "brush", "cobalt", 1);
+  assert.ok(c.coat[idx(0.5)] > 0.9999, "solid first");
+  for (let r = 0; r < 4; r++) sweep(c, 0.1, 0.9, 1, "brush", "ink", 4);
+  for (let t = 0.15; t <= 0.85; t += 0.01) {
+    const rgb = shown(c, t), d = Math.hypot(rgb[0] - ink[0], rgb[1] - ink[1], rgb[2] - ink[2]);
+    assert.ok(d < 0.03, "slice at " + t.toFixed(2) + " still shows the old colour (" + rgb.map((v) => v.toFixed(2)) + ")");
+  }
+  // and back again
+  for (let r = 0; r < 4; r++) sweep(c, 0.1, 0.9, 1, "brush", "cobalt", 4);
+  const cob = P.PALETTE.cobalt.rgb, rgb = shown(c, 0.5);
+  assert.ok(Math.hypot(rgb[0] - cob[0], rgb[1] - cob[1], rgb[2] - cob[2]) < 0.03, "cobalt over ink over cobalt");
+});
+
+test("a light touch lays a thin wash, far slower than a firm push", () => {
+  const light = new P.Coating(), firm = new P.Coating();
+  dwell(light, 0.5, 0.25, "brush", "cobalt", 0.5);
+  dwell(firm, 0.5, 1, "brush", "cobalt", 0.5);
+  const l = light.coat[idx(0.5)], f = firm.coat[idx(0.5)];
+  assert.ok(l > 0.05 && l < 0.4, "light touch: " + l.toFixed(2));
+  assert.ok(f > 0.95, "firm push: " + f.toFixed(2));
+});
