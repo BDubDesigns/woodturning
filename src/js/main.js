@@ -41,6 +41,9 @@
       paintTool: "brush",               // brush | liner
       color: "crimson",                 // a P.PALETTE key
       spec: null,                       // the paint spec to match (a commission supplies this)
+      lightLevel: 0,                    // the workshop's work light tier (view3d WORK_LIGHTS)
+      order: null,                      // the commission being turned (commissions.js), or null
+      target: null,                     // its target profile: SEG radii, drawn as a ghost to turn down to
       stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
       wood: null,                       // the wood of the stock, null for practice
       flow: 0,                          // brush / spray activity 0..1, drives the sound
@@ -140,18 +143,55 @@
     var rpmSlider = document.getElementById("rpm"), rpmVal = document.getElementById("rpmVal");
     S.rpm = parseInt(rpmSlider.value, 10);
     rpmSlider.addEventListener("input", function () { S.rpm = parseInt(rpmSlider.value, 10); rpmVal.textContent = S.rpm + " RPM"; });
-    var tipGougeBtn = document.getElementById("tipGouge"), tipSkewBtn = document.getElementById("tipSkew");
+    /* The chisel rack: one button per tip the workshop owns. Gouge and skew are in
+       the page; tips bought at Arbor Freight (shop.js) get a button here. */
+    var tipGroup = document.getElementById("toolsCut");
+    var TIP_ICON = {
+      parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+      detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
+      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>'
+    };
+    S.tips = ["gouge", "skew"];
+    function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
     function setTip(t) {
+      if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
-      tipGougeBtn.setAttribute("aria-pressed", t === "gouge" ? "true" : "false");
-      tipSkewBtn.setAttribute("aria-pressed", t === "skew" ? "true" : "false");
+      tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
     }
-    tipGougeBtn.addEventListener("click", function () { audio.init(); setTip("gouge"); });
-    tipSkewBtn.addEventListener("click", function () { audio.init(); setTip("skew"); });
+    function setTips(list) {
+      S.tips = L.TIP_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
+      S.tips.forEach(function (k) {
+        if (tipGroup.querySelector('[data-tip="' + k + '"]')) return;
+        var tp = L.TIPS[k], b = document.createElement("button");
+        b.className = "tip-btn"; b.type = "button"; b.id = "tip" + k.charAt(0).toUpperCase() + k.slice(1);
+        b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
+        b.innerHTML = (TIP_ICON[k] || "") + '<span><span class="tname">' + tp.name.toUpperCase() + '</span><div class="tdesc">' + tp.desc + "</div></span>";
+        tipGroup.appendChild(b);
+      });
+      tipButtons().forEach(function (b) { b.hidden = S.tips.indexOf(b.getAttribute("data-tip")) < 0; });
+      tipGroup.classList.toggle("many", S.tips.length > 2);
+      tipGroup.style.gridTemplateColumns = S.tips.length > 2 ? "repeat(" + (S.tips.length > 4 ? 3 : 2) + ", 1fr)" : "";
+      if (S.tips.indexOf(S.tip) < 0) setTip("gouge"); else setTip(S.tip);
+    }
+    tipGroup.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-tip]") : null;
+      if (b) { audio.init(); setTip(b.getAttribute("data-tip")); }
+    });
     root.addEventListener("keydown", function (e) {
-      if (e.key === "1") setTip("gouge");
+      if (e.key === "1") setTip("gouge");        // 3, 4 and 5 switch modes, so only the first two tips have keys
       if (e.key === "2") setTip("skew");
     });
+    /* What the workshop has bought at Arbor Freight: the light over the lathe,
+       the motor (how fast wood comes off) and the chisels on the rack. */
+    S.cutBoost = 1;
+    function applyUpgrades() {
+      var shop = root.Game && root.Game.shop;
+      if (!shop) return;
+      S.lightLevel = shop.lightLevel();
+      S.cutBoost = shop.cutBoost();
+      setTips(shop.tips());
+    }
+    L.applyUpgrades = applyUpgrades;
     var hint = document.getElementById("hint");
     var HINTS = {
       cut: hint.innerHTML,
@@ -275,14 +315,19 @@
       var piece = sh.inventory.add("piece", {
         wood: wood, from: from, shape: shape,
         profile: St.pack(S.work.radius),
+        start: St.pack(S.work.baseRadius),
+        order: S.order ? S.order.id : null,
         coat: { coat: St.pack(S.coat.coat, 3), color: St.pack(S.coat.color, 3), gloss: St.pack(S.coat.gloss, 3) },
         sheen: m ? m.sheen : null,
         spec: S.spec || null,
         match: m ? Math.round(m.total * 1000) / 1000 : null,
         removed: Math.round(S.work.removedFraction() * 1000) / 1000
       });
+      var order = S.order;
       mount(null);
-      toast(woodName(wood) + " piece added to the shed.");
+      if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
+      else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
+      else toast(woodName(wood) + " piece added to the shed.");
       return piece;
     }
     doneBtn.addEventListener("click", function () { audio.init(); closeStock(); finishPiece(); });
@@ -350,18 +395,66 @@
 
     /* the paint spec: what the painting has to look like. A commission supplies one;
        until commissions land the lathe rolls its own so there is always something to match. */
-    var specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
+    var specTag = document.getElementById("specTag"), specName = document.getElementById("specName"), specMatch = document.getElementById("specMatch"), specSheen = document.getElementById("specSheen");
     var specCanvas = document.getElementById("specCanvas"), specCtx = specCanvas.getContext("2d");
     function setSpec(spec) {
       if (!P.validSpec(spec)) return false;
       S.spec = spec;
       var need = P.specPaints(spec);
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
-      specName.textContent = spec.name;
+      specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
+      // with no commission on the lathe the spec is only for practice: say so, so it is never taken for an order
+      specTag.textContent = S.order ? "COMMISSION · " + S.order.client.toUpperCase() : "PRACTICE · NO ORDER";
+      specTag.classList.toggle("order", !!S.order);
       drawSpec(); updateSpecInfo();
       return true;
     }
-    document.getElementById("specNewBtn").addEventListener("click", function () { setSpec(P.generateSpec()); });
+    var specNewBtn = document.getElementById("specNewBtn");
+    specNewBtn.addEventListener("click", function () {
+      if (S.order) { if (G.showScreen) G.showScreen("orders"); return; }
+      setSpec(P.generateSpec());
+    });
+
+    /* ---------------- the commission on the lathe ----------------
+       The board (commissions.js) says which order is active. Its target shape
+       is drawn as a ghost on the piece and in the profile strip, its paint spec
+       goes on the spec card, and DONE offers the piece to it. */
+    function board() { return G.commissions || null; }
+    function pieceName(o) { var d = G.Commissions && G.Commissions.PIECES[o.kind]; return d ? d.name : "Piece"; }
+    var profileLabel = document.getElementById("profileLabel");
+    function syncOrder() {
+      var b = board(), o = b ? b.active() : null;
+      if (o === S.order) return;
+      S.order = o;
+      S.target = o ? b.targetProfile(o) : null;
+      specNewBtn.textContent = o ? "BOARD" : "NEW SPEC";
+      specNewBtn.title = o ? "Back to the commission board" : "Roll a new paint spec";
+      if (o) setSpec(o.spec); else setSpec(P.generateSpec());
+      shapeShown = -1; updateShape();
+      drawProfile();
+    }
+    L.syncOrder = syncOrder;
+    /* Taking an order from the board: put the right wood on the lathe if the
+       shed has some (a blank first, then a log), so the player can start. */
+    function takeOrder() {
+      syncOrder();
+      var o = S.order, inv = shared() && shared().inventory;
+      if (!o || !inv) return;
+      if (S.stock && S.wood === o.wood) { toast(pieceName(o) + " for " + o.client + ". Turn it to the dashed line."); return; }
+      var blanks = inv.list("blank", function (it) { return it.wood === o.wood; });
+      var ok = blanks.length ? mountStock({ kind: "blank", id: blanks[0].id }) : inv.count("log", o.wood) ? mountStock({ kind: "log", key: o.wood }) : false;
+      if (ok) toast(stockName(S.stock) + " on the lathe. Turn it to the dashed line.");
+      else toast("No " + woodName(o.wood).toLowerCase() + " in the shed. Grow one on the farm. You can practise the shape meanwhile.");
+    }
+    L.takeOrder = takeOrder;
+    var shapeShown = -1;
+    function updateShape() {
+      if (!S.target || !G.Commissions) { profileLabel.textContent = "PROFILE"; return; }
+      var sc = Math.round(G.Commissions.shapeScore(S.work.radius, S.target, S.work.baseRadius).score * 100);
+      if (sc === shapeShown) return;
+      shapeShown = sc;
+      profileLabel.innerHTML = "SHAPE<b>" + sc + "%</b>";
+    }
     function rgbCss(c, a) { return "rgba(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + "," + (a == null ? 1 : a) + ")"; }
     var specDrawn = { version: -1, spec: null, w: 0 };
     function drawSpec() {
@@ -472,6 +565,19 @@
         g.restore();
       }
       g.strokeStyle = "rgba(70,45,20,0.6)"; g.lineWidth = 1; g.stroke();
+      if (S.target) {                   // the commission's shape, to turn down to
+        var tg = S.target;
+        g.save(); g.setLineDash([4, 3]); g.strokeStyle = "#fff1c8"; g.lineWidth = 1.4;
+        for (var sgn = -1; sgn <= 1; sgn += 2) {
+          g.beginPath();
+          for (var ti = 0; ti < n; ti++) {
+            var tx = pad + (ti / (n - 1)) * iw, ty = mid + sgn * (tg[ti] / C.R0) * (mid - 3);
+            if (ti === 0) g.moveTo(tx, ty); else g.lineTo(tx, ty);
+          }
+          g.stroke();
+        }
+        g.restore();
+      }
       if (S.lastT >= 0 && S.pointer.active) {
         var cx = pad + S.lastT * iw;
         g.strokeStyle = "#e8a33d"; g.lineWidth = 2;
@@ -487,6 +593,7 @@
       var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
       statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
       statShape.textContent = L.shapeName(S.work);
+      if (S.target) updateShape();
       if (S.mode === "cut") drawProfile(); else { drawSpec(); updateSpecInfo(); }
     }
 
@@ -510,7 +617,7 @@
         if (p.active) {
           S.lastT = p.t;
           if (S.mode === "cut") {
-            var removed = S.work.cut(p.t, pr, S.tip, dt, S.catchCooldown > 0 ? 0.45 : 1, S.rpm) * CHIP_SCALE;
+            var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);
@@ -538,6 +645,9 @@
       }
     }
     setSpec(P.generateSpec());
+    syncOrder();
+    applyUpgrades();
+    S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;

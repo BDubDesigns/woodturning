@@ -64,9 +64,16 @@
   var TIPS = {
     // halfWidth in world units; rate = max units/sec removed at the kernel centre
     // (before RATE_SCALE, RPM and pressure; see removalRate)
-    gouge: { halfWidth: 0.5, rate: 0.16, name: "Gouge" },
-    skew:  { halfWidth: 0.19, rate: 0.22, name: "Skew" }
+    // shape: "round" is a rounded trough (cos^2), "flat" a flat bottom (to `flat` of the half
+    // width) with rounded shoulders. look/size: how the views draw the tip. The first two are
+    // on the rack from the start; the rest are sold at Arbor Freight (shop.js).
+    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    desc: "Wide, rounded scoop · roughing & curves" },
+    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, desc: "Narrow, angled flat · crisp grooves & beads" },
+    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, desc: "Thin and deep · handles & shoulders" },
+    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, desc: "Small and round · tight beads & coves" },
+    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, desc: "Big and wide · takes a log round fast" }
   };
+  var TIP_ORDER = ["gouge", "skew", "parting", "detail", "roughing"];
 
   function rpmFactor(rpm, cfg) {
     cfg = cfg || CFG;
@@ -87,15 +94,16 @@
   /* Cut kernel: weight 0..1 by distance from the tip centre (world units).
      Both shapes reach 0 with zero slope at the edge, so no step is ever cut. */
   function kernel(tipKey, d) {
-    var hw = TIPS[tipKey].halfWidth;
+    var tip = TIPS[tipKey], hw = tip.halfWidth;
     if (d >= hw) return 0;
     var u = d / hw;
-    if (tipKey === "gouge") {             // wide rounded trough
+    if (tip.shape === "round") {          // a rounded trough
       var c = Math.cos(u * Math.PI * 0.5);
       return c * c;
     }
-    if (u <= 0.45) return 1;              // skew: flat bottom, rounded shoulders
-    var s = (u - 0.45) / 0.55;
+    var f = tip.flat;                     // a flat bottom with rounded shoulders
+    if (u <= f) return 1;
+    var s = (u - f) / (1 - f);
     return 1 - s * s * (3 - 2 * s);
   }
 
@@ -328,7 +336,7 @@
     return "Cylinder";
   }
 
-  var api = { CFG: CFG, TIPS: TIPS, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
+  var api = { CFG: CFG, TIPS: TIPS, TIP_ORDER: TIP_ORDER, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var L = root.Lathe || (root.Lathe = {});
   for (var key in api) L[key] = api[key];
