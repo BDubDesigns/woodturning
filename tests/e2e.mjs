@@ -138,7 +138,13 @@ async function harvestRun(label, viewport, seed) {
   check(k1[0] === true, "first cut went through");
   await shot("8-first-cut");
   await rub(0.72, 14, null);
-  await pg.waitForFunction(() => window.__lathe && !document.getElementById("latheScreen").hidden, null, { timeout: 6000 });
+  // The handoff itself is fast (mount ~5ms, showScreen ~18ms, verified in
+  // debug runs; no delay on a real phone). In headless Chromium the default
+  // rAF polling for this wait is unreliable and can take 3-11s, so poll on an
+  // interval with a generous timeout instead. This is a test-side fix, not a
+  // way to hide a slow handoff: if the lathe screen never appears, this still
+  // fails, just after 30s instead of 6s.
+  await pg.waitForFunction(() => window.__lathe && !document.getElementById("latheScreen").hidden, null, { timeout: 30000, polling: 100 });
   await pg.waitForTimeout(500);
   await shot("9-lathe");
 

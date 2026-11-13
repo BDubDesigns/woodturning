@@ -349,6 +349,7 @@ footer {
   .wallet { gap: 7px; }
   .coin-chip { gap: 4px; }
   .coin-chip b { font-size: 17px; }
+} /* closes @media (max-width: 460px) above; was dropped in the Paint merge (6b928bc), which swallowed every paint rule after it at desktop width */
 /* ---------- paint and finish ---------- */
 .mode-group { display: flex; gap: 8px; flex: 0 1 380px; }
 .mode-btn {
