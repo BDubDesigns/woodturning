@@ -183,8 +183,8 @@ test("felled tree plays the fall out and lands as a log with limbs", () => {
 
 /* ---------------- delimbing ---------------- */
 
-function felled(seed, y) {
-  const h = newHarvest(seed); chopDown(h, y || 1.2);
+function felled(seed, wood) {
+  const h = newHarvest(seed, wood); chopDown(h, 1.2);
   let t = 0; while (h.phase !== "delimb" && t < 10) { h.step(1 / 60); t += 1 / 60; }
   return h;
 }
@@ -401,37 +401,54 @@ function assertGateMatchesCounter(h, what) {
   assert.equal(h.limbsLeft() === 0, h.phase !== "delimb", what + ": counter " + h.limbsLeft() + " but phase " + h.phase);
 }
 
-test("clean means one thing: at most 2x FLUSH is left, and 2x FLUSH is the threshold", () => {
+const cleanStub = (limb) => Math.max(H.CLEAN, limb.b.len * H.CLEAN_FRAC);
+
+test("clean means one thing: at most a third of the limb (or 2x FLUSH) is left", () => {
   assert.equal(H.CLEAN, 2 * H.FLUSH);
-  const h = felled(7), limb = h.limbs[0];
-  limb.stub = H.CLEAN;
-  assert.ok(h.limbClean(limb));
-  limb.stub = H.CLEAN + 0.01;
-  assert.ok(!h.limbClean(limb));
-});
-
-test("a limb cut to a short stub (up to 2x FLUSH) counts as clean and the saw triggers", () => {
   const h = felled(7);
-  let guard = 0, sawShortStub = false;
-  while (h.phase === "delimb" && guard++ < 150) {
-    const limb = h.limbs.find((l) => !h.limbClean(l));
-    // cut each limb where the stub left is longer than FLUSH but within 2x FLUSH
-    for (let k = 0; k < 8 && !h.limbClean(limb); k++) slashAt(h, limb, Math.min(limb.stub * 0.9, H.CLEAN * 0.95), Math.PI / 2);
-    if (limb.stub > H.FLUSH && limb.stub <= H.CLEAN) sawShortStub = true;
-    assertGateMatchesCounter(h, "after a cut");
+  for (const limb of h.limbs) {
+    limb.stub = cleanStub(limb);
+    assert.ok(h.limbClean(limb));
+    limb.stub = cleanStub(limb) + 0.01;
+    assert.ok(!h.limbClean(limb));
   }
-  assert.ok(sawShortStub, "at least one limb was left with a stub between FLUSH and 2x FLUSH");
-  assert.equal(h.phase, "saw", "the saw triggers");
-  assert.equal(h.limbsLeft(), 0);
+  assert.ok(h.limbs.some((l) => cleanStub(l) > H.CLEAN), "long limbs are done once 2/3 is cut off");
 });
 
-test("a stub just over 2x FLUSH is not clean yet, and one more cut finishes it", () => {
+test("cutting 2/3 of a limb off is enough: the whole limb comes away flush, and the saw triggers", () => {
+  for (const wood of ["pine", "oak", "walnut"]) {
+    const h = felled(7, wood);
+    let guard = 0;
+    while (h.phase === "delimb" && guard++ < 150) {
+      const limb = h.limbs.find((l) => !h.limbClean(l));
+      // cut just inside the 2/3 mark, well out from the log
+      for (let k = 0; k < 8 && !h.limbClean(limb); k++) slashAt(h, limb, cleanStub(limb) * 0.95, Math.PI / 2);
+      assert.ok(h.limbClean(limb), wood + ": a cut at 2/3 finishes the limb");
+      assert.ok(limb.stub <= H.FLUSH, wood + ": what is left is flush, stub " + limb.stub);
+      assertGateMatchesCounter(h, "after a cut");
+    }
+    assert.equal(h.phase, "saw", wood + ": the saw triggers");
+    assert.equal(h.limbsLeft(), 0);
+  }
+});
+
+test("a cut short of 2/3 is not clean yet, and one more cut finishes it", () => {
   const h = felled(7), limb = h.limbs[0];
-  for (let k = 0; k < 8 && limb.stub === limb.b.len; k++) slashAt(h, limb, H.CLEAN + 0.05, Math.PI / 2);
-  assert.ok(limb.stub > H.CLEAN && !h.limbClean(limb));
+  const at = cleanStub(limb) + 0.15;
+  for (let k = 0; k < 8 && limb.stub === limb.b.len; k++) slashAt(h, limb, at, Math.PI / 2);
+  assert.ok(limb.stub > cleanStub(limb) && !h.limbClean(limb));
   assert.ok(h.limbsLeft() >= 1);
   for (let k = 0; k < 8 && !h.limbClean(limb); k++) slashAt(h, limb, Math.min(limb.stub * 0.9, 0.1), Math.PI / 2);
   assert.ok(h.limbClean(limb));
+});
+
+test("back-and-forth swipes that land a little apart still add up to a cut", () => {
+  const h = felled(7, "walnut"), limb = h.limbs.find((l) => !l.b.leader);
+  const mid = limb.b.len * 0.5, d = limb.b.len / 10;
+  let n = 0;
+  while (limb.stub === limb.b.len && n < 12) { slashAt(h, limb, mid + (n % 2 ? d : -d) * 0.9, Math.PI / 2); n++; }
+  assert.ok(limb.stub < limb.b.len, "cut after " + n + " swipes");
+  assert.ok(n <= 6, "it took " + n + " swipes");
 });
 
 test("every limb, the leader included, can be cut clean by swipes across it, and the phase reaches saw", () => {

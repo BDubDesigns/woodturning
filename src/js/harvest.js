@@ -51,6 +51,7 @@
 
     FLUSH: 0.16,          // a stub this short is flush with the log
     CLEAN: 0.32,          // ...and up to twice that still looks clean, so a stubborn short stub never blocks the saw
+    CLEAN_FRAC: 1 / 3,    // a limb with at least 2/3 of its length cut off is done too: the rest is trimmed flush
     DELIMB_SPEED: 6.0,    // finger speed (units/sec) for a full-power slash
     SLASH_POWER: 0.1,     // thickness one full slash removes
 
@@ -481,8 +482,10 @@
 
   /* ----- delimb ----- */
   /* One definition of "clean", used by the counter and the phase gate alike:
-     a limb is done once what is left of it is no longer than CLEAN. */
-  Harvest.prototype.limbClean = function (L) { return L.stub <= H.CLEAN; };
+     a limb is done once what is left of it is no longer than CLEAN, or no
+     longer than a third of the limb (2/3 of it cut away). */
+  function cleanStub(L) { return Math.max(H.CLEAN, L.b.len * H.CLEAN_FRAC); }
+  Harvest.prototype.limbClean = function (L) { return L.stub <= cleanStub(L) + 1e-9; };
   Harvest.prototype.limbsLeft = function () {
     var n = 0;
     for (var i = 0; i < this.limbs.length; i++) if (!this.limbClean(this.limbs[i])) n++;
@@ -534,12 +537,18 @@
   };
   Harvest.prototype._hitLimb = function (L, arc, power, hx, hy) {
     var bin = Math.min(L.dmg.length - 1, Math.floor(arc / (L.b.len / L.dmg.length)));
-    L.dmg[bin] += power;
-    if (bin > 0) L.dmg[bin - 1] += power * 0.4;
-    if (bin < L.dmg.length - 1) L.dmg[bin + 1] += power * 0.4;
+    // swipes rarely land in exactly the same place, so a hit also scores well on
+    // its neighbours: back-and-forth swipes over one stretch add up to a cut
+    for (var j = -2; j <= 2; j++) {
+      var bj = bin + j;
+      if (bj >= 0 && bj < L.dmg.length) L.dmg[bj] += power * (j === 0 ? 1 : Math.abs(j) === 1 ? 0.8 : 0.4);
+    }
     var need = branchThick(L.b, arc);
     this.emit({ type: "slash", x: hx, y: hy, id: L.id, power: power / H.SLASH_POWER });
     if (L.dmg[bin] < need) return;
+    // a cut that takes off 2/3 of the limb or more is as good as one at the log:
+    // the whole limb comes away and leaves a flush stub
+    if (arc <= cleanStub(L)) arc = Math.min(arc, H.FLUSH);
     // cut through: everything past arc comes away
     var piece = { id: L.id, b: L.b, from: arc, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: true };
     var wp = L.wp, k, X, Y;
