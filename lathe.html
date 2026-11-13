@@ -864,7 +864,7 @@ footer {
      growMs: how long a tree takes on the farm.
      trunk, leaf, leaf2, shape: how it looks on the farm and in the forest. */
   var WOODS = {
-    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", leaf: "#3f7a4a", leaf2: "#5a9a5e" },
+    pine:   { id: "pine",   name: "Pine",   growMs: 3 * MIN, shape: "conifer", trunk: "#c19a62", bark: "#7a5232", leaf: "#3f7a4a", leaf2: "#5a9a5e" },   // bark: the standing tree, when it differs from the wood
     oak:    { id: "oak",    name: "Oak",    growMs: 8 * MIN, shape: "round",   trunk: "#8f6b43", leaf: "#5c8a3a", leaf2: "#7aa84c" },
     walnut: { id: "walnut", name: "Walnut", growMs: 15 * MIN, shape: "round",   trunk: "#5b3d27", leaf: "#456a3a", leaf2: "#5f8a4a" }
   };
@@ -3321,16 +3321,16 @@ footer {
   var TREES = {
     // a conifer: slim, straight, strongly tapering, many short level boughs, narrow at the top
     pine: {
-      baseW: [1.1, 1.25], topW: [0.5, 0.6], taper: 1.0, flare: 0.12, spire: 1.5,
-      branch: { first: [2.1, 2.3], gap: [0.36, 0.46], top: 0.2, a0: [1.25, 1.45], a0Rise: 0.1, a1: [1.05, 1.2],
-                len: 2.1, lenFall: 1.5, lenJit: 0.2, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
-      leader: { len: 2.0, thick: 0.2 },
+      baseW: [0.7, 0.8], topW: [0.32, 0.38], taper: 1.0, flare: 0.1, spire: 1.5,
+      branch: { first: [2.0, 2.2], gap: [0.34, 0.44], top: 0.2, a0: [1.35, 1.6], a0Rise: 0.05, a1: [1.08, 1.25],
+                len: 2.5, lenFall: 1.9, lenJit: 0.25, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
+      leader: { len: 2.0, thick: 0.14 },
       foliage: { twigs: [6, 8], twigLen: [0.4, 0.75], spread: [0.35, 0.9], upward: 0.02, dens: 1.3, densRise: 0.2, size: 0.11, sizeRise: 0, leaderTwigs: 8,
-                 canopy: "needles", rise: 0.75, drop: 0.2, fringe: 0.16, spireW: 0.6 }
+                 canopy: "needles", tuft: 0.46 }
     },
     // a spreading hardwood: broad trunk, long limbs leaving at a wide angle, a round crown
     oak: {
-      baseW: [1.25, 1.41], topW: [0.78, 0.86], taper: 1.3, flare: 0.2, spire: 1.5,
+      baseW: [1.32, 1.48], topW: [0.84, 0.92], taper: 1.3, flare: 0.2, spire: 1.5,
       branch: { first: [2.2, 2.45], gap: [0.55, 0.75], top: 0.5, a0: [0.85, 1.2], a0Rise: -0.35, a1: [0.55, 0.7],
                 len: 1.95, lenFall: 0.9, lenJit: 0.35, thick: 0.17, thickFall: 0.07, thickJit: 0.03 },
       leader: { len: 1.6, thick: 0.24 },
@@ -3339,7 +3339,7 @@ footer {
     },
     // a stout hardwood: the thickest trunk, fewer heavier limbs, rising more steeply, a full crown
     walnut: {
-      baseW: [1.4, 1.55], topW: [0.9, 1.0], taper: 1.15, flare: 0.28, spire: 1.5,
+      baseW: [1.46, 1.6], topW: [0.94, 1.04], taper: 1.15, flare: 0.28, spire: 1.5,
       branch: { first: [2.1, 2.35], gap: [0.7, 0.95], top: 0.6, a0: [0.6, 0.95], a0Rise: -0.2, a1: [0.5, 0.75],
                 len: 2.1, lenFall: 1.0, lenJit: 0.4, thick: 0.22, thickFall: 0.09, thickJit: 0.03 },
       leader: { len: 1.5, thick: 0.26 },
@@ -4062,11 +4062,11 @@ footer {
       var w = (farmWoods && farmWoods[woodId]) || FALLBACK_WOOD;
       var greens = [], i;
       for (i = 0; i < 8; i++) greens.push(mixHex(shade(w.leaf, 0.6), shade(w.leaf2, 1.3), i / 7));
-      var style = LEAF_STYLES[w.shape] || LEAF_STYLES.round;
+      var style = LEAF_STYLES[w.shape] || LEAF_STYLES.round, bk = w.bark || w.trunk;
       k = looks[woodId] = {
         name: w.name, trunk: w.trunk, shape: w.shape,
-        bark: [shade(w.trunk, 0.3), shade(w.trunk, 0.62), shade(w.trunk, 0.9), shade(w.trunk, 0.66), shade(w.trunk, 0.28)],
-        limb: shade(w.trunk, 0.5), twig: shade(w.trunk, 0.6), limbHi: mixHex(w.trunk, "#ffffff", 0.18),
+        bark: [shade(bk, 0.3), shade(bk, 0.62), shade(bk, 0.9), shade(bk, 0.66), shade(bk, 0.28)],
+        limb: shade(bk, 0.5), twig: shade(bk, 0.6), limbHi: mixHex(bk, "#ffffff", 0.18),
         sprites: makeLeafSprites(greens, style.shapes),
         // the crown's four tones, shadow to sunlit, for the masses of foliage
         canopy: [shade(w.leaf, 0.4), shade(w.leaf, 0.7), mixHex(w.leaf, w.leaf2, 0.45), shade(w.leaf2, 1.1)],
@@ -4638,13 +4638,11 @@ footer {
       }
       g.restore();
     }
-    /* A conifer is drawn as tiers, the way a pine reads from a distance: each
-       bough carries a drooping skirt of needles that starts at the middle of
-       the stem (so the trunk hides inside the crown), slopes down to the
-       bough's tip and hangs a ragged fringe of needle tufts. Neighbouring
-       boughs alternate sides, so their skirts overlap into full tiers that
-       narrow toward the top, and the leader is a pointed spire of small tiers.
-       Tiers are drawn bottom to top so each one's fringe hangs over the next. */
+    /* A conifer is drawn as boughs of needles, the way a pine reads in
+       silhouette: each bough is a feathery spray of ragged tufts that droops
+       and thins to its tip, with gaps between boughs where the slim trunk
+       shows, and the leader carries shrinking sprigs up to a single spike.
+       Boughs are drawn bottom to top so each one's tufts hang over the next. */
     function drawConifer(list, sw) {
       var C = look().canopy, F = game.tree.type.foliage, items = list.slice().sort(function (a, b) { return (a.b.leader ? 99 : a.b.y) - (b.b.leader ? 99 : b.b.y); });
       g.lineCap = "round"; g.lineJoin = "round";
@@ -4675,68 +4673,81 @@ footer {
         var x = t * (poly.length - 1), k = Math.min(poly.length - 2, Math.floor(x)), f = x - k;
         return { x: lerp(poly[k].x, poly[k + 1].x, f), y: lerp(poly[k].y, poly[k + 1].y, f) };
       }
-      function tier(b, a0, a1, jit) {
-        var to = Math.min(a1, b.len), from = Math.max(0, a0);
-        if (to - from < 0.06 || to < 0.3) return;               // a flush stub carries no needles
-        var rise = F.rise * (0.55 + 0.45 * b.len / 2), drop = F.drop, n = 9, top = [], bot = [], k, s, P, u;
-        var over = -b.s * (0.08 + 0.12 * J(jit, 40));                 // cross the stem a little, so the two sides never meet in a straight seam
-        if (from <= 0.001) top.push({ x: over, y: b.y + rise + 0.02 });
-        for (k = 0; k <= n; k++) {
-          s = lerp(from, to, k / n); P = arcPoint(b, s); u = s / b.len;
-          top.push({ x: P.x, y: P.y + rise * Math.pow(1 - u, 1.3) + 0.03 });
-          bot.push({ x: P.x, y: P.y - drop * (0.7 + 0.5 * u) });
+      /* A ragged tuft of needles: a spiky oval along direction `ang`, long
+         spikes between short ones so the outline is feathery, not smooth. */
+      function tuftPath(cx, cy, ang, rx, ry, jit, k0) {
+        var N = 18, ca = Math.cos(ang), sa = Math.sin(ang), k;
+        for (k = 0; k < N; k++) {
+          var th = k / N * TAU, sp = k % 2 ? 0.5 + 0.2 * J(jit, k0 + k) : 0.95 + 0.55 * J(jit, k0 + k * 3);
+          var lx = Math.cos(th) * rx * sp, ly = Math.sin(th) * ry * sp * (Math.sin(th) < 0 ? 1.25 : 1);   // hangs a bit lower than it rises
+          var x = cx + lx * ca - ly * sa, y = cy + lx * sa + ly * ca;
+          if (k === 0) g.moveTo(x + sw(y), y); else g.lineTo(x + sw(y), y);
         }
-        var end = arcPoint(b, to), tipped = to >= b.len - 0.02;
-        var tip = { x: end.x + (tipped ? Math.cos(end.ang) * 0.16 : 0), y: end.y + (tipped ? Math.sin(end.ang) * 0.16 - 0.04 : 0) };
-        if (from <= 0.001) bot.unshift({ x: over, y: b.y - drop * 0.6 });
-        // the lower edge, back toward the stem, as a fringe of needle tufts
-        var poly = top.concat([tip]), fr = [];
-        for (k = bot.length - 1; k > 0; k--) {
-          var A = bot[k], B = bot[k - 1];
-          for (var q = 0; q < 2; q++) {
-            var t = (q + 0.5) / 2, d = F.fringe * (0.6 + 0.8 * J(jit, k * 2 + q));
-            var m = { x: lerp(A.x, B.x, t) + b.s * d * 0.35, y: lerp(A.y, B.y, t) - d };
-            poly.push(m); fr.push(m);
-            poly.push({ x: lerp(A.x, B.x, t + 0.25), y: lerp(A.y, B.y, t + 0.25) });
+        g.closePath();
+      }
+      function paintTufts(tf, jit) {
+        if (!tf.length) return;
+        var y0 = 1e9, y1 = -1e9, k;
+        for (k = 0; k < tf.length; k++) { y0 = Math.min(y0, tf[k].y - tf[k].ry * 1.6); y1 = Math.max(y1, tf[k].y + tf[k].ry * 1.4); }
+        g.beginPath();
+        for (k = 0; k < tf.length; k++) tuftPath(tf[k].x, tf[k].y, tf[k].a, tf[k].rx, tf[k].ry, jit, k * 7);
+        var gr = g.createLinearGradient(0, y1, 0, y0);
+        gr.addColorStop(0, C[1]); gr.addColorStop(0.55, C[0]); gr.addColorStop(1, shade(C[0], 0.8));
+        g.fillStyle = gr; g.fill();
+        // needle texture: a few lit strokes fanning out across each tuft's upper side
+        var lit = [], hi = [];
+        for (k = 0; k < tf.length; k++) {
+          var t = tf[k];
+          for (var q = 0; q < 3; q++) {
+            var a = t.a + (J(jit, k * 5 + q) - 0.5) * 1.6, u = J(jit, k * 11 + q) - 0.5;
+            var px = t.x + Math.cos(t.a) * u * t.rx, py = t.y + Math.sin(t.a) * u * t.rx + t.ry * 0.15;
+            (q < 2 ? lit : hi).push({ x: px, y: py, dx: Math.cos(a + 0.5), dy: Math.sin(a + 0.5), l: t.rx * 0.45 });
           }
         }
-        poly.push(bot[0]);
-        fillShape(poly, Math.min(tip.y, bot[0].y) - F.fringe, top[0].y);
-        // needle texture: sunlit along the top, mid tones over the body, dark tufts on the fringe
-        var topPts = [], body = [], kk;
-        for (kk = 0; kk < 26; kk++) topPts.push(along(top.concat([tip]), kk / 26));
-        for (kk = 0; kk < 40; kk++) {
-          var t1 = J(jit, kk * 5 + 1), t2 = 0.15 + 0.7 * J(jit, kk * 7 + 2), pa = along(top, t1), pb = along(bot, t1);
-          body.push({ x: lerp(pa.x, pb.x, t2), y: lerp(pa.y, pb.y, t2) });
-        }
-        needles(body, b.s * 0.75, -0.66, 0.13, C[0], 0.022, jit, 3);
-        needles(body.slice(0, 22), b.s * 0.8, -0.6, 0.11, C[2], 0.018, jit, 11);
-        needles(topPts, b.s * 0.7, -0.72, 0.12, C[3], 0.017, jit, 5);
-        needles(fr, b.s * 0.45, -0.9, 0.09, C[0], 0.022, jit, 7);
+        strokes(lit, C[1], 0.02); strokes(hi, C[2], 0.016);
       }
+      function strokes(list, col, w) {
+        g.strokeStyle = col; g.lineWidth = w; g.beginPath();
+        for (var k = 0; k < list.length; k++) { var p = list[k]; g.moveTo(p.x + sw(p.y), p.y); g.lineTo(p.x + sw(p.y) + p.dx * p.l, p.y + p.dy * p.l); }
+        g.stroke();
+      }
+      /* One bough: tufts strung along it from near the stem to past the tip,
+         biggest in the middle, so it reads as a feathery spray with sky and
+         trunk showing between boughs. Only tufts on the stretch a0..a1. */
+      function tier(b, a0, a1, jit) {
+        var tf = [], start = Math.max(0.36, b.len * 0.12), step = F.tuft * 0.55, k = 0, s;
+        for (s = start; s <= b.len + 1e-6; s += step, k++) {
+          if (s < a0 - 1e-6 || s > a1 + 1e-6) continue;
+          var P = arcPoint(b, s), u = (s - start) / Math.max(0.01, b.len - start);
+          var rx = F.tuft * (0.6 + 0.55 * Math.sin(Math.PI * Math.min(0.92, u * 0.8 + 0.2))) * (0.8 + 0.4 * J(jit, k));
+          var ta = P.ang + (J(jit, k + 30) - 0.5) * 0.5;
+          tf.push({ x: P.x, y: P.y - rx * 0.12, a: ta, rx: rx, ry: rx * 0.62 });
+          // the spray is deep, not a single row: smaller tufts above and hanging below the bough
+          if (J(jit, k + 50) < 0.8) tf.push({ x: P.x + Math.cos(ta) * rx * 0.3, y: P.y + rx * 0.38, a: ta + b.s * 0.3, rx: rx * 0.62, ry: rx * 0.4 });
+          if (J(jit, k + 60) < 0.85) tf.push({ x: P.x + Math.cos(ta) * rx * 0.2, y: P.y - rx * 0.55, a: ta - b.s * 0.35, rx: rx * 0.72, ry: rx * 0.42 });
+        }
+        if (a1 >= b.len - 0.02) {                               // the tip: a narrower tuft reaching past the end
+          var E = arcPoint(b, b.len);
+          tf.push({ x: E.x + Math.cos(E.ang) * F.tuft * 0.5, y: E.y + Math.sin(E.ang) * F.tuft * 0.5, a: E.ang, rx: F.tuft * 0.65, ry: F.tuft * 0.28 });
+        }
+        paintTufts(tf, jit);
+      }
+      /* The top: the leader carries short sprigs that shrink to a single
+         spike, so the tree narrows to a point. */
       function spire(b, a0, a1, jit) {
-        if (a1 < b.len * 0.6 || a0 > b.len * 0.4) return;
-        var base = arcPoint(b, 0), tipP = arcPoint(b, b.len), ux = tipP.x - base.x, uy = tipP.y - base.y, L0 = Math.hypot(ux, uy) || 1;
-        ux /= L0; uy /= L0;
-        base = { x: base.x - ux * 0.4, y: base.y - uy * 0.4 }; L0 += 0.4;      // sink the spire into the top tier
-        var nx = -uy, ny = ux, H = L0 + 0.2, steps = 4, poly = [], k, w0 = F.spireW;
-        function at(h, w) { return { x: base.x + ux * h + nx * w, y: base.y + uy * h + ny * w }; }
-        poly.push(at(H, 0));
-        for (k = 1; k <= steps; k++) {                          // a zigzag cone: small tiers to the tip
-          var h = H * (1 - k / steps) - 0.05, w = w0 * (0.25 + 0.75 * k / steps);
-          poly.push(at(h + 0.18 * (1 - k / steps) + 0.06, w * 0.45));
-          poly.push(at(h - 0.02, w * (0.95 + 0.2 * J(jit, k))));
+        var tf = [], n = 9, k;
+        for (k = 0; k < n; k++) {
+          var s = b.len * (0.02 + 0.9 * k / n);
+          if (s < a0 - 1e-6 || s > a1 + 1e-6) continue;
+          var P = arcPoint(b, s), f = 1 - k / n, side = k % 2 ? 1 : -1, r0 = F.tuft * (0.25 + 0.6 * f);
+          var a = P.ang + side * (1.15 - 0.4 * (1 - f)) * (b.s >= 0 ? 1 : 1);
+          tf.push({ x: P.x + Math.cos(a) * r0 * 0.6, y: P.y + Math.sin(a) * r0 * 0.6 - r0 * 0.2, a: a - side * 0.6, rx: r0, ry: r0 * 0.6 });
         }
-        for (k = steps; k >= 1; k--) {
-          var h2 = H * (1 - k / steps) - 0.05, w2 = w0 * (0.25 + 0.75 * k / steps);
-          poly.push(at(h2 - 0.02, -w2 * (0.95 + 0.2 * J(jit, k + 9))));
-          poly.push(at(h2 + 0.18 * (1 - k / steps) + 0.06, -w2 * 0.45));
+        if (a1 >= b.len - 0.02) {
+          var E = arcPoint(b, b.len);
+          tf.push({ x: E.x + Math.cos(E.ang) * 0.1, y: E.y + Math.sin(E.ang) * 0.1, a: E.ang, rx: F.tuft * 0.4, ry: F.tuft * 0.14 });
         }
-        fillShape(poly, base.y - 0.1, base.y + H);
-        var pts = [];
-        for (k = 0; k < 24; k++) { var hh = H * (0.05 + 0.85 * J(jit, k * 3)), ww = w0 * (1 - hh / H) * (J(jit, k * 5 + 1) * 2 - 1) * 0.8; pts.push(at(hh, ww)); }
-        needles(pts.slice(0, 12), -0.7, -0.7, 0.1, C[3], 0.016, jit, 2);
-        needles(pts.slice(12), 0.7, -0.7, 0.1, C[2], 0.016, jit, 4);
+        paintTufts(tf, jit);
       }
     }
     function limbStub(b) {

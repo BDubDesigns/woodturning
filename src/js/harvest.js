@@ -89,16 +89,16 @@
   var TREES = {
     // a conifer: slim, straight, strongly tapering, many short level boughs, narrow at the top
     pine: {
-      baseW: [1.1, 1.25], topW: [0.5, 0.6], taper: 1.0, flare: 0.12, spire: 1.5,
-      branch: { first: [2.1, 2.3], gap: [0.36, 0.46], top: 0.2, a0: [1.25, 1.45], a0Rise: 0.1, a1: [1.05, 1.2],
-                len: 2.1, lenFall: 1.5, lenJit: 0.2, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
-      leader: { len: 2.0, thick: 0.2 },
+      baseW: [0.7, 0.8], topW: [0.32, 0.38], taper: 1.0, flare: 0.1, spire: 1.5,
+      branch: { first: [2.0, 2.2], gap: [0.34, 0.44], top: 0.2, a0: [1.35, 1.6], a0Rise: 0.05, a1: [1.08, 1.25],
+                len: 2.5, lenFall: 1.9, lenJit: 0.25, thick: 0.1, thickFall: 0.04, thickJit: 0.02 },
+      leader: { len: 2.0, thick: 0.14 },
       foliage: { twigs: [6, 8], twigLen: [0.4, 0.75], spread: [0.35, 0.9], upward: 0.02, dens: 1.3, densRise: 0.2, size: 0.11, sizeRise: 0, leaderTwigs: 8,
-                 canopy: "needles", rise: 0.75, drop: 0.2, fringe: 0.16, spireW: 0.6 }
+                 canopy: "needles", tuft: 0.46 }
     },
     // a spreading hardwood: broad trunk, long limbs leaving at a wide angle, a round crown
     oak: {
-      baseW: [1.25, 1.41], topW: [0.78, 0.86], taper: 1.3, flare: 0.2, spire: 1.5,
+      baseW: [1.32, 1.48], topW: [0.84, 0.92], taper: 1.3, flare: 0.2, spire: 1.5,
       branch: { first: [2.2, 2.45], gap: [0.55, 0.75], top: 0.5, a0: [0.85, 1.2], a0Rise: -0.35, a1: [0.55, 0.7],
                 len: 1.95, lenFall: 0.9, lenJit: 0.35, thick: 0.17, thickFall: 0.07, thickJit: 0.03 },
       leader: { len: 1.6, thick: 0.24 },
@@ -107,7 +107,7 @@
     },
     // a stout hardwood: the thickest trunk, fewer heavier limbs, rising more steeply, a full crown
     walnut: {
-      baseW: [1.4, 1.55], topW: [0.9, 1.0], taper: 1.15, flare: 0.28, spire: 1.5,
+      baseW: [1.46, 1.6], topW: [0.94, 1.04], taper: 1.15, flare: 0.28, spire: 1.5,
       branch: { first: [2.1, 2.35], gap: [0.7, 0.95], top: 0.6, a0: [0.6, 0.95], a0Rise: -0.2, a1: [0.5, 0.75],
                 len: 2.1, lenFall: 1.0, lenJit: 0.4, thick: 0.22, thickFall: 0.09, thickJit: 0.03 },
       leader: { len: 1.5, thick: 0.26 },
