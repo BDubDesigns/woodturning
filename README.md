@@ -110,13 +110,20 @@ mine, monetization, distribution, and the one-month bet.
   Model in `src/js/vein.js`, scene in `src/js/mine-scene.js`, and the payout is
   one function, `awardVein` in `src/js/monetize-ui.js`.
 
-- New-player flow (in progress): `src/js/tutorial.js` is the guided first
-  session as data, one step at a time (the brief is `docs/new-player-flow.md`).
-  A new game starts with no coins or diamonds and three pine logs in the shed;
-  the flow hands out what is needed as it goes, and skipping it grants the
-  starter pack (250 coins, 5 diamonds). While it runs the order board is paused
-  and shows two authored orders. Saves from before the flow skip it. Until the
-  coach screens land, the page skips it straight away.
+- New-player flow: a guided first session (brief: `docs/new-player-flow.md`).
+  A new game opens on the lathe alone, a pine log mounted and two more in the
+  shed, with no coins or diamonds. A coach card and a pulsing ring on the real
+  control walk the player through it, and each tab appears only when it is
+  needed: a practice cut, paint, finish and DONE; ORDERS opens on two authored
+  orders (pine, then oak); the oak needs the FARM (the seed is topped up if
+  short), 5 diamonds to GROW NOW, and the forest's chop, delimb and saw; then
+  the oak order is turned and delivered. Graduation opens SHOP and MINE and
+  fills the board. While the flow runs the board does not post or offer
+  DECLINE, PRACTISE or GET ONE NOW. "Skip tutorial" on the first card opens
+  everything with the starter pack (250 coins, 5 diamonds). Saves from before
+  the flow skip it. The steps are data in `src/js/tutorial.js`; the card, ring
+  and tab gating are `src/js/tutorial-ui.js`. `?tutorial=off` skips it (the
+  older browser checks use it).
 
 ## Play
 
@@ -171,6 +178,7 @@ src/js/save.js      versioned localStorage save (wallet, farm), memory fallback
 src/js/farm.js      farm model: plots, real-time growth, diamonds, land, chopping (pure)
 src/js/farm-ui.js   farm screen, tabs, wallet, tap input
 src/js/tutorial.js  the new-player flow: ordered steps, unlocks, grants (pure)
+src/js/tutorial-ui.js  the coach card, the highlight ring, hidden tabs
 src/js/commissions.js     commission model: orders, target shapes, grading, the board (pure)
 src/js/commissions-ui.js  the commission board screen and the grade dialog
 src/js/shop.js      Arbor Freight model: upgrade lines, tiers, prices, buying (pure)
@@ -197,7 +205,7 @@ know which view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutt
 
 ```
 npm test        # cutting model, farm model, save, harvest model, paint and finish model
-npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, the commission board and the store in Chromium
+npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, the commission board, the store and the new-player flow in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
 

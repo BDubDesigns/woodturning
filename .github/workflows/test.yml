@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [e2e, e2e-farm, e2e-mine, e2e-harvest-look, e2e-paint, e2e-commissions, e2e-shop]
+        suite: [e2e, e2e-farm, e2e-mine, e2e-harvest-look, e2e-paint, e2e-commissions, e2e-shop, e2e-tutorial]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

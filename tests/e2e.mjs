@@ -46,7 +46,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
   console.log(`\nHARVEST ${label} (${viewport.width}x${viewport.height}, seed ${seed}, farm ${farmWood})`);
   const pg = await plain.newPage({ viewport });
   wire(pg, label);
-  await pg.goto(`file://${page_}?view=2d#farm`);
+  await pg.goto(`file://${page_}?tutorial=off&view=2d#farm`);
   await pg.waitForFunction(() => window.__farm);
   // through the page's own state: leaving the page saves it, so a hand-written save would be overwritten
   await pg.evaluate((wood) => {
@@ -57,7 +57,7 @@ async function harvestRun(label, viewport, seed, farmWood) {
     window.__farm.persist();
   }, farmWood);
   // a #harvest link with nothing picked lands on the farm: there is no practice tree
-  await pg.goto(`file://${page_}?view=2d&seed=${seed}#harvest`);
+  await pg.goto(`file://${page_}?tutorial=off&view=2d&seed=${seed}#harvest`);
   await pg.waitForFunction(() => window.__farm);
   const landed = await pg.evaluate(() => ({ f: !document.getElementById("farmScreen").hidden, h: document.getElementById("harvestScreen").hidden, tab: !!document.getElementById("tabHarvest"), btn: !!document.getElementById("hNewTreeBtn") }));
   check(landed.f && landed.h, "#harvest with no tree picked shows the farm, not the forest");
@@ -254,7 +254,7 @@ console.log("\nLATHE");
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
 wire(page, "lathe");
-await page.goto("file://" + page_ + "?testclock");
+await page.goto("file://" + page_ + "?tutorial=off&testclock");
 await page.waitForFunction(() => window.__lathe && window.__lathe.views && window.__lathe.views.current && window.__lathe.advance);
 const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);
 await page.waitForTimeout(400);

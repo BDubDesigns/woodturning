@@ -108,6 +108,7 @@ function fakeCtx(over) {
     canDeliver: (w) => !!c.deliverable[w], planted: (w) => c.planted[w] || 0, grown: (w) => c.grown[w] || 0,
     plantPrice: (w) => R.WOODS[w].plantPrice,
     grant: (g) => { c.grants.push(g); if (g.coins) c.v.coins += g.coins; if (g.diamonds) c.v.diamonds += g.diamonds; if (g.logs) for (const w in g.logs) c.logs[w] = (c.logs[w] || 0) + g.logs[w]; },
+    setMode: (m) => { c.v.mode = m; },
     postFirstBoard: () => { c.boards++; }, resumeBoard: () => { c.resumed++; }, takeOrder: (w) => { c.took.push(w); }
   };
   Object.assign(c.v, over || {});
@@ -147,7 +148,8 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
   assert.equal(t.unlocked("farm"), false);
   c.v.screen = "orders"; at("take");
   c.v.activeWood = "pine"; at("take");               // still on the board
-  c.v.screen = "lathe"; c.v.mode = "cut"; at("turn");
+  c.v.screen = "lathe"; c.v.mode = "finish"; at("turn");
+  assert.equal(c.v.mode, "cut", "an order starts at the chisel, whatever mode the lathe was left in");
   c.v.shape = T.SHAPE_GOOD; at("order_paint");
   c.v.mode = "finish"; at("deliver");
   c.v.delivered = 1; c.v.coins = 20; at("to_farm");

@@ -1,6 +1,6 @@
 # New player flow: a guided first session
 
-Status: planned and decided, not started. This is the brief for the session that builds it.
+Status: built (PRs #15 and #16). Seed prices ended up pine 10, oak 30, walnut 50: at 120 a walnut seed cost more than the cheapest walnut order pays (95).
 
 ## The problem
 
