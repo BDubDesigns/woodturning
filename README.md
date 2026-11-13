@@ -82,8 +82,9 @@ mine, monetization, distribution, and the one-month bet.
   - Lighting: bare bulb, halogen work light (150), LED shop panel (600), studio
     light bar (2400). The lamp hangs at the top of the workshop and the light
     on the piece comes from it, in both views.
-  - Motor: half horse, one horse (300), horse and a half (1100), two horse
-    (4000): wood comes off 1.25x, 1.55x, 1.9x as fast.
+  - Motor: the stock half horse is weak on purpose; one horse (300), horse and
+    a half (1100) and two horse (4000) each cut about 1.5x faster than the last,
+    three times the stock motor at the top.
   - Chisels: gouge and skew, then a parting tool (200), detail gouge (700) and
     roughing gouge (2500), each a new button on the chisel rack.
   Model in `src/js/shop.js` (save section `shop`), screen in `src/js/shop-ui.js`;
@@ -101,7 +102,9 @@ mine, monetization, distribution, and the one-month bet.
 
 ## Play
 
-Open `lathe.html` in a browser. The FARM, LATHE, MINE, ORDERS and SHOP tabs switch
+Open `lathe.html` in a browser. The gear in the header opens Settings, where
+RESET PROFILE (two taps) starts over as a brand-new player; `?reset` on the URL
+does the same. The FARM, LATHE, MINE, ORDERS and SHOP tabs switch
 screens (`lathe.html#farm` opens the farm, `#harvest` the forest, `#mine` the mine,
 `#orders` the commission board, `#shop` Arbor Freight,
 and `?seed=N` picks the harvest's tree). It is one self-contained file (no network),
@@ -178,6 +181,15 @@ npm test        # cutting model, farm model, save, harvest model, paint and fini
 npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, the commission board and the store in Chromium
 npm run build   # rebuild lathe.html after editing src/
 ```
+
+The browser checks drive the lathe on a test clock: `lathe.html?testclock` stops
+the lathe following the wall clock, and a test moves time with
+`__lathe.advance(seconds)` in fixed 1/60 s steps (the forest has
+`__harvest.advance` too). A held push then cuts the same depth on any machine,
+GPU or not, and a three-second hold takes milliseconds. Most checks use the flat
+2D view (`?view=2d`), which renders quickly without a GPU; the 3D view gets a
+short smoke test. GitHub Actions (`.github/workflows/test.yml`) runs `npm test`
+and every browser check, each in its own job, on every pull request.
 
 ## Build order
 

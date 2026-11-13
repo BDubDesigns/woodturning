@@ -51,7 +51,7 @@ await page.addInitScript(() => {
 const windBack = (ms) => page.evaluate((ms) => localStorage.setItem("__windOnce", String(ms)), ms);
 
 console.log("\nFARM");
-await page.goto(url + "#farm");
+await page.goto(url + "?view=2d#farm");
 await page.evaluate(() => localStorage.clear());
 await reload();
 
@@ -193,7 +193,7 @@ const p2 = await ctx2.newPage();
 await p2.addInitScript(() => { Object.defineProperty(window, "localStorage", { get() { throw new Error("blocked"); } }); });
 const errs2 = [];
 p2.on("pageerror", (e) => errs2.push(e.message));
-await p2.goto(url + "#farm");
+await p2.goto(url + "?view=2d#farm");
 await p2.waitForFunction(() => window.__farm);
 await p2.click('.plot[data-i="0"]');
 await p2.click('[data-plant="pine"]');

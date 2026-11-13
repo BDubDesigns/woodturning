@@ -1,0 +1,50 @@
+# Runs every test on each pull request and on pushes to master, so a PR shows
+# green or red on GitHub without anyone running the suite by hand.
+#   unit:    the Node model tests (npm test), a few seconds
+#   browser: each Playwright check in its own job, all at once
+# The browser checks drive the game on its test clock (?testclock), so they do
+# not depend on how fast this machine renders; GitHub's runners have no GPU and
+# need none.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [e2e, e2e-farm, e2e-mine, e2e-harvest-look, e2e-paint, e2e-commissions, e2e-shop]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the same Playwright the cloud sessions use, so a check behaves the same in both places
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      - name: Build the single-file game
+        run: node tools/build.mjs
+      - name: Run ${{ matrix.suite }}
+        run: node tests/${{ matrix.suite }}.mjs lathe.html

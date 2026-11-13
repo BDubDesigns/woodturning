@@ -22,7 +22,7 @@ test("a new workshop has the first tier of every line, for nothing", () => {
     assert.equal(Shop.LINES[k].tiers[0].price, 0, k + " starts free");
   }
   assert.equal(shop.lightLevel(), 0);
-  assert.equal(shop.cutBoost(), 1);
+  assert.ok(shop.cutBoost() < 0.5, "the stock motor is weak: " + shop.cutBoost());
   assert.deepEqual(shop.tips(), ["gouge", "skew"]);
 });
 
@@ -59,12 +59,16 @@ test("the top of a line cannot be bought past", () => {
   const { shop } = setup(1e6);
   while (shop.next("motor")) assert.ok(shop.buy("motor").ok);
   assert.equal(shop.buy("motor").reason, "top of the line");
-  assert.ok(shop.cutBoost() > 1.5, "the best motor cuts much faster");
+  assert.ok(shop.cutBoost() / Shop.LINES.motor.tiers[0].boost > 2.5, "the best motor cuts far faster than the stock one");
 });
 
 test("the motor ladder only ever gets faster, the light only brighter", () => {
   const m = Shop.LINES.motor.tiers.map((t) => t.boost), l = Shop.LINES.light.tiers.map((t) => t.level);
-  for (let i = 1; i < m.length; i++) { assert.ok(m[i] > m[i - 1]); assert.ok(l[i] > l[i - 1]); }
+  for (let i = 1; i < m.length; i++) {
+    assert.ok(l[i] > l[i - 1]);
+    const step = m[i] / m[i - 1];
+    assert.ok(step > 1.3 && step < 1.7, `motor rung ${i} is a smooth step up (${step.toFixed(2)}x)`);
+  }
 });
 
 test("chisels add tips to the rack, and every tip sold is one the lathe can cut with", () => {

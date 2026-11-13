@@ -25,9 +25,10 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 860 } });
 const page = await ctx.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-await page.goto(`file://${file}?view=2d#orders`);
+await page.goto(`file://${file}?view=2d&testclock#orders`);
 await page.waitForFunction(() => window.__orders && window.__lathe && window.__lathe.setSpec);
-await page.waitForTimeout(300);
+const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);   // the lathe runs on its test clock (?testclock)
+await tick(0.3);
 
 console.log("\nBOARD");
 const cards = await page.locator(".order[data-order]").count();
@@ -43,7 +44,7 @@ console.log("\nTAKE IT");
 await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "pine" }, 2); window.__orders.ui.render(true); });
 check(/1 pine log|2 pine logs/.test(await page.locator(".order[data-order]").first().textContent()), "with a log in the shed, the card says so");
 await page.locator('.order[data-order] [data-act="take"]').first().click();
-await page.waitForTimeout(400);
+await tick(0.4);
 let st = await page.evaluate(() => {
   const S = window.__lathe;
   return { screen: !document.getElementById("latheScreen").hidden, order: S.order && S.order.id, target: !!S.target, stock: S.stock, wood: S.wood,
@@ -72,11 +73,11 @@ const lay = await page.evaluate(() => { const L = window.__lathe; return null; }
 for (let pass = 0; pass < 6; pass++) {
   const x = box.x + box.width * 0.12, y = box.y + box.height * 0.8;
   await page.mouse.move(x, y); await page.mouse.down();
-  for (let i = 1; i <= 10; i++) { await page.mouse.move(x, y - 4 * i); await page.waitForTimeout(16); }
-  for (let i = 1; i <= 20; i++) { await page.mouse.move(x + box.width * 0.1 * (i / 20), y - 40); await page.waitForTimeout(30); }
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(x, y - 4 * i); await tick(0.016); }
+  for (let i = 1; i <= 20; i++) { await page.mouse.move(x + box.width * 0.1 * (i / 20), y - 40); await tick(0.03); }
   await page.mouse.up();
 }
-await page.waitForTimeout(300);
+await tick(0.3);
 const after = await page.evaluate(() => window.Game.Commissions.shapeScore(window.__lathe.work.radius, window.__lathe.target, window.__lathe.work.baseRadius).score);
 check(after > before, `cutting the handle toward the line raises the shape score (${(before * 100).toFixed(0)}% -> ${(after * 100).toFixed(0)}%)`);
 
@@ -87,7 +88,7 @@ await page.evaluate(() => {
   for (let i = 0; i < n; i++) S.work.radius[i] = Math.min(S.work.baseRadius[i], S.target[i]);
   S.work.version++;
 });
-await page.waitForTimeout(200);   // let a frame pass: wood cut away takes its paint, so paint after the cut
+await tick(0.2);   // let a frame pass: wood cut away takes its paint, so paint after the cut
 await page.evaluate(() => {
   const S = window.__lathe, P = window.Lathe.Paint, n = S.work.radius.length;
   for (let i = 0; i < n; i++) {
@@ -99,7 +100,7 @@ await page.evaluate(() => {
 });
 const coins0 = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
 await page.click("#doneBtn");
-await page.waitForTimeout(300);
+await tick(0.3);
 check(!(await page.locator("#gradeOverlay").isHidden()), "DONE with the order's wood opens the grade");
 const offerText = await page.locator("#gradeOverlay").textContent();
 check(/SHAPE/.test(offerText) && /PAINT/.test(offerText) && /SHEEN/.test(offerText), "the grade shows shape, paint and sheen");
@@ -108,7 +109,7 @@ check(stars === 3, `a piece made to the order earns three stars (${stars})`);
 if (shots) await page.screenshot({ path: `${shots}/grade.png` });
 const pieceId = await page.evaluate(() => window.__farm.state.inventory.list("piece").at(-1).id);
 await page.locator('#gradeOverlay [data-act="give"]').click();
-await page.waitForTimeout(300);
+await tick(0.3);
 const coins1 = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
 check(coins1 === coins0 + first.reward, `DELIVER pays the full ${first.reward} coins (${coins0} -> ${coins1})`);
 check((await page.locator("#walletCoins").textContent()) === String(coins1), "the wallet shows it");
@@ -117,7 +118,7 @@ check(await page.evaluate((id) => !window.__orders.board.get(id), first.id), "th
 check(await page.evaluate(() => !window.__lathe.order && !window.__lathe.target), "the lathe is free again");
 if (shots) await page.screenshot({ path: `${shots}/delivered.png` });
 await page.locator('#gradeOverlay [data-act="board"]').click();
-await page.waitForTimeout(300);
+await tick(0.3);
 check(await page.locator(".order.empty").count() === 1, "an empty slot waits for the next order");
 check(/DELIVERED\s*1 commission/.test(await page.locator("#boardFoot").textContent()), "the board counts it");
 check(await page.locator("#boardFoot .order.hist li").count() === 1, "and lists it in its own panel");
@@ -125,28 +126,28 @@ check(await page.evaluate(() => getComputedStyle(document.querySelector("#boardF
 check(/PRACTICE/.test(await page.locator("#specTag").textContent()), "with no order on, the lathe's spec card says it is practice");
 
 console.log("\nWRONG WOOD AND DECLINE");
+// the board is random: make one order an oak one, so this never depends on what was rolled
 const oak = await page.evaluate(() => {
-  const b = window.__orders.board, o = b.state.orders.find((x) => x.wood !== "pine") || b.state.orders[0];
+  const b = window.__orders.board, o = b.state.orders[b.state.orders.length - 1];
+  o.wood = "oak"; window.__orders.ui.render(true);
   return o;
 });
 await page.locator(`.order[data-order="${oak.id}"] [data-act="take"]`).click();
-await page.waitForTimeout(300);
+await tick(0.3);
 // turn a pine log against an order for another wood
 await page.evaluate(() => { window.__lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 20; i < 60; i++) S.work.radius[i] *= 0.7; S.work.version++; });
 await page.click("#doneBtn");
-await page.waitForTimeout(300);
-if (oak.wood !== "pine") {
-  check(await page.locator("#gradeOverlay").isHidden(), "the wrong wood is not offered to the order");
-  check(/cannot go to them/.test(await page.locator("#ltoast").textContent()), "and the toast says why");
-}
+await tick(0.3);
+check(await page.locator("#gradeOverlay").isHidden(), "the wrong wood is not offered to the order");
+check(/cannot go to them/.test(await page.locator("#ltoast").textContent()), "and the toast says why");
 await page.evaluate(() => window.Game.showScreen("orders"));
-await page.waitForTimeout(300);
+await tick(0.3);
 const n0 = await page.evaluate(() => window.__orders.board.state.orders.length);
 await page.locator(`.order[data-order="${oak.id}"] [data-act="release"]`).click();
-await page.waitForTimeout(200);
+await tick(0.2);
 check(await page.evaluate(() => !window.__orders.board.active() && !window.__lathe.order), "PUT ASIDE frees the lathe and keeps the order");
 await page.locator(`.order[data-order="${oak.id}"] [data-act="decline"]`).click();
-await page.waitForTimeout(200);
+await tick(0.2);
 check(await page.evaluate((id) => !window.__orders.board.get(id), oak.id), "DECLINE takes the order off the board");
 check(await page.evaluate(() => window.__orders.board.state.orders.length) === n0 - 1, "and leaves the slot to fill later");
 check(await page.evaluate(() => !window.__lathe.order), "a declined order leaves the lathe too");

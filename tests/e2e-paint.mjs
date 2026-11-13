@@ -24,9 +24,10 @@ const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-await page.goto("file://" + page_);
+await page.goto("file://" + page_ + "?testclock");
 await page.waitForFunction(() => window.__lathe && window.__lathe.views && window.__lathe.views.current);
-await page.waitForTimeout(400);
+const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);   // the lathe runs on its test clock (?testclock)
+await tick(0.4);
 
 let failed = 0;
 const check = (ok, msg) => { console.log((ok ? "  ok   " : "  FAIL ") + msg); if (!ok) failed++; };
@@ -51,16 +52,16 @@ async function stroke(t, opts = {}) {
   await page.mouse.down();
   const push = opts.push ?? 40, steps = 12;
   let minY = y0;
-  for (let i = 1; i <= steps; i++) { const y = y0 - (push * i) / steps; minY = Math.min(minY, y); await page.mouse.move(info.x, y); await page.waitForTimeout(25); }
+  for (let i = 1; i <= steps; i++) { const y = y0 - (push * i) / steps; minY = Math.min(minY, y); await page.mouse.move(info.x, y); await tick(0.025); }
   if (opts.to != null) {   // then sweep along the log, slowly
     const x1 = info.x + (opts.to - t) * (await page.evaluate(() => { const l = window.__lathe.views.current.layout(); return l.right - l.left; }));
     const n = 14;
-    for (let i = 1; i <= n; i++) { await page.mouse.move(info.x + ((x1 - info.x) * i) / n, y0 - push); await page.waitForTimeout((opts.sweepMs ?? 900) / n); }
+    for (let i = 1; i <= n; i++) { await page.mouse.move(info.x + ((x1 - info.x) * i) / n, y0 - push); await tick((opts.sweepMs ?? 900) / n / 1000); }
   }
-  await page.waitForTimeout(opts.hold ?? 900);
+  await tick((opts.hold ?? 900) / 1000);
   await page.mouse.up();
   await page.mouse.move(40, 740);          // park the mouse off the stage so the tool is not hovering
-  await page.waitForTimeout(80);
+  await tick(0.08);
   return { ...info, minY };
 }
 
@@ -100,7 +101,7 @@ const settled = (fn, arg) => page.waitForFunction(fn, arg, { timeout: 15000 }).t
 
 for (const kind of ["3d", "2d"]) {
   await page.evaluate((k) => { const S = window.__lathe; k === "2d" ? S.views.use2D() : S.views.use3D(); }, kind);
-  await page.waitForTimeout(300);
+  await tick(0.3);
   const actual = await page.evaluate(() => window.__lathe.views.current.kind);
   console.log(`\n${kind.toUpperCase()} view (showing: ${actual})`);
   if (actual !== kind) { check(kind === "2d", "3D unavailable in this browser, skipped"); continue; }
@@ -112,7 +113,7 @@ for (const kind of ["3d", "2d"]) {
 
   /* ---------- paint ---------- */
   await page.click("#modePaint");
-  await page.waitForTimeout(400);
+  await tick(0.4);
   check(await visible("#toolsPaint") && await visible("#specBar") && !(await visible("#toolsCut")) && !(await visible("#profileBar")), "paint mode: brush, palette and spec card shown, chisels hidden");
   const palette = await page.evaluate(() => Object.keys(window.Lathe.Paint.PALETTE));
   const swatches = await page.locator(".swatch").evaluateAll((els) => els.map((e) => e.dataset.color));
@@ -189,12 +190,12 @@ for (const kind of ["3d", "2d"]) {
   // mode, where the lamp is off, before and after spraying; the lamp's sweep would confuse the comparison.
   const T = 0.7;
   await page.click("#modePaint");
-  await page.waitForTimeout(500);
+  await tick(0.5);
   const pre = await onScreen(T);
   const litSpot = [pre.x, pre.y - pre.rPx * 0.25, 45, pre.rPx * 0.4];   // inside the blank, clear of the steel tool rest
   const litBefore = await look(...litSpot);
   await page.click("#modeFinish");
-  await page.waitForTimeout(400);
+  await tick(0.4);
   check(await visible("#toolsFinish") && await visible("#specBar") && !(await visible("#toolsPaint")), "finish mode: spray bottle and spec card shown");
   check(await settled(() => document.getElementById("glossName").textContent === "Matte"), "a fresh piece is matte");
   await stroke(T, { hold: 1600 });
@@ -203,15 +204,15 @@ for (const kind of ["3d", "2d"]) {
   check(m.gloss[idx(T)] > m.gloss[idx(T) + 25] && m.gloss[idx(0.95)] === 0, "and not where it is not");
   check(await settled(() => parseFloat(document.getElementById("glossFill").style.width) > 3), "the sheen meter moves");
   await page.click("#modePaint");
-  await page.waitForTimeout(900);
+  await tick(0.9);
   const litAfter = await look(...litSpot);
   check(litAfter.pale > litBefore.pale + 20 && litAfter.p99 > litBefore.p99 + 25,
     `the finished wood catches the light on screen (white glints ${litBefore.pale} to ${litAfter.pale}, bright end ${litBefore.p99.toFixed(0)} to ${litAfter.p99.toFixed(0)})`);
   await page.click("#modeFinish");
-  await page.waitForTimeout(400);
+  await tick(0.4);
   // finish the whole piece, then the finish score
   await page.evaluate(() => { const S = window.__lathe; for (let p = 0; p < 24; p++) for (let k = 0; k <= 60; k++) S.coat.spray(p % 2 ? 1 - k / 60 : k / 60, 1, 1 / 60); });
-  await page.waitForTimeout(300);
+  await tick(0.3);
   m = await model();
   check(m.match.finish > 0.9 && m.match.sheen === "gloss", `a fully sprayed piece matches a gloss spec (finish ${(m.match.finish * 100).toFixed(0)}%)`);
   check(await settled(() => document.getElementById("glossName").textContent === "Gloss"), "and the meter reads Gloss");
@@ -220,7 +221,7 @@ for (const kind of ["3d", "2d"]) {
 
   /* ---------- cutting takes the paint with it; new log clears it ---------- */
   await page.click("#modeCut");
-  await page.waitForTimeout(400);
+  await tick(0.4);
   check(await visible("#toolsCut") && await visible("#profileBar") && !(await visible("#specBar")), "back to cut mode: chisels and profile strip return");
   const painted = (await model()).coat;
   check(painted[idx(0.25)] > 0.5, "the piece is still painted after switching modes");
@@ -234,7 +235,7 @@ for (const kind of ["3d", "2d"]) {
 
   /* ---------- specs ---------- */
   await page.click("#modePaint");
-  await page.waitForTimeout(300);
+  await tick(0.3);
   const names = new Set();
   let ok = true;
   for (let i = 0; i < 12; i++) {
@@ -254,7 +255,7 @@ for (const kind of ["3d", "2d"]) {
 console.log("\nCOPY");
 for (const mode of ["cut", "paint", "finish"]) {
   await page.click("#mode" + mode[0].toUpperCase() + mode.slice(1));
-  await page.waitForTimeout(150);
+  await tick(0.15);
   const text = await page.evaluate(() => document.body.innerText + "\n" + Array.from(document.querySelectorAll("[title],[aria-label]")).map((e) => (e.title || "") + " " + (e.getAttribute("aria-label") || "")).join("\n"));
   check(!/[–—]/.test(text), `no em or en dashes in the ${mode} screen text`);
 }
@@ -263,10 +264,10 @@ await page.click("#modeCut");
 /* ---------- a phone ---------- */
 console.log("\nPHONE (420 x 800)");
 await page.setViewportSize({ width: 420, height: 800 });
-await page.waitForTimeout(300);
+await tick(0.3);
 for (const mode of ["Paint", "Finish"]) {
   await page.click("#mode" + mode);
-  await page.waitForTimeout(500);
+  await tick(0.5);
   const fit = await page.evaluate(() => {
     const over = document.documentElement.scrollWidth > window.innerWidth + 1;
     const bad = Array.from(document.querySelectorAll("#footer button, footer button, #specBar button, .swatch")).filter((b) => b.offsetParent && (b.getBoundingClientRect().right > window.innerWidth + 1 || b.getBoundingClientRect().left < -1)).length;

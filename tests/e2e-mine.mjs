@@ -37,7 +37,7 @@ const wallet = async () => ({
 const setAdSeconds = (s) => page.evaluate((s) => { window.__mine.adProvider.seconds = s; }, s);
 
 console.log("\nMINE");
-await page.goto(url + "#mine");
+await page.goto(url + "?view=2d#mine");
 await page.evaluate(() => localStorage.clear());
 await reload();
 

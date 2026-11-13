@@ -10,7 +10,9 @@
 
    What a tier does is data on the tier, read by the lathe:
      light   S.lightLevel, the work light hung over the lathe (view3d WORK_LIGHTS)
-     motor   cutBoost, a multiplier on how fast wood comes off
+     motor   cutBoost, a multiplier on how fast wood comes off. The stock motor is
+             weak on purpose (about a third of the top one), and every rung is
+             about 1.5x the last, so the motor is a real reason to save up.
      chisels the chisel tips on the rack (cutting.js TIPS)
 
    The model owns the shop section of the save:
@@ -36,10 +38,10 @@
     motor: {
       name: "Motor", blurb: "More power at the spindle takes wood off faster.",
       tiers: [
-        { name: "Half horse motor", price: 0, blurb: "It turns. Mostly.", boost: 1 },
-        { name: "One horse motor", price: 300, blurb: "Cuts about a quarter faster, and bogs down less.", boost: 1.25 },
-        { name: "Horse and a half", price: 1100, blurb: "Half again as fast. Roughing out is no longer a chore.", boost: 1.55 },
-        { name: "Two horse, variable speed", price: 4000, blurb: "Nearly twice the stock motor. The shed lights dim when it starts.", boost: 1.9 }
+        { name: "Half horse motor", price: 0, blurb: "It turns. Mostly. Every pass only takes a little off.", boost: 0.35 },
+        { name: "One horse motor", price: 300, blurb: "About half again as fast as the stock motor.", boost: 0.55 },
+        { name: "Horse and a half", price: 1100, blurb: "More than twice the stock motor. Roughing out stops being a chore.", boost: 0.8 },
+        { name: "Two horse, variable speed", price: 4000, blurb: "Three times the stock motor. The shed lights dim when it starts.", boost: 1.1 }
       ]
     },
     chisels: {

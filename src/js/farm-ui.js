@@ -18,6 +18,11 @@
   function $(id) { return document.getElementById(id); }
 
   var storage = Save.pickStorage(root);
+  // ?reset on the URL starts over as a brand-new player (Settings has the same, behind two taps)
+  if (/[?&]reset\b/.test(location.search)) {
+    try { storage.removeItem(Save.KEY); } catch (e) {}
+    try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])reset\b(=[^&]*)?&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
+  }
   var game = Save.load(storage);
   var M = G.Monetize, R = G.Registry;
   // The one shared state: every tab reads and writes this wallet and inventory.
@@ -25,7 +30,42 @@
   G.state = state;
   var mine = M.createMine(game, { state: state, onChange: persist });
   var farm = F.createFarm(game, { state: state, onChange: persist, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND });
-  function persist() { farm.touch(); Save.write(storage, game); renderWallet(); }
+  var wiping = false;   // a reset is under way: nothing may write the old save back
+  function persist() { if (wiping) return; farm.touch(); Save.write(storage, game); renderWallet(); }
+
+  /* ---------------- settings: reset the profile ----------------
+     Wipes the save and reloads as a brand-new player. Two taps, so it is never
+     done by accident. */
+  var settingsEl = $("settingsOverlay"), armed = false;
+  function closeSettings() { settingsEl.hidden = true; settingsEl.innerHTML = ""; armed = false; }
+  function openSettings() {
+    armed = false;
+    settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' +
+      '<p class="g-note">Reset to see the game as a new player sees it. This wipes everything on this device: coins, diamonds, trees, the shed, orders and upgrades.</p>' +
+      '<div class="row"><button type="button" class="act danger" data-act="reset"><span class="an">RESET PROFILE</span><span class="ad">Start over from nothing</span></button>' +
+      '<button type="button" class="act" data-act="close"><span class="an">CLOSE</span><span class="ad">Keep playing</span></button></div></div>';
+    settingsEl.hidden = false;
+  }
+  function resetProfile() {
+    wiping = true;
+    try { storage.removeItem(Save.KEY); } catch (e) {}
+    location.replace(location.pathname + location.search.replace(/[?&]reset\b(=[^&]*)?/, ""));
+  }
+  $("settingsBtn").addEventListener("click", openSettings);
+  settingsEl.addEventListener("click", function (ev) {
+    if (ev.target === settingsEl) { closeSettings(); return; }
+    var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
+    if (!b) return;
+    if (b.getAttribute("data-act") === "close") { closeSettings(); return; }
+    if (!armed) {
+      armed = true;
+      b.classList.add("armed");
+      b.innerHTML = '<span class="an">TAP AGAIN TO WIPE IT ALL</span><span class="ad">There is no undo</span>';
+      return;
+    }
+    resetProfile();
+  });
+  root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !settingsEl.hidden) closeSettings(); });
 
   var plotsEl = $("plots"), ctxEl = $("ctx"), shedEl = $("shed"), toastEl = $("toast");
   var selected = -1;
