@@ -32,15 +32,26 @@
   var farm = F.createFarm(game, { state: state, onChange: persist, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND });
   var wiping = false;   // a reset is under way: nothing may write the old save back
   function persist() { if (wiping) return; farm.touch(); Save.write(storage, game); renderWallet(); }
+  // the player's settings live in the profile: vibration on unless they turned it off
+  if (!game.settings || typeof game.settings !== "object") game.settings = {};
+  var Hap = G.Haptics;
+  Hap.useProfile(game.settings, persist);
 
-  /* ---------------- settings: reset the profile ----------------
-     Wipes the save and reloads as a brand-new player. Two taps, so it is never
-     done by accident. */
+  /* ---------------- settings: vibration, replay, reset the profile ----------------
+     Vibration only shows where the device can vibrate (not iPhone browsers): no
+     switch that does nothing. Reset wipes the save and reloads as a brand-new
+     player. Two taps, so it is never done by accident. */
+  function vibrationHtml() {
+    if (!Hap.supported()) return "";
+    var v = Hap.enabled();
+    return '<div class="row"><button type="button" class="act' + (v ? " primary" : "") + '" data-act="vibration" aria-pressed="' + v + '">' +
+      '<span class="an">VIBRATION ' + (v ? "ON" : "OFF") + '</span><span class="ad">' + (v ? "You feel the chisel bite. Tap to turn off" : "Tap to feel the chisel bite") + "</span></button></div>";
+  }
   var settingsEl = $("settingsOverlay"), armed = false;
   function closeSettings() { settingsEl.hidden = true; settingsEl.innerHTML = ""; armed = false; }
   function openSettings() {
     armed = false;
-    settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' +
+    settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' + vibrationHtml() +
       (G.tutorial && G.tutorial.done ?
         '<p class="g-note">Walk through the tutorial again. Nothing in your game changes: every tab stays open and nothing is given out a second time.</p>' +
         '<div class="row"><button type="button" class="act primary" data-act="replay"><span class="an">REPLAY TUTORIAL</span><span class="ad">A guided tour of the game</span></button></div>' : "") +
@@ -60,6 +71,14 @@
     var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
     if (!b) return;
     if (b.getAttribute("data-act") === "close") { closeSettings(); return; }
+    if (b.getAttribute("data-act") === "vibration") {
+      Hap.setEnabled(!Hap.enabled());
+      var row = b.parentNode, tmp = document.createElement("div");
+      tmp.innerHTML = vibrationHtml();
+      if (tmp.firstChild) row.parentNode.replaceChild(tmp.firstChild, row);
+      if (Hap.enabled()) Hap.pulse("done");   // a little thump says it is on
+      return;
+    }
     if (b.getAttribute("data-act") === "replay") {
       closeSettings();
       if (G.tutorial && G.tutorial.replay() && G.tutorialRefresh) G.tutorialRefresh();
@@ -105,6 +124,7 @@
     }
     var L = root.Lathe;
     L.hidden = name !== "lathe";            // the lathe sleeps while another screen shows
+    if (name !== "lathe" && G.Haptics) G.Haptics.stop();   // and never buzzes from behind another screen
     L.audio.lathe(name === "lathe");        // and so does its motor
     harvestStatsEl.style.display = name === "harvest" ? "" : "none";
     if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();

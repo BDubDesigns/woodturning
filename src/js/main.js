@@ -35,7 +35,7 @@
   setTimeout(boot, 30);
 
   function boot() {
-    var C = L.CFG, audio = L.audio, P = L.Paint;
+    var C = L.CFG, audio = L.audio, P = L.Paint, Hap = root.Game.Haptics;
     var stage = document.getElementById("stage");
 
     var S = {
@@ -57,6 +57,7 @@
       rpm: 1100,
       spinAngle: 0,
       cutIntensity: 0,
+      hapticCut: 0,                     // the cutting vibration level, eased (haptics.js)
       shake: 0,
       catchCooldown: 0,
       everCut: false,
@@ -130,6 +131,7 @@
       if (e.pointerType !== "mouse") p.hover = false;
       S.pressure.up();
       S.work.endPass();
+      S.hapticCut = 0; Hap.stop();
     }
     stage.addEventListener("pointerup", endPointer);
     stage.addEventListener("pointercancel", endPointer);
@@ -145,6 +147,7 @@
       cutflash.classList.add("on");
       setTimeout(function () { cutflash.classList.remove("on"); }, 110);
       audio.clunk();
+      Hap.pulse("catch");
     }
 
     /* ---------------- UI ---------------- */
@@ -189,6 +192,7 @@
     function sanding() { return S.mode === "cut" && !!L.TIPS[S.tip] && L.TIPS[S.tip].kind === "abrasive"; }
     function setTip(t) {
       if (S.tips.indexOf(t) < 0) return;
+      if (t !== S.tip) Hap.stop();
       S.tip = t;
       var st = toolRowState();
       st.used[t] = 1 + Object.keys(st.used).reduce(function (m, k) { return Math.max(m, st.used[k] || 0); }, 0);   // least recently used = lowest
@@ -600,6 +604,7 @@
       if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
       else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
       else toast(woodName(wood) + " piece added to the shed.");
+      Hap.pulse("done");
       return piece;
     }
     doneBtn.addEventListener("click", function () { audio.init(); closeStock(); finishPiece(); });
@@ -616,6 +621,7 @@
     var PITCH = { cut: 1, paint: 0.42, finish: 2.6 };   // brush swish is soft and low, the spray a high hiss
     function setMode(m) {
       if (!panels[m]) return;
+      if (m !== S.mode) Hap.stop();
       S.mode = m;
       S.pressure.catches = m === "cut" && !sanding();
       syncDepthLabel();
@@ -922,6 +928,8 @@
        frame rate, and a three-second hold takes milliseconds. */
     var testClock = /[?&]testclock\b/.test(location.search);
     S.testClock = testClock;
+    var simMs = 0;   // on the test clock, vibration timing follows the simulation too
+    if (testClock) Hap.clock = function () { return simMs; };
     function frame(nowMs) {
       requestAnimationFrame(frame);
       if (L.hidden || testClock) { lastFrame = nowMs; return; }   // the farm is showing: the lathe sleeps (on the test clock it only draws in advance())
@@ -941,6 +949,10 @@
       view.frame(1 / 60);
       return n;
     };
+    /* How hard the lathe is working, 0..1, from the same inputs that set the cut rate:
+       a hard press at the top RPM is 1. Drives the vibration. */
+    var DRIVE_MAX = L.pressureFactor(1) * L.rpmFactor(C.RPM_MAX), HAPTIC_EASE = 14;
+    function drive(pr) { return Math.min(1, L.pressureFactor(pr) * L.rpmFactor(S.rpm) / DRIVE_MAX); }
     /* One tick of the lathe: spin, pressure, cutting, paint and spray, the tool, sound, stats. */
     function step(dt) {
         if (S.catchCooldown > 0) S.catchCooldown -= dt;
@@ -950,7 +962,8 @@
         S.flow = Math.max(0, S.flow - dt * 3.2);
         if (S.coat.syncWork(S.work)) { drawProfile(); updateSpecInfo(); }   // wood cut away takes its paint
 
-        var p = S.pointer, pr = S.pressure.update(dt);
+        var p = S.pointer, pr = S.pressure.update(dt), hapCut = 0, hapSand = 0;
+        simMs += dt * 1000;
         if (p.active) {
           S.lastT = p.t;
           if (sanding()) {
@@ -961,13 +974,19 @@
               S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
               S.sandLevel = Math.max(S.sandLevel, pr * (0.35 + 0.65 * Math.min(1, S.rpm / 1800)) * (0.35 + 0.65 * roughHere));
               // the dust is the cue: it thins out as the spot nears the best this grit can do
-              if (view.onSand) view.onSand(p.t, pr, Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor)), dt);
+              var dustAmt = Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor));
+              if (view.onSand) view.onSand(p.t, pr, dustAmt, dt);
+              hapSand = drive(pr) * dustAmt / Math.max(0.05, 1 - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor));   // fades like the dust; haptics.js caps it
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
             }
             S.coat.rebase(S.work);
           } else if (S.mode === "cut") {
             var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
+              // vibration: the cut rate's own inputs, a hard press at top RPM is 1, eased so it doesn't stutter
+              hapCut = drive(pr);
+              S.hapticCut += (hapCut - S.hapticCut) * Math.min(1, dt * HAPTIC_EASE);
+              hapCut = Math.max(Hap.CFG.MIN_LEVEL, S.hapticCut);
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
@@ -980,6 +999,7 @@
             if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }
         }
+        if (hapSand > 0) Hap.sand(hapSand); else { if (!hapCut) S.hapticCut = 0; Hap.cut(hapCut); }   // no wood off this frame: nothing
         var tool = S.tool;
         if (p.active) { tool.mode = "contact"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0; }
         else if (p.hover) { tool.mode = "hover"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0.12; }

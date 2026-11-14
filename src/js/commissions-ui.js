@@ -246,10 +246,12 @@
   }
   /* The lathe's DONE with an order on it: show what this piece earns, and let
      the player hand it over or keep it to try again. */
+  var offered = {};   // 3-star grades already felt here, so DELIVER right after does not buzz twice
   function offer(orderId, pieceId) {
     var o = board.get(orderId), g = board.preview(orderId, pieceId);
     if (!o || !g) return;
     var h = '<div class="grade-card"><h2 id="gradeTitle">' + esc(pieceName(o)) + " for " + esc(o.client) + "</h2>";
+    if (g.stars >= 3 && G.Haptics) { G.Haptics.pulse("stars3"); offered[orderId + ":" + pieceId] = 1; }   // only 3 stars buzzes: a pulse means great
     h += gradeHtml(o, g);
     if (g.accepted) {
       h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
@@ -288,6 +290,7 @@
     }
     var o = r.order, g = r.grade;
     var h = '<div class="grade-card done"><h2 id="gradeTitle">Delivered!</h2><div class="g-stars">' + starsHtml(g.stars) + "</div>";
+    if (g.stars >= 3 && G.Haptics && !offered[orderId + ":" + pieceId]) G.Haptics.pulse("stars3");
     h += '<p class="g-pay big">+' + COIN + "<b>" + r.pay + "</b></p>";
     h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : " takes the ") + esc(pieceName(o).toLowerCase()) + (g.bonus ? ", and adds a " + Math.round(C.CFG.BONUS * 100) + "% bonus" : "") + ".</p>";
     h += '<div class="row">' + act("BOARD", "See the other orders", "primary", "board") + act("OK", "Back to work", "", "keep") + "</div></div>";
