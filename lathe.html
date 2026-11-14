@@ -1882,9 +1882,14 @@ header .gear-btn { margin-left: 4px; }
     var s = (u - 0.55) / 0.45;
     return 1 - s * s * (3 - 2 * s);
   }
-  function sprayKernel(d) {
-    if (d >= SPRAY_HALF_WIDTH) return 0;
-    var c = Math.cos((d / SPRAY_HALF_WIDTH) * Math.PI * 0.5);
+  /* The mist: soft all the way out for the stock bottle. A better gun (even > 0)
+     holds a flat core across part of its width, so a sweep lays an even sheen. */
+  function sprayKernel(d, hw, even) {
+    hw = hw || SPRAY_HALF_WIDTH;
+    if (d >= hw) return 0;
+    var u = d / hw, core = 0.6 * (even || 0);
+    if (u <= core) return 1;
+    var c = Math.cos(((u - core) / (1 - core)) * Math.PI * 0.5);
     return c * c;
   }
 
@@ -1909,20 +1914,24 @@ header .gear-btn { margin-left: 4px; }
 
   /* One timestep of painting. t = axial position 0..1, pressure 0..1,
      colorKey a PALETTE key. Returns the amount of paint laid (sum over slices
-     of the share of each slice the new paint covers this step). */
-  Coating.prototype.brush = function (t, pressure, brushKey, colorKey, dt) {
+     of the share of each slice the new paint covers this step).
+     tool (optional, the workshop's brushes from the store): { flow, width },
+     multipliers on how fast paint goes on and on the wide brush's width. */
+  Coating.prototype.brush = function (t, pressure, brushKey, colorKey, dt, tool) {
     var c = this.cfg, n = c.SEG, spec = BRUSHES[brushKey], paint = PALETTE[colorKey];
     if (!spec || !paint) return 0;
+    var flowX = tool && tool.flow > 0 ? tool.flow : 1;
+    var widthX = brushKey === "brush" && tool && tool.width > 0 ? tool.width : 1;
     var p = Math.min(1, Math.max(0, pressure));
     if (p < 0.02) return 0;
     var xc = Math.min(1, Math.max(0, t)) * (n - 1);
-    var hwS = spec.halfWidth / this.dx;
+    var hwS = spec.halfWidth * widthX / this.dx;
     var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
     var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
-    var rate = c.BRUSH_FLOW * spec.flow * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * Math.pow(p, c.FLOW_EXP));
+    var rate = c.BRUSH_FLOW * spec.flow * flowX * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * Math.pow(p, c.FLOW_EXP));
     var laid = 0, N = paint.rgb;
     for (var i = lo; i <= hi; i++) {
-      var w = kernel(brushKey, Math.abs(i - xc) * this.dx);
+      var w = kernel(brushKey, Math.abs(i - xc) * this.dx / widthX);
       if (w <= 0) continue;
       var a = Math.min(1, rate * w * dt);          // how much of the new paint lands this step
       if (a < 1e-6) continue;
@@ -1939,19 +1948,23 @@ header .gear-btn { margin-left: 4px; }
     return laid;
   };
 
-  /* One timestep of spraying finish. Returns the gloss added. */
-  Coating.prototype.spray = function (t, pressure, dt) {
+  /* One timestep of spraying finish. Returns the gloss added.
+     gun (optional, the workshop's sprayer from the store): { rate, width, even },
+     multipliers on how fast and how wide the mist builds sheen, and how flat
+     its core is (0 soft all over .. 1 a wide even core). */
+  Coating.prototype.spray = function (t, pressure, dt, gun) {
     var c = this.cfg, n = c.SEG;
     var p = Math.min(1, Math.max(0, pressure));
     if (p < 0.02) return 0;
+    var hw = SPRAY_HALF_WIDTH * (gun && gun.width > 0 ? gun.width : 1), even = gun && gun.even > 0 ? gun.even : 0;
     var xc = Math.min(1, Math.max(0, t)) * (n - 1);
-    var hwS = SPRAY_HALF_WIDTH / this.dx;
+    var hwS = hw / this.dx;
     var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
     var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
-    var rate = c.SPRAY_RATE * (c.SPRAY_FLOOR + (1 - c.SPRAY_FLOOR) * p);
+    var rate = c.SPRAY_RATE * (gun && gun.rate > 0 ? gun.rate : 1) * (c.SPRAY_FLOOR + (1 - c.SPRAY_FLOOR) * p);
     var added = 0;
     for (var i = lo; i <= hi; i++) {
-      var w = sprayKernel(Math.abs(i - xc) * this.dx);
+      var w = sprayKernel(Math.abs(i - xc) * this.dx, hw, even);
       if (w <= 0) continue;
       var old = this.gloss[i], ng = old + (1 - old) * Math.min(1, rate * w * dt);
       if (ng - old < 1e-6) continue;
@@ -2543,9 +2556,11 @@ header .gear-btn { margin-left: 4px; }
              weak on purpose (about a third of the top one), and every rung is
              about 1.5x the last, so the motor is a real reason to save up.
      chisels the chisel tips on the rack (cutting.js TIPS)
+     brushes brush { flow, width }: paint goes on faster, and the wide brush is wider (paint.js brush)
+     finish  spray { rate, width, even }: sheen builds faster, wider and more evenly (paint.js spray)
 
    The model owns the shop section of the save:
-     game.shop { owned: { light: 0, motor: 0, chisels: 0 }, spent }
+     game.shop { owned: { light: 0, motor: 0, chisels: 0, brushes: 0, finish: 0 }, spent }
    Coins go through the shared wallet (state.js).
    ============================================================ */
 (function (root) {
@@ -2581,9 +2596,27 @@ header .gear-btn { margin-left: 4px; }
         { name: "Detail gouge", price: 700, blurb: "A small rounded gouge for tight beads and coves.", tips: ["detail"] },
         { name: "Roughing gouge", price: 2500, blurb: "A big wide gouge that takes a log round in a few passes.", tips: ["roughing"] }
       ]
+    },
+    brushes: {
+      name: "Brushes", blurb: "Better bristles hold more paint. A coat goes on in fewer passes.",
+      tiers: [
+        { name: "Hardware store brush", price: 0, blurb: "Stiff, a bit bald in the middle. It came in a bag of three.", brush: { flow: 1, width: 1 } },
+        { name: "Sash brush", price: 160, blurb: "Angled and soft. Paint goes on about half again as fast.", brush: { flow: 1.5, width: 1 } },
+        { name: "Wide pad brush", price: 600, blurb: "A broad soft pad. Faster still, and it covers a wider band each pass.", brush: { flow: 2, width: 1.35 } },
+        { name: "Sable artist's set", price: 2400, blurb: "The good stuff. A solid coat in one slow sweep, and a liner that loads fully.", brush: { flow: 2.6, width: 1.35 } }
+      ]
+    },
+    finish: {
+      name: "Finishing", blurb: "How the sheen goes on. Better sprayers build it faster and more evenly.",
+      tiers: [
+        { name: "Spray bottle", price: 0, blurb: "A plant mister with lacquer in it. It works, slowly, and in blotches.", spray: { rate: 1, width: 1, even: 0 } },
+        { name: "Trigger sprayer", price: 180, blurb: "A proper trigger and a wider fan. Sheen builds half again as fast.", spray: { rate: 1.5, width: 1.15, even: 0.25 } },
+        { name: "HVLP spray gun", price: 700, blurb: "A fine, even mist. Twice as fast, and a sweep lays an even coat.", spray: { rate: 2, width: 1.3, even: 0.6 } },
+        { name: "Spray booth", price: 2800, blurb: "A booth, a gun and an extractor fan. Even sheen end to end in one pass.", spray: { rate: 2.8, width: 1.45, even: 1 } }
+      ]
     }
   };
-  var LINE_ORDER = ["light", "motor", "chisels"];
+  var LINE_ORDER = ["light", "motor", "chisels", "brushes", "finish"];
 
   function defaultShop() {
     var owned = {};
@@ -2634,6 +2667,9 @@ header .gear-btn { margin-left: 4px; }
     /* ---- what the upgrades do, for the lathe ---- */
     function lightLevel() { return current("light").level; }
     function cutBoost() { return current("motor").boost; }
+    /* The paint brushes and the finish sprayer the workshop owns, for paint.js. */
+    function brush() { return current("brushes").brush; }
+    function spray() { return current("finish").spray; }
     /* Every chisel tip on the rack: each chisels tier owned adds its tips. */
     function tips() {
       var out = [], t = LINES.chisels.tiers;
@@ -2643,7 +2679,7 @@ header .gear-btn { margin-left: 4px; }
 
     return {
       state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
-      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips
+      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray
     };
   }
 
@@ -3419,7 +3455,7 @@ header .gear-btn { margin-left: 4px; }
     brushG.add(tuft);
     function showBrush() {
       var wide = S.paintTool === "brush";
-      tuft.scale.set(wide ? 1.9 : 0.5, wide ? 1 : 1.25, wide ? 0.55 : 0.5);
+      tuft.scale.set(wide ? 1.9 * (S.brushTool ? S.brushTool.width : 1) : 0.5, wide ? 1 : 1.25, wide ? 0.55 : 0.5);
       tuft.position.y = wide ? 0.17 : 0.21;
       tuftMat.color.set(L.Paint.PALETTE[S.color].hex);
     }
@@ -3984,7 +4020,7 @@ header .gear-btn { margin-left: 4px; }
 
     function drawBrush(tipX, tipY, dx, dy, rPx) {
       var rgb = P.PALETTE[S.color].rgb, wide = S.paintTool === "brush";
-      var bw = Math.max(wide ? 12 : 5, rPx * (wide ? 0.42 : 0.16));
+      var bw = Math.max(wide ? 12 : 5, rPx * (wide ? 0.42 : 0.16)) * (wide && S.brushTool ? S.brushTool.width : 1);
       var tx = tipX + dx * rPx * 0.34, ty = tipY + dy * rPx * 0.34;          // top of the bristles
       var fx = tx + dx * rPx * 0.28, fy = ty + dy * rPx * 0.28;              // ferrule end
       var hx = fx + dx * rPx * 1.9, hy = fy + dy * rPx * 1.9;
@@ -6416,6 +6452,8 @@ header .gear-btn { margin-left: 4px; }
       if (!shop) return;
       S.lightLevel = shop.lightLevel();
       S.cutBoost = shop.cutBoost();
+      S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
+      S.sprayGun = shop.spray();
       setTips(shop.tips());
     }
     L.applyUpgrades = applyUpgrades;
@@ -6897,8 +6935,8 @@ header .gear-btn { margin-left: 4px; }
             }
           } else if (pr > 0.04) {
             var laid;
-            if (S.mode === "paint") { laid = S.coat.brush(p.t, pr, S.paintTool, S.color, dt); view.onPaint(pr, dt, laid); }
-            else { laid = S.coat.spray(p.t, pr, dt); view.onSpray(pr, dt, laid); }
+            if (S.mode === "paint") { laid = S.coat.brush(p.t, pr, S.paintTool, S.color, dt, S.brushTool); view.onPaint(pr, dt, laid); }
+            else { laid = S.coat.spray(p.t, pr, dt, S.sprayGun); view.onSpray(pr, dt, laid); }
             S.flow = Math.max(S.flow, 0.12 + 0.3 * pr);
             if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }
@@ -7422,7 +7460,7 @@ header .gear-btn { margin-left: 4px; }
       text: "The board fills up with new orders now. Coins buy better tools at Arbor Freight. Tap SHOP.",
       enter: function (c) { call(c, "resumeBoard"); },
       done: function (c) { return s(c, "screen") === "shop"; } },
-    { id: "shop", screen: "shop", target: ['[data-buy="lighting"]'], dismiss: true,
+    { id: "shop", screen: "shop", target: ['[data-buy="light"]'], dismiss: true,
       title: "Arbor Freight",
       text: "A halogen work light is a good first buy. The MINE tab is for diamonds: watch a short ad, crack the vein, 5 diamonds. Everything is open now. Have fun.",
       done: function () { return false; } }
@@ -9357,6 +9395,8 @@ header .gear-btn { margin-left: 4px; }
   var ICON = {
     light: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2v6" stroke="#222" stroke-width="2"/><path d="M11 8h10l2 6H9z" fill="#3a3a3a"/><circle cx="16" cy="19" r="6" fill="#ffe2a8"/><path d="M8 26l-3 3M24 26l3 3M16 28v3" stroke="#f2c230" stroke-width="2" stroke-linecap="round"/></svg>',
     motor: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="9" width="18" height="15" rx="3" fill="#46625a"/><path d="M7 12v9M10 12v9M13 12v9M16 12v9M19 12v9" stroke="#2b3532" stroke-width="1.4"/><rect x="22" y="14" width="6" height="5" rx="1" fill="#99a1a6"/><rect x="6" y="24" width="14" height="3" fill="#2b3532"/></svg>',
+    brushes: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="13" y="16" width="6" height="14" rx="2" fill="#7c4a22"/><rect x="11.5" y="11" width="9" height="6" rx="1" fill="#c8cfd4"/><path d="M11 11c0-5 2-9 5-9s5 4 5 9z" fill="#2f5fb3"/></svg>',
+    finish: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="12" width="9" height="16" rx="3" fill="#a9d3e8" stroke="#5b8396" stroke-width="1.4"/><rect x="10.5" y="7" width="6" height="5" fill="#3a3a3a"/><path d="M16.5 8h6l-1 3h-5z" fill="#3a3a3a"/><path d="M24 7l4-2M24 9.5h5M24 12l4 2" stroke="#e8a33d" stroke-width="1.6" stroke-linecap="round"/></svg>',
     chisels: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 3l3 0 0 14-1.5 3-1.5-3z" fill="#d6dde1"/><rect x="7.5" y="20" width="4" height="10" rx="1.5" fill="#7c4a22"/><path d="M19 3h5v12c0 2-1.2 3.5-2.5 3.5S19 17 19 15z" fill="#d6dde1"/><rect x="19.5" y="19" width="4" height="11" rx="1.5" fill="#7c4a22"/></svg>'
   };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -9404,7 +9444,9 @@ header .gear-btn { margin-left: 4px; }
   var WHERE = {
     light: "Go and see it hanging over the lathe.",
     motor: "The lathe cuts faster now.",
-    chisels: "It is on the rack by the lathe, with the other chisels."
+    chisels: "It is on the rack by the lathe, with the other chisels.",
+    brushes: "Paint goes on faster now.",
+    finish: "The sheen builds faster and more evenly now."
   };
   bodyEl.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;
