@@ -57,6 +57,18 @@ const card = async (label) => {
   await page.waitForTimeout(60);
   await shot(String(shotN).padStart(2, "0") + "-" + (label || id));
 };
+const touchFades = async (sel, label) => {   // a press on a play area tucks the card away, and it comes back after
+  await page.waitForTimeout(300);
+  const b = await page.locator(sel).boundingBox(), x = b.x + b.width * 0.5, y = b.y + b.height * 0.55;
+  const onPlay = await page.evaluate(({ x, y, sel }) => { const e = document.elementFromPoint(x, y); return document.querySelector(sel).contains(e) && !e.closest("button"); }, { x, y, sel });
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.waitForTimeout(250);
+  const away = await page.evaluate(() => { const c = document.getElementById("coach"); return !c.hidden && c.classList.contains("touching") && parseFloat(getComputedStyle(c).opacity) < 0.05; });
+  await page.mouse.up();
+  // the forest draws every frame in real time, which can slow the timers on a busy machine: wait for it rather than a fixed time
+  const back = await page.waitForFunction(() => { const c = document.getElementById("coach"); return !c.classList.contains("touching") && parseFloat(getComputedStyle(c).opacity) > 0.95; }, null, { timeout: 4000 }).then(() => true, () => false);
+  check(onPlay && away && back, `${label}: a finger on the work fades the card, and it comes back after` + (onPlay && away && back ? "" : ` (on the work ${onPlay}, away ${away}, back ${back})`));
+};
 const coins = () => page.evaluate(() => window.__farm.state.wallet.balance("coins"));
 const STEPS_N = await page.evaluate(() => window.Game.Tutorial.STEPS.length);
 
@@ -257,12 +269,21 @@ await page.waitForFunction(() => window.__harvest && window.Game.currentScreen()
 console.log("\nTHE FOREST");
 check(await step() === "chop" && /Chop it down/.test(await coach()), "the coach explains chopping");
 await card();
-await page.evaluate(() => { window.__farm.farm.fell(window.Game.harvestPlot >= 0 ? window.Game.harvestPlot : 0); window.__harvest.game.phase = "delimb"; });
+await touchFades("#hstage", "chopping");
+await page.evaluate(() => {   // felled through the model: a notch right through the weakest slice, then the fall plays out
+  window.__farm.farm.fell(window.Game.harvestPlot >= 0 ? window.Game.harvestPlot : 0);
+  const g = window.__harvest.game, tr = g.trunk, wk = tr.weakest();
+  tr.left[wk.i] = tr.W[wk.i]; g._checkCrack();
+  for (let k = 0; k < 3000 && g.phase !== "delimb"; k++) g.step(1 / 60);
+  g.phase = "delimb";
+});
 check(await step() === "delimb" && /Clear the limbs/.test(await coach()), "then delimbing");
 await card();
+await touchFades("#hstage", "delimbing");
 await page.evaluate(() => { const g = window.__harvest.game; if (!g.saw && g._initSaw) g._initSaw(); g.phase = "saw"; });
 check(await step() === "saw" && /Saw the blank/.test(await coach()), "then sawing");
 await card();
+await touchFades("#hstage", "sawing");
 // the saw hands the blank to the lathe the way harvest-view.js does
 await page.evaluate(() => {
   const inv = window.__farm.state.inventory, G = window.Game;
@@ -368,6 +389,15 @@ check(JSON.stringify(await tabsShown()) === '["farm","lathe","mine","orders","sh
 check(await page.evaluate(() => window.__orders.board.state.orders.length) === 3, "the board filled up with new orders");
 check(/GOT IT/.test(await coach()) && /Finish this bat on your own/.test(await coach()) && await ringOn("#tabMine"), "one card to read, the ring on MINE");
 await card();
+{ // a touch on the lathe tucks this card away for a moment too; GOT IT works once it is back
+  const b = await page.locator("#stage").boundingBox();
+  await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.85); await page.mouse.down();
+  await page.waitForTimeout(250);
+  const away = await page.evaluate(() => document.getElementById("coach").classList.contains("touching"));
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+  check(away && await page.evaluate(() => !document.getElementById("coach").classList.contains("touching")), "the last card fades for a touch on the lathe and comes back");
+}
 await page.click('[data-coach="ok"]');
 check(await step() === null, "GOT IT ends the flow");
 check(await page.locator("#coach").isHidden() && await page.locator("#coachRing").isHidden(), "the coach is gone");
@@ -428,6 +458,81 @@ await page.click('[data-coach="leave"]');
 const wallet1 = await page.evaluate(() => [window.__farm.state.wallet.balance("coins"), window.__farm.state.wallet.balance("diamonds")]);
 check(await page.evaluate(() => window.__tutorial.tutorial.done) && JSON.stringify(wallet1) === JSON.stringify(wallet0), `stopped, and nothing was handed out (${wallet0} -> ${wallet1})`);
 check((await tabsShown()).length === 5 && await page.locator("#coach").isHidden(), "everything still open, no coach");
+
+console.log("\nTHE CARD FADES WHILE YOU TOUCH THE LATHE");
+await page.goto(url + "&reset");
+await page.waitForFunction(() => window.__tutorial && window.__lathe && window.__lathe.stock);
+const fade = () => page.evaluate(() => { const c = document.getElementById("coach"); return { on: c.classList.contains("touching"), op: parseFloat(getComputedStyle(c).opacity), hidden: c.hidden }; });
+const sb = await page.locator("#stage").boundingBox();
+const below = { x: sb.x + sb.width * 0.3, y: sb.y + sb.height * 0.8 };
+await step(); await page.waitForTimeout(400);   // past the card's own opening animation
+check(!(await fade()).on && (await fade()).op > 0.95, "the card shows on the first cut");
+await page.mouse.move(below.x, below.y); await page.mouse.down();
+await page.waitForTimeout(250);
+let f = await fade();
+check(f.on && f.op < 0.05 && !f.hidden, `a press on the stage fades it out (opacity ${f.op})`);
+await page.mouse.up();
+await page.waitForTimeout(200);
+check((await fade()).on, "just after lifting the finger it is still away");
+await page.waitForTimeout(700);
+f = await fade();
+check(!f.on && f.op > 0.95, `it comes back after the finger lifts (opacity ${f.op})`);
+// two strokes close together: no flicker in between
+await page.mouse.down(); await page.waitForTimeout(100); await page.mouse.up();
+await page.waitForTimeout(250);
+await page.mouse.down();
+await page.waitForTimeout(450);    // well past the wait since the first stroke ended
+check((await fade()).on && (await fade()).op < 0.05, "a second stroke soon after keeps it away");
+// a stroke while it is faded: a press where its buttons are lands on the stage, and the cut goes in
+const skipAt = await page.evaluate(() => { const r = document.querySelector('#coach [data-coach="skip"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+check(await page.evaluate(({ x, y }) => document.getElementById("stage").contains(document.elementFromPoint(x, y)), skipAt), "while faded, a press where its buttons are goes to the lathe");
+await page.mouse.up();
+await page.mouse.move(below.x, below.y); await page.mouse.down();
+const before = await page.evaluate(() => window.__lathe.work.removedFraction());
+for (let i = 1; i <= 10; i++) { await page.mouse.move(below.x, below.y - 4 * i); await tick(0.02); }
+for (let i = 1; i <= 30; i++) { await page.mouse.move(below.x + sb.width * 0.3 * (i / 30), below.y - 40); await tick(0.05); }
+const after = await page.evaluate(() => window.__lathe.work.removedFraction());
+check((await fade()).on && after > before + 0.001, `a stroke under the faded card cuts the wood (${(before * 100).toFixed(1)}% -> ${(after * 100).toFixed(1)}%)`);
+await page.mouse.up();
+await page.waitForTimeout(800);
+check(!(await fade()).on, "and the card comes back after");
+for (let pass = 1; pass < 4 && await step() === "cut"; pass++) {   // the rest of the practice cut
+  const x = sb.x + sb.width * (0.3 + pass * 0.12);
+  await page.mouse.move(x, below.y); await page.mouse.down();
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(x, below.y - 4 * i); await tick(0.02); }
+  for (let i = 1; i <= 30; i++) { await page.mouse.move(x + sb.width * 0.08 * (i / 30), below.y - 40); await tick(0.05); }
+  await page.mouse.up();
+}
+await page.waitForTimeout(800);
+// the ring stays while the card is away
+check(await step() === "pick_sand" && await ringOn("#tipSand"), "the next card has its ring on SANDPAPER");
+await page.mouse.move(below.x, below.y); await page.mouse.down();
+await page.waitForTimeout(250);
+check((await fade()).on && await page.evaluate(() => { const r = document.getElementById("coachRing"); return !r.hidden && parseFloat(getComputedStyle(r).opacity) > 0.95; }), "the ring stays in view while the card is away");
+await page.mouse.up();
+await page.waitForTimeout(800);
+check(await ringOn("#tipSand") && !(await fade()).on, "and stays after");
+// taps anywhere else hide nothing
+for (const sel of ["#tipSand", "#coach .coach-skip", "#rpm"]) {
+  await step(); await page.waitForTimeout(300);   // the tap before may have opened a new card: let it settle where it goes
+  const b = await page.locator(sel).boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+  await page.waitForTimeout(200);
+  f = await fade();
+  await page.mouse.up();
+  check(!f.on && f.op > 0.95, `a press on ${sel} does not fade it`);
+}
+check(/Skip the tutorial\?/i.test(await coach()), "(that last tap on Skip opened the question)");
+await page.mouse.move(below.x, below.y); await page.mouse.down();
+await page.waitForTimeout(250);
+f = await fade();
+await page.mouse.up();
+check(!f.on && f.op > 0.95, "the skip question never fades");
+await page.click('[data-coach="stay"]');
+check(await step() === "sand" || await step() === "pick_sand", "KEEP LEARNING still works after");
+await page.emulateMedia({ reducedMotion: "reduce" });
+check(await page.evaluate(() => { const c = document.getElementById("coach"); c.classList.add("touching"); const d = getComputedStyle(c).transitionDuration; c.classList.remove("touching"); return d; }) === "0s", "with reduced motion it hides and shows with no fade");
+await page.emulateMedia({ reducedMotion: "no-preference" });
 
 console.log("\nAN OLD SAVE");
 // seeded before the page's own scripts run (an open page saves itself as it leaves)

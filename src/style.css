@@ -797,6 +797,12 @@ header .gear-btn { margin-left: 4px; }
   border: 1px solid var(--amber-deep); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   pointer-events: none; animation: coach-in 0.25s ease-out;
 }
+/* a finger on the lathe (or the forest): the card fades away fast, and comes back
+   gently once the touch is over (tutorial-ui.js waits a moment first). Taps pass
+   straight through it while it is faded, buttons and all. */
+.coach { transition: opacity 0.3s ease-out; }
+.coach.touching { opacity: 0; transition-duration: 0.15s; }
+.coach.touching, .coach.touching * { pointer-events: none !important; }
 .coach.at-bottom { bottom: max(16px, env(safe-area-inset-bottom)); }
 .coach.at-top { top: 112px; }
 .coach-k { font-size: 10px; letter-spacing: 0.14em; color: var(--amber); display: flex; justify-content: space-between; }
@@ -848,4 +854,4 @@ header .gear-btn { margin-left: 4px; }
 }
 @keyframes coach-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes coach-pulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.25); } 50% { box-shadow: 0 0 0 10px rgba(232, 163, 61, 0.08); } }
-@media (prefers-reduced-motion: reduce) { .coach, .coach-ring, .coach-pill { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .coach, .coach.touching, .coach-ring, .coach-pill { animation: none; transition: none; } }
