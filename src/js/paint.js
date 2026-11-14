@@ -183,6 +183,17 @@
     return added;
   };
 
+  /* UNDO on the lathe takes off one layer and what lies on top of it: the finish
+     alone, or the paint and the finish over it. The wood is the cutting model's. */
+  Coating.prototype.clearFinish = function () {
+    this.gloss.fill(0);
+    this.version++;
+  };
+  Coating.prototype.clearPaint = function () {
+    this.color.fill(0); this.coat.fill(0); this.gloss.fill(0);
+    this.version++;
+  };
+
   /* Wood cut away takes its paint and finish with it. Call once per
      frame with the workpiece; it compares against the last radii seen. */
   Coating.prototype.syncWork = function (work) {

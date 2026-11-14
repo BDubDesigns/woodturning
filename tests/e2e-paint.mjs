@@ -108,7 +108,7 @@ for (const kind of ["3d", "2d"]) {
 
   // start clean, in cut mode
   await page.click("#modeCut");
-  await page.click("#newLogBtn");
+  await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
   check(await visible("#toolsCut") && !(await visible("#toolsPaint")) && !(await visible("#specBar")), "cut mode: chisels shown, paint tools and spec card hidden");
 
   /* ---------- paint ---------- */
@@ -148,16 +148,16 @@ for (const kind of ["3d", "2d"]) {
   if (shots) await page.screenshot({ path: `${shots}/paint-${kind}-1.png`, timeout: 120000 });
 
   // pressure: a light nudge lays less than a firm one
-  await page.click("#newLogBtn");
+  await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
   await stroke(0.25, { push: 40, hold: 450 });
   const firm = (await model()).coat[idx(0.25)];
-  await page.click("#newLogBtn");
+  await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
   await stroke(0.25, { push: 9, hold: 450 });
   const light = (await model()).coat[idx(0.25)];
   check(light > 0.01 && light < firm - 0.1, `a light nudge lays ${light.toFixed(2)}, a firm one ${firm.toFixed(2)}`);
 
   // Paint the two bands the spec asks for, each one end to end: crimson on the left half, cobalt on the right.
-  await page.click("#newLogBtn");
+  await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
   await page.click('.swatch[data-color="crimson"]');
   await stroke(0.05, { to: 0.45, sweepMs: 3600, hold: 100 });
   await page.click('.swatch[data-color="cobalt"]');
@@ -229,9 +229,45 @@ for (const kind of ["3d", "2d"]) {
   m = await model();
   check(m.coat[idx(0.25)] === 0 && m.gloss[idx(0.25)] === 0, "cutting the wood takes the paint and finish off");
   check(m.coat[idx(0.75)] > 0.5, "paint is untouched away from the cut");
-  await page.click("#newLogBtn");
+  await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
   m = await model();
-  check(m.coat.every((v) => v === 0) && m.gloss.every((v) => v === 0), "NEW LOG gives a fresh, bare blank");
+  check(m.coat.every((v) => v === 0) && m.gloss.every((v) => v === 0), "a fresh practice blank is bare");
+
+  /* ---------- UNDO: asks first, and takes off only its own layer ---------- */
+  if (kind === "2d") {
+    const layers = () => page.evaluate(() => { const S = window.__lathe; return { r: Array.from(S.work.radius), coat: Array.from(S.coat.coat), gloss: S.coat.avgGloss(), stock: JSON.stringify(S.stock) }; });
+    const undo = async (yes) => { await page.click("#newLogBtn"); await page.click(yes ? '#undoOverlay [data-undo="yes"]' : '#undoOverlay [data-undo="no"]'); await tick(0.1); };
+    await page.evaluate(() => { const S = window.__lathe; window.Lathe.mountStock({ kind: "log", key: "pine" }) || window.Lathe.mountBlank(null);
+      for (let i = 40; i < 200; i++) S.work.radius[i] *= 0.9; S.work.version++; });
+    await tick(0.1);
+    await page.evaluate(() => { const S = window.__lathe; S.coat.coat.fill(0.9); S.coat.gloss.fill(0.6); S.coat.version++; });
+    await tick(0.1);
+    const full = await layers();
+    await page.click("#modeFinish");
+    await page.click("#newLogBtn");
+    check(/Clear the finish\?/.test(await page.locator("#undoOverlay").textContent()) && /shape and the paint stay/.test(await page.locator("#undoOverlay").textContent()), "UNDO on FINISH asks first, and says only the finish goes");
+    await page.click('#undoOverlay [data-undo="no"]');
+    let L1 = await layers();
+    check(L1.gloss === full.gloss && JSON.stringify(L1.coat) === JSON.stringify(full.coat), "KEEP IT changes nothing");
+    await undo(true);
+    L1 = await layers();
+    check(L1.gloss === 0 && JSON.stringify(L1.coat) === JSON.stringify(full.coat) && JSON.stringify(L1.r) === JSON.stringify(full.r), "UNDO on FINISH: the sheen is off, the paint and the shape stay");
+    await page.evaluate(() => { const S = window.__lathe; S.coat.gloss.fill(0.6); S.coat.version++; });
+    await page.click("#modePaint");
+    await undo(true);
+    L1 = await layers();
+    check(L1.coat.every((v) => v === 0) && L1.gloss === 0 && JSON.stringify(L1.r) === JSON.stringify(full.r), "UNDO on PAINT: paint and sheen off, the shape stays");
+    await page.evaluate(() => { const S = window.__lathe; S.coat.coat.fill(0.9); S.coat.gloss.fill(0.6); S.coat.version++; });
+    await page.click("#modeCut");
+    await page.click("#newLogBtn");
+    check(/Start this piece over\?/.test(await page.locator("#undoOverlay").textContent()), "UNDO on CUT asks to start the piece over");
+    await page.click('#undoOverlay [data-undo="yes"]');
+    await tick(0.1);
+    L1 = await layers();
+    const fresh = await page.evaluate(() => { const S = window.__lathe; return S.work.removedFraction(); });
+    check(fresh === 0 && L1.coat.every((v) => v === 0) && L1.gloss === 0, "UNDO on CUT: fresh wood, no paint, no sheen");
+    check(L1.stock === full.stock, `and the same stock stays on the lathe (${L1.stock})`);
+  }
 
   /* ---------- specs ---------- */
   await page.click("#modePaint");

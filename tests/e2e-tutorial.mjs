@@ -57,6 +57,29 @@ await page.waitForFunction(() => window.__tutorial && window.__lathe);
 check(await page.evaluate(() => window.Game.currentScreen()) === "lathe", "a link to a locked screen lands on the lathe");
 await shot("01-first");
 
+console.log("\nTUCKING THE CARD AWAY");
+await page.click('[data-coach="min"]');
+await page.waitForTimeout(400);
+let tuck = await page.evaluate(() => {
+  const pill = document.getElementById("coachPill"), done = document.getElementById("doneBtn"), p = pill.getBoundingClientRect(), d = done.getBoundingClientRect();
+  const row = [...done.parentNode.children].filter((e) => e.getBoundingClientRect().width > 0 && e !== pill).map((e) => e.getBoundingClientRect());
+  const overlaps = row.some((b) => !(p.right <= b.left || p.left >= b.right || p.bottom <= b.top || p.top >= b.bottom));
+  return { card: document.getElementById("coach").hidden, pill: !pill.hidden && p.width > 0, row: !overlaps && Math.abs(p.left + p.width / 2 - (d.left + d.width / 2)) < 140,
+    sameRow: p.bottom <= d.bottom + 2 && p.top >= d.top - p.height - 12, oneRow: row.filter((b) => Math.abs(b.top - d.top) < 8).length, text: pill.textContent, glow: getComputedStyle(pill).animationName };
+});
+check(tuck.card && tuck.pill, "the hide button tucks the card away into a button");
+check(tuck.row && tuck.sameRow, "on the lathe the button sits by DONE, on top of nothing");
+check(await page.evaluate(() => document.getElementById("coachPill").classList.contains("docked")), "in the bottom row itself, at this phone width");
+check(/1\/22/.test(tuck.text) && tuck.glow === "coach-glow", `it glows and says which step (${tuck.text.trim()})`);
+await shot("01b-tucked");
+await page.waitForTimeout(300);
+check(await step() === "cut" && await page.evaluate(() => document.getElementById("coach").hidden), "it stays tucked away while the step goes on");
+await page.click("#coachPill");
+await page.waitForTimeout(350);
+check(await page.evaluate(() => !document.getElementById("coach").hidden && document.getElementById("coachPill").hidden) && /Your lathe/.test(await coach()), "tapping it brings the same step back");
+await page.click('[data-coach="min"]');
+await page.waitForTimeout(350);
+
 console.log("\nPRACTICE PIECE");
 const box = await page.locator("#stage").boundingBox();
 for (let pass = 0; pass < 3; pass++) {
@@ -67,6 +90,7 @@ for (let pass = 0; pass < 3; pass++) {
   await page.mouse.up();
 }
 const removed = await page.evaluate(() => window.__lathe.work.removedFraction());
+check(await step() === "to_paint" && await page.evaluate(() => !document.getElementById("coach").hidden && document.getElementById("coachPill").hidden), "a new step opens its card again");
 check(await step() === "to_paint", `a real cut moves the coach on (${(removed * 100).toFixed(1)}% off)`);
 check(await ringOn("#modePaint"), "the ring is on the PAINT button");
 check(!(await covers("#modePaint")), "the card does not cover it");
@@ -78,6 +102,17 @@ await tick(0.1);
 check(await step() === "to_finish" && await ringOn("#modeFinish"), "some paint on: the ring moves to FINISH");
 await page.click("#modeFinish");
 check(await step() === "finish", "FINISH: the coach explains the spray");
+check(await page.evaluate(() => window.__lathe.spec.sheen === "satin" && window.__lathe.spec.name === "Three bands"), "the practice spec wants satin, so there is spraying to do");
+// overshoot into gloss: the card says how to undo just the finish
+await page.evaluate(() => { const S = window.__lathe; S.coat.gloss.fill(window.Lathe.Paint.SHEEN.gloss.gloss); S.coat.version++; });
+await tick(0.1);
+check(await step() === "finish" && /past satin into gloss/.test(await coach()) && /UNDO/.test(await coach()), "gloss is past satin: the step waits and the card says to UNDO");
+await page.click("#newLogBtn");
+await page.click('#undoOverlay [data-undo="yes"]');
+await tick(0.1);
+check(await page.evaluate(() => window.__lathe.coat.avgGloss() === 0 && window.__lathe.coat.coverage() > 0.5), "UNDO on FINISH took only the finish off");
+await step();
+check(!/past satin/.test(await coach()), "and the hint goes");
 await page.evaluate(() => { const S = window.__lathe; S.coat.gloss.fill(window.Lathe.Paint.SHEEN.satin.gloss); S.coat.version++; });
 await tick(0.1);
 check(await step() === "keep" && await ringOn("#doneBtn"), "satin reached: the ring is on DONE");
@@ -93,6 +128,12 @@ check(await ringOn("#tabOrders"), "the ring is on ORDERS");
 await page.click("#tabOrders");
 await tick(0.1);
 const orders = await page.evaluate(() => window.__orders.board.state.orders.map((o) => o.wood + ":" + o.kind));
+await page.click('[data-coach="min"]');
+await page.waitForTimeout(350);
+tuck = await page.evaluate(() => { const p = document.getElementById("coachPill"); return { floating: p.classList.contains("floating"), shown: !p.hidden && p.getBoundingClientRect().bottom <= innerHeight }; });
+check(tuck.floating && tuck.shown, "off the lathe the button floats at the bottom of the screen");
+await page.click("#coachPill");
+await page.waitForTimeout(350);
 check(JSON.stringify(orders) === '["pine:rolling_pin","oak:rolling_pin"]', `the authored board: ${orders.join(", ")}`);
 check(await page.locator('.order [data-act="decline"]').count() === 0 && await page.locator('.order [data-act="practise"]').count() === 0 && await page.locator(".order.empty").count() === 0,
   "no DECLINE, PRACTISE or GET ONE NOW while the coach runs");
@@ -205,10 +246,48 @@ console.log("\nSKIP");
 await page.goto(url + "&reset");
 await page.waitForFunction(() => window.__tutorial && window.__lathe);
 await page.click('[data-coach="skip"]');
+let ask = await coach();
+check(/Skip the tutorial\?/i.test(ask) && /250 coins and 5 diamonds/.test(ask) && /replay the tutorial any time from Settings/.test(ask), "skip asks first, and says what skipping means");
+check(await page.evaluate(() => !window.__tutorial.tutorial.done), "nothing is skipped yet");
+await page.click('[data-coach="stay"]');
+check(await step() === "cut" && /Your lathe/.test(await coach()), "KEEP LEARNING goes back to the same card");
+await page.click('[data-coach="skip"]');
+await page.click('[data-coach="leave"]');
 w = await page.evaluate(() => ({ done: window.__tutorial.tutorial.done, coins: window.__farm.state.wallet.balance("coins"), dia: window.__farm.state.wallet.balance("diamonds"), orders: window.__orders.board.state.orders.length }));
 check(w.done && w.coins === 250 && w.dia === 5, "skip tutorial: done, with the starter pack (250 coins, 5 diamonds)");
 check(w.orders === 3 && (await tabsShown()).length === 5, "and a full board, every tab open");
 check(await page.locator("#coach").isHidden(), "no coach");
+
+console.log("\nREPLAY");
+await page.evaluate(() => { const w = window.__farm.state.wallet; w.spend("diamonds", w.balance("diamonds")); window.__farm.persist(); });   // a player who spent their diamonds
+const wallet0 = await page.evaluate(() => [window.__farm.state.wallet.balance("coins"), window.__farm.state.wallet.balance("diamonds")]);
+await page.click("#settingsBtn");
+check(/REPLAY TUTORIAL/.test(await page.locator("#settingsOverlay").textContent()), "Settings offers REPLAY TUTORIAL once the tutorial is over");
+await page.click('#settingsOverlay [data-act="replay"]');
+await tick(0.1);
+check(await step() === "cut" && /REPLAY/.test(await coach()), "the replay starts at the first card");
+check((await tabsShown()).length === 5, "every tab stays open");
+check(await page.evaluate(() => window.__lathe.stock === null), "on a free practice blank: none of the player's wood");
+check(await page.locator('.order [data-act="decline"]').count() >= 0 && await page.evaluate(() => window.__orders.ui.guided === false), "the board keeps its usual buttons");
+await page.evaluate(() => { const r = window.__lathe.work.radius; for (let i = 60; i < 180; i++) r[i] *= 0.85; window.__lathe.work.version++; });
+await tick(0.1);
+await page.click("#modePaint");
+await page.evaluate(() => { const S = window.__lathe; S.coat.coat.fill(1); S.coat.version++; });
+await tick(0.1); await step();
+await page.click("#modeFinish");
+await page.evaluate(() => { const S = window.__lathe; S.coat.gloss.fill(0.5); S.coat.version++; });
+await tick(0.1);
+check(await step() === "keep", "through the practice piece");
+await page.click("#doneBtn", { force: true });   // greyed on a practice blank, but a tap still lands (and says why)
+await tick(0.1);
+check(await step() === "to_orders", "DONE on a practice blank is enough in a replay");
+check(await page.evaluate(() => window.__orders.board.state.orders.length) === 3, "no first board posted over the real one");
+await page.click('[data-coach="skip"]');
+check(/Stop the tutorial\?/.test(await coach()) && /Nothing in your game changes/.test(await coach()), "stopping a replay asks too");
+await page.click('[data-coach="leave"]');
+const wallet1 = await page.evaluate(() => [window.__farm.state.wallet.balance("coins"), window.__farm.state.wallet.balance("diamonds")]);
+check(await page.evaluate(() => window.__tutorial.tutorial.done) && JSON.stringify(wallet1) === JSON.stringify(wallet0), `stopped, and nothing was handed out (${wallet0} -> ${wallet1})`);
+check((await tabsShown()).length === 5 && await page.locator("#coach").isHidden(), "everything still open, no coach");
 
 console.log("\nAN OLD SAVE");
 // seeded before the page's own scripts run (an open page saves itself as it leaves)

@@ -265,7 +265,7 @@
     show: function () { shown = true; render(true); },
     hide: function () { shown = false; },
     offer: offer, render: render, toast: toast,
-    guided: !!(G.tutorial && G.tutorial.isActive())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
+    guided: !!(G.tutorial && G.tutorial.guidedBoard())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
   };
   G.OrdersUI = api;
   root.__orders = { board: board, ui: api };

@@ -191,6 +191,8 @@
       S.cutBoost = shop.cutBoost();
       S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
       S.sprayGun = shop.spray();
+      var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
+      if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
       setTips(shop.tips());
     }
     L.applyUpgrades = applyUpgrades;
@@ -217,7 +219,50 @@
       drawProfile(); drawSpec(); updateSpecInfo();
     }
     L.mountBlank = mount;     // the harvest hands its blank over through this
-    document.getElementById("newLogBtn").addEventListener("click", function () { closeStock(); mount(null); });
+    /* ---------------- UNDO: one layer, and only after asking ----------------
+       Each mode undoes its own layer and what lies on top of it, never what is
+       under it: FINISH takes off the sheen; PAINT the paint and the sheen; CUT
+       starts the piece over on the same stock (fresh wood, no paint, no sheen).
+       The stock stays mounted and nothing leaves the shed. */
+    var undoBtn = document.getElementById("newLogBtn"), undoEl = document.getElementById("undoOverlay");
+    var UNDO = {
+      cut: { title: "Start this piece over?", body: "The wood goes back to how it was mounted, and any paint and finish come off with it.", act: "START OVER", tip: "Undo: start the piece over" },
+      paint: { title: "Clear the paint?", body: "All the paint comes off, and the finish on top of it. The shape you turned stays.", act: "CLEAR PAINT", tip: "Undo: clear the paint" },
+      finish: { title: "Clear the finish?", body: "The sheen comes off. The shape and the paint stay.", act: "CLEAR FINISH", tip: "Undo: clear the finish" }
+    };
+    function syncUndo() { var u = UNDO[S.mode]; undoBtn.title = u.tip; undoBtn.setAttribute("aria-label", u.tip); }
+    function closeUndo() { undoEl.hidden = true; undoEl.innerHTML = ""; }
+    function openUndo() {
+      var u = UNDO[S.mode], what = S.stock ? stockName(S.stock).toLowerCase() : "practice blank";
+      undoEl.innerHTML = '<div class="grade-card settings-card"><h2 id="undoTitle">' + u.title + "</h2>" +
+        '<p class="g-note">' + u.body + (S.mode === "cut" ? " The " + what + " stays on the lathe." : "") + "</p>" +
+        '<div class="row"><button type="button" class="act danger" data-undo="yes"><span class="an">' + u.act + '</span><span class="ad">There is no redo</span></button>' +
+        '<button type="button" class="act" data-undo="no"><span class="an">KEEP IT</span><span class="ad">Change nothing</span></button></div></div>';
+      undoEl.hidden = false;
+      undoEl.setAttribute("data-mode", S.mode);
+    }
+    /* Undo the layer for a mode (the confirm calls this; tests may too). */
+    function undoLayer(mode) {
+      if (mode === "finish") S.coat.clearFinish();
+      else if (mode === "paint") S.coat.clearPaint();
+      else if (mode === "cut") {
+        var st = S.stock;
+        if (!st || !mountStock(st)) mount(null);
+        toast("Fresh wood. Start the piece over.");
+      } else return false;
+      drawProfile(); drawSpec(); updateSpecInfo();
+      return true;
+    }
+    undoBtn.addEventListener("click", function () { closeStock(); openUndo(); });
+    undoEl.addEventListener("click", function (ev) {
+      if (ev.target === undoEl) { closeUndo(); return; }
+      var b = ev.target.closest ? ev.target.closest("[data-undo]") : null;
+      if (!b) return;
+      var mode = undoEl.getAttribute("data-mode");
+      closeUndo();
+      if (b.getAttribute("data-undo") === "yes") undoLayer(mode);
+    });
+    root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !undoEl.hidden) closeUndo(); });
 
     /* ---------------- stock: the shed's logs and blanks, and DONE ---------------- */
     var G = root.Game, R = G.Registry, St = G.State;
@@ -358,6 +403,7 @@
       specBar.hidden = m === "cut";
       audio.pitch = PITCH[m];
       hint.innerHTML = HINTS[m];
+      if (typeof syncUndo === "function") syncUndo();
       hint.classList.toggle("gone", used[m]);
       root.dispatchEvent(new Event("resize"));   // the footer changed height, so the stage did too
       drawProfile(); drawSpec(); updateSpecInfo();
@@ -693,6 +739,7 @@
     S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
+    S.undoLayer = undoLayer; S.openUndo = openUndo;
     S.mountStock = mountStock; S.finishPiece = finishPiece; S.openStock = openStock; S.closeStock = closeStock;
     drawProfile();
     requestAnimationFrame(frame);

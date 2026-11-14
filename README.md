@@ -118,7 +118,9 @@ mine, monetization, distribution, and the one-month bet.
   one function, `awardVein` in `src/js/monetize-ui.js`.
 
 - New-player flow: a guided first session (brief: `docs/new-player-flow.md`).
-  A new game opens on the lathe alone, a pine log mounted and two more in the
+  A new game opens on the lathe alone, a pine log mounted (its practice
+  spec always wants satin, so the player learns to spray; past satin, the card
+  points at UNDO; the first orders want satin and gloss) and two more in the
   shed, with no coins or diamonds. A coach card and a pulsing ring on the real
   control walk the player through it, and each tab appears only when it is
   needed: a practice cut, paint, finish and DONE; ORDERS opens on two authored
@@ -126,8 +128,15 @@ mine, monetization, distribution, and the one-month bet.
   short), 5 diamonds to GROW NOW, and the forest's chop, delimb and saw; then
   the oak order is turned and delivered. Graduation opens SHOP and MINE and
   fills the board. While the flow runs the board does not post or offer
-  DECLINE, PRACTISE or GET ONE NOW. "Skip tutorial" on the first card opens
-  everything with the starter pack (250 coins, 5 diamonds). Saves from before
+  DECLINE, PRACTISE or GET ONE NOW. "Skip tutorial" is on every card and asks
+  first (KEEP LEARNING or SKIP IT), saying what skipping means: everything opens,
+  with the starter pack (250 coins, 5 diamonds) less whatever the tutorial already
+  handed out. The hide button on a card tucks it into a glowing "?" button
+  (by DONE on the lathe, floating elsewhere); tapping it brings the step back,
+  and a new step opens its card again. Settings has REPLAY TUTORIAL once the
+  tutorial is over: the same steps, but every tab stays open, nothing is handed
+  out, the board runs as usual and it starts on a practice blank; its steps
+  accept any order, any wood, and waiting instead of diamonds. Saves from before
   the flow skip it. The steps are data in `src/js/tutorial.js`; the card, ring
   and tab gating are `src/js/tutorial-ui.js`. `?tutorial=off` skips it (the
   older browser checks use it).
@@ -164,6 +173,10 @@ Harvest, all with a finger or mouse:
 
 The lathe:
 
+- UNDO (the round arrow by DONE) asks first, then takes off only the layer of
+  the mode you are in and what lies on it: on FINISH the sheen; on PAINT the
+  paint and the sheen; on CUT it starts the piece over on the same wood (fresh
+  shape, no paint, no sheen). The stock stays mounted either way.
 - Touch or click below the log: the chisel lands on the wood.
 - Nudge up: the first ~40px of push ramps pressure to full (the meter beside
   your finger shows it). More pressure, deeper pass.
