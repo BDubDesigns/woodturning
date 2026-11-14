@@ -177,6 +177,43 @@ for (const [label, off] of [["steep crossings", Math.PI / 2], ["shallow crossing
   await pg.close();
 }
 
+// ---------- a cut stub is bare: its leaves come off with the cut, as a pine's needles do ----------
+for (const wood of ["oak", "walnut"]) {
+  console.log(`\nBARE STUBS (${wood})`);
+  const pg = await browser.newPage({ viewport: { width: 412, height: 860 } });
+  pg.on("pageerror", (e) => errors.push(e.message));
+  await pg.goto(`file://${file}?tutorial=off&view=2d&seed=7#farm`);
+  await pg.waitForFunction(() => window.__farm);
+  await pg.evaluate((wood) => { const f = window.__farm.farm; f.state.plots[0] = null; f.plant(0, wood, { free: true }); f.state.plots[0].plantedAt -= 3600e3; window.__farm.tick(); }, wood);
+  await pg.click('.plot[data-i="0"]'); await pg.click('[data-act="harvest"]');
+  await pg.waitForFunction(() => window.__harvest && window.__harvest.running);
+  await pg.evaluate(() => { const g = window.__harvest.game; let t = 100;
+    for (let n = 0; n < 40 && g.phase === "chop"; n++) { const y = 1.4, w = g.trunk.widthAt(y) / 2; g.pointerDown(-(w + 0.5), y, t);
+      for (let k = 1; k <= 10; k++) { t += 0.016; g.pointerMove(-(w + 0.5) + 1.6 * k / 10, y, t); } g.pointerUp(); t += 0.05; } });
+  await pg.waitForFunction(() => window.__harvest.game.phase === "delimb", null, { timeout: 12000 });
+  await pg.waitForTimeout(1200);
+  // leaf green on the stage: a pixel much greener than it is red or blue
+  const green = () => pg.evaluate(() => {
+    const c = [...document.querySelectorAll("#harvestScreen canvas")].find((e) => e.width > 0), g = c.getContext("2d"), d = g.getImageData(0, 0, c.width, c.height).data;
+    let n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 1] > d[i] + 30 && d[i + 1] > d[i + 2] + 30 && d[i + 1] > 90) n++;
+    return n;
+  });
+  const before = await green();
+  const cut = await pg.evaluate(() => { const g = window.__harvest.game; let t = 200, n = 0;
+    for (const l of g.limbs.slice()) { if (!l.alive || l.stub < 0.8) continue; const s = l.stub * 0.55;
+      const p = g._pointAt(l, s), a = g._pointAt(l, s + 0.1), q = g._pointAt(l, Math.max(0, s - 0.1));
+      let tx = a.x - q.x, ty = a.y - q.y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+      for (let rep = 0; rep < 3; rep++) { g.pointerDown(p.x - ty * 0.5, p.y + tx * 0.5, t);
+        for (let k = 1; k <= 6; k++) { t += 0.016; g.pointerMove(p.x - ty * 0.5 + ty * k / 6, p.y + tx * 0.5 - tx * k / 6, t); } g.pointerUp(); t += 0.05; }
+      n++; }
+    return { n, stubs: g.limbs.filter((l) => l.stub > 0.3).length }; });
+  await pg.waitForTimeout(3000);   // the cut-off limbs and the falling leaves clear
+  const after = await green();
+  check(cut.n >= 3 && cut.stubs >= 3, `${cut.n} limbs cut halfway, ${cut.stubs} stubs left on the log`);
+  check(after < before * 0.08, `the stubs are bare: leaf green ${before} -> ${after}`);
+  await pg.close();
+}
+
 check(errors.length === 0, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));
 await browser.close();
 console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");

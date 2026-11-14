@@ -325,7 +325,8 @@
             break;
           case "snip":
             audio.snip(); shake = Math.min(1, shake + 0.1);
-            leaves(e.x, e.y, 6, 1.2); chips(e.x, e.y, 0, 5);
+            // the stub's own leaves come off with the cut: a broadleaf drops a shower of them
+            leaves(e.x, e.y, look().needles ? 6 : 16, look().needles ? 1.2 : 1.5); chips(e.x, e.y, 0, 5);
             break;
           case "cleaned":
             audio.chime(); toast("Clean log. Now saw it.", 2.6);
@@ -679,7 +680,9 @@
     /* The foliage of several branch parts ({ b, a0, a1 }), drawn together in
        passes (shadow, body, mid tone, sunlit, then loose leaves) so the crown
        is one mass rather than separate tufts. Only foliage growing from the
-       stretch a0..a1 of a branch is drawn: cut a limb and its leaves go with it. */
+       stretch a0..a1 of a branch is drawn: cut a limb and its leaves go with it.
+       A stub left by a cut is bare, as a pine's is: its leaves shake loose with
+       the cut (the "snip" event drops them as falling leaves). */
     function drawCanopy(list, yoff, swayOn) {
       var lk = look(), C = lk.canopy, items = [], i, j, k, q;
       function sw(y) { return swayOn ? swayX(y) * 1.1 : 0; }
@@ -687,6 +690,7 @@
       for (i = 0; i < list.length; i++) {
         var it = list[i];
         if (it.a1 - it.a0 < 0.02) continue;
+        if (it.a1 < it.b.len - 0.02) continue;          // a cut stub keeps no leaves
         var f = foliage(it.b), grp = f.clumps || f.needles;
         for (j = 0; j < grp.length; j++) if (grp[j].s0 >= it.a0 - 1e-6 && grp[j].s0 <= it.a1 + 1e-6) items.push(grp[j]);
       }
