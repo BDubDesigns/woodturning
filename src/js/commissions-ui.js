@@ -24,7 +24,7 @@
   var host = root.__farm, board = G.commissions, state = host.state;
   function $(id) { return document.getElementById(id); }
   var listEl = $("orderList"), footEl = $("boardFoot"), toastEl = $("otoast"), overlay = $("gradeOverlay");
-  var shown = false, sig = "", wasLocked = {};
+  var shown = false, sig = "", wasLocked = {}, justBought = {};
 
   var COIN = '<svg class="coin" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>';
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -114,7 +114,7 @@
     var flipped = [];
     B.orders.forEach(function (o) {
       var st = stockFor(o), on = B.active === o.id, name = pieceName(o), lock = board.locked(o);
-      if (wasLocked[o.id] && !lock) flipped.push(o.id);
+      if ((wasLocked[o.id] || justBought[o.kind]) && !lock) flipped.push(o.id);
       wasLocked[o.id] = lock;
       h += '<article class="order' + (on ? " on" : "") + (lock ? " locked" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '" data-kind="' + esc(o.kind) + '">';
       h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + o.reward + "</b></div></div>";
@@ -158,6 +158,7 @@
         '<div class="row">' + act("SEE IT", tdef.price + " coins", "", "teaser") + "</div></article>";
     }
     listEl.innerHTML = h;
+    justBought = {};
     flipped.forEach(function (id) { var el = listEl.querySelector('[data-order="' + id + '"]'); if (el) el.classList.add("unlocked"); });
     var f = "", recent = B.history.slice(-5).reverse();
     if (recent.length) {
@@ -303,6 +304,8 @@
     show: function () { shown = true; render(true); },
     hide: function () { shown = false; },
     offer: offer, render: render, toast: toast,
+    /* A blueprint was just bought: its orders flash as they unlock, next time the board shows. */
+    bought: function (kind) { justBought[kind] = true; sig = ""; },
     guided: !!(G.tutorial && G.tutorial.guidedBoard())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
   };
   G.OrdersUI = api;

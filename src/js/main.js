@@ -461,6 +461,7 @@
       clearTimeout(ltoastTimer);
       ltoastTimer = setTimeout(function () { ltoast.classList.remove("on"); }, 3400);
     }
+    L.toast = toast;
     function woodName(id) { return R.WOODS[id] ? R.WOODS[id].name : "Wood"; }
     function stockName(st) {
       if (!st) return "Practice";

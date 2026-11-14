@@ -167,15 +167,21 @@ mine, monetization, distribution, and the one-month bet.
   points at UNDO; the first orders want satin and gloss) and two more in the
   shed, with no coins or diamonds. A coach card and a pulsing ring on the real
   control walk the player through it, and each tab appears only when it is
-  needed: a practice cut, paint, finish and DONE; ORDERS opens on two authored
-  orders (pine, then oak); the oak needs the FARM (the seed is topped up if
-  short), 5 diamonds to GROW NOW, and the forest's chop, delimb and saw; then
-  the oak order is turned and delivered. Graduation opens SHOP and MINE and
-  fills the board. While the flow runs the board does not post or offer
+  needed: a practice cut, SANDPAPER (sand until SMOOTH reads 60% under the
+  pad), paint, finish and DONE; ORDERS opens on two authored orders (pine, then
+  oak); the oak needs the FARM (the seed is topped up if short), 10 diamonds to
+  GROW NOW, and the forest's chop, delimb and saw; then the oak order is turned
+  and delivered. Then a locked pine bat order for Coach Barrow appears with a
+  gifted pine log, SHOP opens, the flow hands over 100 coins, the player buys
+  the bat blueprint (nothing else can be bought until then) and takes the job,
+  and the last card gives a bonus of 150 coins and 5 diamonds, opens the MINE
+  and fills the board. The player finishes the bat on their own. The log, the
+  100 coins and the bonus are each given once ever (flags in the save). The
+  flow ends at roughly 150 to 240 coins. While the flow runs the board does not post or offer
   DECLINE, PRACTISE or GET ONE NOW. "Skip tutorial" is on every card and asks
   first (KEEP LEARNING or SKIP IT), saying what skipping means: everything opens,
-  with the starter pack (250 coins, 5 diamonds) less whatever the tutorial already
-  handed out. The hide button on a card tucks it into a glowing "?" button
+  with the starter pack (250 coins, 10 diamonds and the bat blueprint) less
+  whatever the tutorial already handed out. The hide button on a card tucks it into a glowing "?" button
   (by DONE on the lathe, floating elsewhere); tapping it brings the step back,
   and a new step opens its card again. Settings has REPLAY TUTORIAL once the
   tutorial is over: the same steps, but every tab stays open, nothing is handed

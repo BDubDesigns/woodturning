@@ -55,6 +55,12 @@
     },
     delivered: function () { var b = board(); return b ? b.state.done : 0; },
     activeWood: function () { var b = board(), o = b && b.active(); return o ? o.wood : null; },
+    activeKind: function () { var b = board(), o = b && b.active(); return o ? o.kind : null; },
+    hasOrder: function (kind) { var b = board(); return !!b && b.state.orders.some(function (o) { return o.kind === kind; }); },
+    ownsBlueprint: function (kind) { var b = board(); return !!b && b.ownsBlueprint(kind); },
+    postOrder: function (def) { var b = board(); if (b) b.postAuthored([def]); if (G.OrdersUI) G.OrdersUI.render(true); },
+    tip: function () { var S = lathe(); return S ? S.tip : null; },
+    smoothHere: function () { var S = lathe(); return S && S.smoothHere && S.sanding && S.sanding() ? S.smoothHere() : 0; },
     selectedEmpty: function () { var i = host.selected; return i >= 0 && !farm.plotAt(i); },
     planted: function (w) { return plotsOf(w); },
     grown: function (w) { return plotsOf(w, farm.isMature); },
@@ -254,19 +260,21 @@
     }
     return null;
   }
-  /* A target that is on its screen but scrolled out of view (lower down the store, say)
-     is scrolled into view once per step, so the ring has something to go round. */
+  /* The step's first target that is on this screen, even scrolled out of view (lower
+     down the store, say), is scrolled into view once per step and screen, so the ring
+     goes round the control the card names, not a fallback. */
   var scrolledFor = "";
   function scrollToTarget(st) {
-    if (scrolledFor === st.id) return null;
+    var key = st.id + ":" + ctx.screen();
+    if (scrolledFor === key) return null;
     var list = st.target || [];
     for (var i = 0; i < list.length; i++) {
       var all = document.querySelectorAll(list[i]);
       for (var k = 0; k < all.length; k++) {
         var r = all[k].getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && all[k].scrollIntoView) {
-          scrolledFor = st.id;
-          all[k].scrollIntoView({ block: "center" });
+        if (r.width > 0 && r.height > 0) {
+          scrolledFor = key;
+          if (!visible(all[k]) && all[k].scrollIntoView) all[k].scrollIntoView({ block: "center" });
           return visible(all[k]) ? all[k] : null;
         }
       }
@@ -279,7 +287,7 @@
     card.hidden = !on || minimized;
     if (minimized) { pillHome(); pill.hidden = !on; }
     if (!on) { ring.hidden = true; return; }
-    var el = targetEl(st) || scrollToTarget(st), vw = root.innerWidth, vh = root.innerHeight;
+    var el = scrollToTarget(st) || targetEl(st), vw = root.innerWidth, vh = root.innerHeight;
     var r = el ? el.getBoundingClientRect() : null;
     // a target the size of the stage needs no ring: the card says where to touch
     var big = r && r.width * r.height > vw * vh * 0.35;
@@ -298,7 +306,7 @@
 
   /* ---------------- the lathe for a new player ---------------- */
   /* The flow starts on a real pine log, not a practice blank, so DONE keeps the piece. */
-  var LATHE_STEPS = { cut: 1, to_paint: 1, paint: 1, to_finish: 1, finish: 1, keep: 1 };
+  var LATHE_STEPS = { cut: 1, pick_sand: 1, sand: 1, to_paint: 1, paint: 1, to_finish: 1, finish: 1, keep: 1 };
   function mountPine() {
     var S = lathe(), st = tut.current();
     if (!S || !st || !LATHE_STEPS[st.id]) return;
@@ -323,6 +331,12 @@
     if (G.OrdersUI && G.OrdersUI.guided !== tut.guidedBoard()) { G.OrdersUI.guided = tut.guidedBoard(); if (G.OrdersUI.render) G.OrdersUI.render(true); }
   }
   G.tutorialRefresh = refresh;
+  /* While the flow's 100 coins wait for the bat blueprint, nothing else spends coins:
+     returns what to tell the player, or "" when spending is fine. */
+  G.tutorialHoldsCoins = function () {
+    var st = tut.current();
+    return st && st.id === "buy_bat" && !tut.isReplay() && !ctx.ownsBlueprint("baseball_bat") ? "First the Baseball bat blueprint, at the top of Arbor Freight." : "";
+  };
 
   function start() {
     if (!lathe()) { setTimeout(start, 50); return; }

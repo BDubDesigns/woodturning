@@ -45,7 +45,7 @@ check(await page.locator("#mineScreen").isVisible(), "#mine opens the mine scree
 check(!(await page.locator("#farmScreen").isVisible()) && !(await page.locator("#latheScreen").isVisible()), "other screens are hidden");
 check(await page.locator("#tabMine").getAttribute("aria-selected") === "true", "the MINE tab is selected");
 let w = await wallet();
-check(w.coins === 250 && w.diamonds === 5, "wallet shows coins and diamonds");
+check(w.coins === 250 && w.diamonds === 10, "wallet shows coins and diamonds");
 check((await page.locator("#walletGems").count()) === 0 && (await page.locator(".wallet .coin-chip").count()) === 2, "the wallet has no gems");
 
 // ---- the trade is transparent: the screen prints what the model pays
@@ -71,7 +71,7 @@ await page.click("#adClose");
 check(!(await page.locator("#adOverlay").isVisible()), "closing the ad dismisses it");
 check(!(await page.locator("#mineScene").isVisible()), "closed early: not let into the mine");
 w = await wallet();
-check(w.diamonds === 5, "closed early: no diamonds paid");
+check(w.diamonds === 10, "closed early: no diamonds paid");
 check((await page.textContent("#mineNote")).includes("nothing is spent"), "closed early: told it cost nothing");
 check((await saved()).mine.adsWatched === 0, "closed early: not counted as watched");
 await page.click('[data-act="enter-mine"]');
@@ -85,7 +85,7 @@ await page.waitForSelector("#adOverlay", { state: "hidden" });
 check(await page.locator("#mineScene").isVisible(), "a finished ad lets you into the mine");
 check(!(await page.locator("#mineBody").isVisible()), "the entrance is out of the way");
 check((await saved()).mine.adsWatched === 1 && (await saved()).mine.pass === true, "the visit and the ad count are saved");
-check((await wallet()).diamonds === 5, "getting in pays nothing yet: the vein does");
+check((await wallet()).diamonds === 10, "getting in pays nothing yet: the vein does");
 const sceneBox = await page.locator("#mcanvas").boundingBox();
 check(sceneBox && sceneBox.width > 300 && sceneBox.height > 300, `the mine fills the screen (${Math.round(sceneBox.width)}x${Math.round(sceneBox.height)})`);
 
@@ -151,13 +151,13 @@ while (!(await vein()).broken && n < 20) await swing(n++);
 const vb = await vein();
 check(vb.broken, `the vein cracks open after ${vb.strikes} swings`);
 w = await wallet();
-check(w.diamonds === 5 + cfg.v, `cracking the vein pays exactly ${cfg.v} diamonds (now ${w.diamonds})`);
+check(w.diamonds === 10 + cfg.v, `cracking the vein pays exactly ${cfg.v} diamonds (now ${w.diamonds})`);
 check((await saved()).wallet.diamonds === w.diamonds && (await saved()).mine.pass === false, "the diamonds are saved and the visit is used up");
 await page.waitForSelector("#mresult", { state: "visible", timeout: 6000 });
 check((await page.textContent("#mresult")).includes(`+${cfg.v}`), "the result shows the diamonds won");
 if (shots) await page.screenshot({ path: `${shots}/mine-cracked.png` });
 await swing(0);
-check((await wallet()).diamonds === 5 + cfg.v, "swinging at the rubble pays nothing more");
+check((await wallet()).diamonds === 10 + cfg.v, "swinging at the rubble pays nothing more");
 await page.click('[data-act="mine-leave"]');
 check(await page.locator("#mineBody").isVisible(), "back at the entrance");
 check((await page.textContent('[data-act="enter-mine"]')).includes("ENTER THE MINE"), "another visit takes another ad");

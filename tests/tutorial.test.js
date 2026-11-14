@@ -96,9 +96,10 @@ test("resume after skipping at once gives the usual first board, pine first", ()
 /* A fake game for the flow to read: every reading is a plain field. */
 function fakeCtx(over) {
   const c = {
-    v: { emptyPlots: 2, doneTaps: 0, screen: "lathe", mode: "cut", removed: 0, coverage: 0, sheenRank: 0, shape: 0, delivered: 0, activeWood: null, selectedEmpty: false, harvestPhase: null, coins: 0, diamonds: 0 },
+    v: { emptyPlots: 2, doneTaps: 0, screen: "lathe", mode: "cut", removed: 0, coverage: 0, sheenRank: 0, shape: 0, delivered: 0, activeWood: null, activeKind: null, selectedEmpty: false, harvestPhase: null, coins: 0, diamonds: 0, tip: "gouge", smoothHere: 0 },
     logs: { pine: 3 }, blanks: {}, pieces: {}, planted: {}, grown: {}, deliverable: {},
-    grants: [], boards: 0, resumed: 0, took: []
+    owned: new Set(["rolling_pin"]), orders: [],
+    grants: [], boards: 0, resumed: 0, took: [], posted: []
   };
   const ctx = {
     screen: () => c.v.screen, mode: () => c.v.mode, removed: () => c.v.removed, coverage: () => c.v.coverage,
@@ -110,8 +111,11 @@ function fakeCtx(over) {
     grownAll: () => Object.values(c.grown).reduce((a, b) => a + b, 0), emptyPlots: () => c.v.emptyPlots, doneTaps: () => c.v.doneTaps,
     startReplay: () => { c.replays = (c.replays || 0) + 1; }, planted: (w) => c.planted[w] || 0, grown: (w) => c.grown[w] || 0,
     plantPrice: (w) => R.WOODS[w].plantPrice,
-    grant: (g) => { c.grants.push(g); if (g.coins) c.v.coins += g.coins; if (g.diamonds) c.v.diamonds += g.diamonds; if (g.logs) for (const w in g.logs) c.logs[w] = (c.logs[w] || 0) + g.logs[w]; },
+    grant: (g) => { c.grants.push(g); if (g.coins) c.v.coins += g.coins; if (g.diamonds) c.v.diamonds += g.diamonds; if (g.logs) for (const w in g.logs) c.logs[w] = (c.logs[w] || 0) + g.logs[w]; (g.blueprints || []).forEach((k) => c.owned.add(k)); },
     setMode: (m) => { c.v.mode = m; },
+    tip: () => c.v.tip, smoothHere: () => c.v.smoothHere, activeKind: () => c.v.activeKind,
+    ownsBlueprint: (k) => c.owned.has(k), hasOrder: (k) => c.orders.includes(k),
+    postOrder: (d) => { c.posted.push(d); c.orders.push(d.kind); },
     postFirstBoard: () => { c.boards++; }, resumeBoard: () => { c.resumed++; }, takeOrder: (w) => { c.took.push(w); }
   };
   Object.assign(c.v, over || {});
@@ -140,7 +144,13 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
   const at = (want) => { t.check(); assert.equal(id(t), want); };
   at("cut");
   c.v.removed = 0.01; at("cut");                     // some, but not enough
-  c.v.removed = T.CUT_FRACTION; at("to_paint");
+  c.v.removed = T.CUT_FRACTION; at("pick_sand");
+  assert.deepEqual(t.current().target, ["#tipSand"]);
+  c.v.tip = "sand"; at("sand");
+  c.v.smoothHere = 0.59; at("sand");                 // not quite
+  c.v.tip = "gouge"; at("pick_sand");               // put the sandpaper down: back to picking it up
+  c.v.tip = "sand"; at("sand");
+  c.v.smoothHere = T.SAND_SMOOTH; at("to_paint");
   c.v.mode = "paint"; at("paint");
   c.v.coverage = T.PAINT_COVER; at("to_finish");
   c.v.mode = "finish"; at("finish");
@@ -172,11 +182,25 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
   c.v.harvestPhase = "saw"; c.planted.oak = 0; c.grown.oak = 0; c.logs.oak = 1; at("saw");
   c.v.screen = "lathe"; c.logs.oak = 0; c.blanks.oak = 1; at("oak_order");
   assert.deepEqual(c.took, ["oak"], "the oak order goes on the lathe with the blank");
-  c.v.delivered = 2; c.blanks.oak = 0; at("graduate");
-  assert.equal(c.resumed, 1, "the board refills at graduation");
+  const coinsAtOak = c.v.coins;
+  c.v.delivered = 2; c.blanks.oak = 0; c.logs.pine = 1; at("bat_order");
+  assert.deepEqual(c.posted.map((o) => [o.kind, o.wood, o.client]), [["baseball_bat", "pine", "Coach Barrow"]], "one authored order: a pine bat");
+  assert.equal(c.logs.pine, 2, "a pine log, in case the starting ones went on practice");
   assert.equal(t.unlocked("shop"), true);
+  assert.equal(t.unlocked("mine"), false, "the mine waits for the last card");
+  assert.equal(t.boardPaused(), true, "and the board stays paused");
+  c.v.screen = "shop"; at("buy_bat");
+  assert.equal(c.v.coins, coinsAtOak + T.BAT_COINS, "100 coins for the blueprint");
+  c.v.screen = "orders"; at("buy_bat");              // left the shop without buying: the card follows
+  assert.ok(t.current().target.includes("#tabShop"));
+  c.v.screen = "shop"; c.owned.add("baseball_bat"); c.v.coins -= 100; at("take_bat");
+  c.v.screen = "orders"; c.v.activeKind = "baseball_bat"; c.v.activeWood = "pine"; at("take_bat");
+  c.v.screen = "lathe"; at("wrap");
+  assert.equal(c.v.coins, coinsAtOak + T.BONUS.coins, "the bat nets to zero, the bonus is on top");
+  assert.equal(c.v.diamonds, T.BONUS.diamonds + T.GRANT_DIAMONDS);
+  assert.equal(c.resumed, 1, "the board refills at the last card");
   assert.equal(t.unlocked("mine"), true);
-  c.v.screen = "shop"; at("shop");
+  assert.equal(t.boardPaused(), false);
   assert.equal(t.current().dismiss, true);
   t.dismiss();
   assert.equal(t.done, true);
@@ -185,7 +209,7 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
 });
 
 test("a player who is ahead of the flow skips the steps they already did", () => {
-  const { c, t } = flow({ removed: 0.1, mode: "finish", coverage: 0.5, sheenRank: 1 });
+  const { c, t } = flow({ removed: 0.1, mode: "finish", coverage: 0.5, sheenRank: 1, tip: "sand", smoothHere: 0.7 });
   c.pieces.pine = 1;
   t.check();
   assert.equal(id(t), "to_orders", "cut, paint, finish and keep all passed in one check");
@@ -194,9 +218,9 @@ test("a player who is ahead of the flow skips the steps they already did", () =>
 test("progress is saved by step id and survives a reload", () => {
   const { c, t, game } = flow();
   c.v.removed = 1; t.check();
-  assert.equal(game.tutorial.step, "to_paint");
+  assert.equal(game.tutorial.step, "pick_sand");
   const again = T.createTutorial(JSON.parse(JSON.stringify(game)), { ctx: fakeCtx().ctx });
-  assert.equal(id(again), "to_paint");
+  assert.equal(id(again), "pick_sand");
   assert.equal(T.normalize({ step: "no-such-step", done: false }).step, null);
 });
 
@@ -204,7 +228,8 @@ test("skip opens everything, hands over the starter pack and resumes the board",
   const { c, t, steps } = flow();
   t.skip();
   assert.equal(t.done, true);
-  assert.deepEqual(c.grants, [{ coins: T.STARTER.coins, diamonds: T.STARTER.diamonds }]);
+  assert.deepEqual(c.grants, [{ coins: T.STARTER.coins, diamonds: T.STARTER.diamonds, blueprints: ["baseball_bat"] }]);
+  assert.ok(c.owned.has("baseball_bat"), "the skip pack has the bat blueprint");
   assert.equal(c.resumed, 1);
   assert.equal(steps[steps.length - 1], null);
   t.skip();
@@ -271,7 +296,7 @@ test("skipping part way tops up the starter pack instead of paying it twice", ()
   c.planted.oak = 1; t.check();                        // into the speed-up step: 5 diamonds handed over
   assert.equal(id(t), "speed");
   assert.equal(game.tutorial.granted.diamonds, T.GRANT_DIAMONDS);
-  assert.deepEqual(t.skipGrant(), { coins: T.STARTER.coins, diamonds: T.STARTER.diamonds - T.GRANT_DIAMONDS });
+  assert.deepEqual(t.skipGrant(), { coins: T.STARTER.coins, diamonds: T.STARTER.diamonds - T.GRANT_DIAMONDS, blueprints: ["baseball_bat"] });
   const before = c.v.diamonds;
   t.skip();
   assert.equal(c.v.diamonds - before, T.STARTER.diamonds - T.GRANT_DIAMONDS, "no second lot of diamonds");
@@ -309,7 +334,9 @@ test("a replay hands nothing out, start to finish, and a skip during it pays not
   const wallet = () => [c.v.coins, c.v.diamonds];
   const w0 = wallet(), logs0 = c.logs.pine;
   const at = (want) => { t.check(); assert.equal(id(t), want); };
-  c.v.removed = 1; c.v.mode = "paint"; c.v.coverage = 1; at("to_finish");
+  c.v.removed = 1; at("pick_sand");
+  c.v.tip = "sand"; c.v.smoothHere = 0.7; at("to_paint");   // the sand steps run as normal
+  c.v.mode = "paint"; c.v.coverage = 1; at("to_finish");
   c.v.mode = "finish"; c.v.sheenRank = 1; at("keep");
   c.v.doneTaps++; at("to_orders");
   assert.equal(c.boards, 0, "no first board is posted");
@@ -327,10 +354,13 @@ test("a replay hands nothing out, start to finish, and a skip during it pays not
   c.v.screen = "harvest"; c.v.harvestPhase = "saw"; t.check();
   c.v.screen = "lathe"; at("oak_order");
   assert.equal(t.current().dismiss, true, "the blank card is just to read");
-  t.dismiss(); at("graduate");
-  assert.equal(c.resumed, 0);
+  c.owned.add("baseball_bat");                       // a replayer has the bat (they bought it, or skipped)
+  t.dismiss(); at("take_bat");                       // no order posted, no log, and buy_bat is passed
+  assert.equal(c.posted.length, 0, "no bat order in a replay");
+  c.v.screen = "lathe"; c.v.activeKind = "chair_leg"; at("wrap");   // any order counts
+  assert.equal(t.current().dismiss, true);
   t.dismiss();
-  assert.equal(t.done, true, "the shop card is left out of a replay");
+  assert.equal(t.done, true);
   assert.deepEqual(wallet(), w0);
   assert.equal(c.grants.length, 0);
   assert.equal(c.logs.pine, 0);
@@ -393,4 +423,87 @@ test("clearing the finish leaves the paint; clearing the paint takes the finish 
   c.clearPaint();
   assert.equal(c.coverage(), 0);
   assert.equal(c.avgGloss(), 0, "and the finish on top of it");
+});
+
+// ---------- the bat step's gifts: each paid once ever ----------
+function atBat(over) {
+  const r = flow(over);
+  r.game.tutorial.step = "oak_order"; r.c.v.delivered = 2; r.c.v.coins = 40;
+  r.t.check();
+  return r;
+}
+const sumOf = (c, k) => c.grants.reduce((a, g) => a + (g[k] || 0), 0);
+test("the bat log, the 100 coins and the bonus are each paid once, across rescues, reloads and steps run again", () => {
+  const { c, t, game, ctx } = atBat();
+  assert.equal(id(t), "bat_order");
+  c.v.screen = "shop"; t.check();
+  assert.equal(id(t), "buy_bat");
+  const logGrants = () => c.grants.filter((g) => g.logs && g.note && /neighbour/.test(g.note)).length;
+  assert.equal(logGrants(), 1);
+  assert.equal(sumOf(c, "coins"), T.BAT_COINS);
+  // the step runs again (sent back, or a reload landing on it): nothing new
+  game.tutorial.step = "bat_order"; c.v.screen = "lathe"; t.check();
+  c.v.screen = "shop"; t.check();
+  const saved = JSON.parse(JSON.stringify(game));
+  const reload = T.createTutorial(saved, { ctx });
+  reload.check();
+  assert.equal(logGrants(), 1, "the gifted log once");
+  assert.equal(sumOf(c, "coins"), T.BAT_COINS, "the 100 coins once");
+  c.owned.add("baseball_bat"); c.v.screen = "lathe"; c.v.activeKind = "baseball_bat"; reload.check();
+  assert.equal(id(reload), "wrap");
+  const g2 = JSON.parse(JSON.stringify(saved));
+  g2.tutorial.step = "take_bat";
+  const again = T.createTutorial(g2, { ctx }); again.check();
+  assert.equal(sumOf(c, "coins"), T.BAT_COINS + T.BONUS.coins, "the bonus once, even reloaded onto the step before it");
+  assert.equal(sumOf(c, "diamonds"), T.BONUS.diamonds);
+  assert.deepEqual([g2.tutorial.granted.batLog, g2.tutorial.granted.bat, g2.tutorial.granted.bonus], [true, true, true]);
+});
+
+test("the bat order is posted once, and shows locked until the blueprint is bought", () => {
+  const { c, t, game } = atBat();
+  assert.equal(c.posted.length, 1);
+  game.tutorial.step = "to_farm"; t.check(); game.tutorial.step = "oak_order"; t.check();
+  assert.equal(c.posted.length, 1, "an order already on the board is not posted again");
+  // the commissions model: an authored bat order sits on the board, and accept refuses it until bought
+  const game2 = S.newGame(); game2.wallet.coins = 100;
+  const st = St.createState(game2);
+  const b = C.createBoard(game2, { state: st, paused: () => true });
+  const [o] = b.postAuthored([T.BAT_ORDER]);
+  assert.equal(b.accept(o.id).reason, "no blueprint");
+  assert.ok(b.buyBlueprint("baseball_bat").ok);
+  assert.ok(b.accept(o.id).ok);
+});
+
+test("the gifted pine went into a rejected piece: a neighbour drops off another", () => {
+  const { c, t } = atBat();
+  c.logs.pine = 0; c.v.screen = "shop"; t.check();
+  assert.equal(c.logs.pine, 1);
+  t.check();
+  assert.equal(c.logs.pine, 1, "only when there is none");
+});
+
+test("the tutorial ends at roughly 150 to 240 coins, before the bat job pays", () => {
+  // the flow ends at 0 to 90 coins before the bat; the 100 coins net to zero against the blueprint
+  for (const before of [0, 90]) {
+    const end = before + T.BAT_COINS - C.PIECES.baseball_bat.price + T.BONUS.coins;
+    assert.ok(end >= 150 && end <= 240, "ends at " + end);
+  }
+  assert.equal(T.BAT_COINS, C.PIECES.baseball_bat.price, "the gift buys exactly the blueprint");
+  assert.equal(T.GRANT_DIAMONDS, 10);
+  assert.deepEqual(T.STARTER, { coins: 250, diamonds: 10, blueprints: ["baseball_bat"] });
+});
+
+test("the speed-up copy follows the diamonds it grants", () => {
+  assert.match(T.BY_ID.speed.text, new RegExp("Here are " + T.GRANT_DIAMONDS + " diamonds"));
+  assert.match(T.BY_ID.sand.text, /SMOOTH reads 60%/);
+  assert.match(T.BY_ID.buy_bat.text, /100 coins/);
+});
+
+test("every pine log went on practice before the first order: a log turns up at the board, so TAKE IT is there", () => {
+  const { c, t, game } = flow();
+  game.tutorial.step = "take";
+  c.logs.pine = 0; c.v.screen = "orders";
+  t.check();
+  assert.equal(id(t), "take");
+  assert.equal(c.logs.pine, 1);
 });

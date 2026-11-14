@@ -77,7 +77,8 @@
   /* ---------------- blueprints ---------------- */
   function blueprintsHtml(coins) {
     var h = '<section class="af-line af-bp" id="afBlueprints"><div class="af-head"><span class="af-icon bp-icon">' + BP_ICON + '</span><div><h2>BLUEPRINTS</h2><p>Plans for new pieces. Own the plan and customers start ordering that piece. Harder pieces pay more.</p></div></div>';
-    C.BLUEPRINT_ORDER.forEach(function (k) {
+    // the ones still for sale first, cheapest at the top; what is owned below
+    C.BLUEPRINT_ORDER.filter(function (k) { return !board.ownsBlueprint(k); }).concat(C.BLUEPRINT_ORDER.filter(function (k) { return board.ownsBlueprint(k); })).forEach(function (k) {
       var def = C.PIECES[k], own = board.ownsBlueprint(k), ok = coins >= def.price;
       var pay = Math.round(def.base * (1 + C.CFG.BONUS));
       h += '<div class="bp-card' + (own ? " owned" : "") + '" data-bp-card="' + k + '">';
@@ -92,6 +93,8 @@
   }
   var BP_ICON = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="6" width="26" height="20" rx="2" fill="#1d4a8a"/><path d="M7 16c3-5 6 0 9-1s5-4 9 1c-4 5-6 2-9 1s-6 4-9-1z" fill="none" stroke="#f4f8ff" stroke-width="1.4"/><path d="M5 16h22" stroke="#f4f8ff" stroke-width="0.7" stroke-dasharray="3 1.5"/></svg>';
   function buyBlueprint(k) {
+    var held = k !== "baseball_bat" && G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return { ok: false, reason: "held" }; }
     var r = board.buyBlueprint(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That blueprint is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
@@ -102,7 +105,7 @@
     host.renderWallet();
     render(true);
     flash(k);
-    if (G.OrdersUI) G.OrdersUI.render(true);
+    if (G.OrdersUI) { if (G.OrdersUI.bought) G.OrdersUI.bought(k); G.OrdersUI.render(true); }
     return r;
   }
   function flash(k, sel) {
@@ -139,7 +142,11 @@
     if (bp) { if (!bp.classList.contains("owned")) buyBlueprint(bp.getAttribute("data-blueprint")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;
     if (!b) return;
-    var k = b.getAttribute("data-buy"), r = shop.buy(k);
+    var k = b.getAttribute("data-buy");
+    // the tutorial's 100 coins are for the bat blueprint: nothing else until it is bought
+    var held = G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return; }
+    var r = shop.buy(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
       return;
