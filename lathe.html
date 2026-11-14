@@ -644,13 +644,43 @@ footer {
 .g-pick .n { display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; }
 #profileBar .plabel b { display: block; color: var(--amber); font-size: 11px; letter-spacing: 0.08em; margin-top: 4px; }
 
-/* more than two chisels on the rack: a compact row, names only */
-.tip-group.many { display: grid; gap: 8px; }
-.tip-group.many .tip-btn { min-width: 0; min-height: 46px; padding: 6px 10px; gap: 8px; }
-.tip-group.many .tdesc { display: none; }
-.tip-group.many .tip-btn .tname { font-size: 15px; }
-.tip-group.many .tip-btn svg { width: 26px; height: 24px; }
+/* the tool rack: compact buttons, icon over name, as many as fit; MORE opens the drawer */
+.tip-group.tool-row { display: grid; gap: 8px; min-width: 0; flex: 1 1 100%; }
+.tool-btn { min-width: 0; min-height: 50px; padding: 5px 4px 6px; flex-direction: column; justify-content: center; gap: 2px; text-align: center; }
+.tool-btn svg { width: 28px; height: 24px; }
+.tool-btn .tname { font-size: 13.5px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tool-more { border-style: dashed; }
+.tool-more[aria-expanded="true"] { background: var(--btn-bg-on); border-color: var(--amber); border-style: solid; }
+.tool-btn.is-new { animation: tool-new 1.1s ease-in-out 4; border-color: #f2c230; }
+.tool-btn.is-new::after {
+  content: "NEW"; position: absolute; top: -7px; right: -4px; padding: 1px 5px; border-radius: 4px;
+  background: #f2c230; color: #1b1405; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: 0.1em;
+}
+.tool-btn { position: relative; }
+@keyframes tool-new { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 194, 48, 0); } 50% { box-shadow: 0 0 0 4px rgba(242, 194, 48, 0.45), 0 0 16px rgba(242, 194, 48, 0.45); } }
 .tip-btn[hidden] { display: none; }
+.tool-drawer { position: fixed; inset: 0; z-index: 40; background: rgba(8, 6, 4, 0.55); display: flex; align-items: flex-end; justify-content: center; }
+.tool-drawer[hidden] { display: none !important; }
+.td-sheet {
+  width: 100%; max-width: 680px; max-height: 78vh; overflow-y: auto; touch-action: pan-y;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0;
+  background: linear-gradient(0deg, var(--chrome-bg2), var(--chrome-bg)); border-top: 1px solid var(--amber);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5); animation: td-up 0.18s ease-out; transition: transform 0.12s;
+}
+@keyframes td-up { from { transform: translateY(40px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.td-grab { width: 44px; height: 5px; border-radius: 3px; background: var(--chrome-line); margin: 2px auto 8px; }
+.td-sheet h2 { margin: 0 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.2em; color: var(--amber); }
+.td-list { display: flex; flex-direction: column; gap: 8px; }
+.td-card {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px; text-align: left; width: 100%;
+  background: var(--btn-bg); color: var(--ink); border: 1px solid var(--chrome-line); border-radius: 9px;
+}
+.td-card b { display: block; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.08em; }
+.td-card small { display: block; font-size: 12px; color: var(--dim); line-height: 1.3; margin-top: 2px; }
+.td-card em { display: block; font-style: normal; font-size: 12px; color: #f2c230; margin-top: 3px; }
+.td-card[aria-pressed="true"] { background: var(--btn-bg-on); border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber) inset; }
+.td-card[aria-pressed="true"] b { color: var(--amber); }
+.td-card.locked { opacity: 0.55; filter: grayscale(0.6); border-style: dashed; }
 
 /* ---------- Arbor Freight, the tool store ---------- */
 #shopScreen { overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #22302a 0%, #18201c 50%, #0e1210 100%); }
@@ -711,7 +741,7 @@ footer {
 .af-line .act.bp-buy.primary .an { color: #cfe2ff; }
 .af-line .act.bp-buy.owned { opacity: 1; border-style: dashed; }
 .af-line .act.bp-buy.owned .an { color: var(--ok); }
-.bp-card.flash { animation: bp-flash 1.5s ease-out; }
+.bp-card.flash, .af-line.flash { animation: bp-flash 1.5s ease-out; }
 @keyframes bp-flash { 0% { box-shadow: 0 0 0 3px rgba(156, 195, 255, 0.9); background: rgba(111, 164, 240, 0.18); } 100% { box-shadow: 0 0 0 3px rgba(156, 195, 255, 0); background: transparent; } }
 .order.locked .o-shape { filter: grayscale(0.7) brightness(0.8); }
 .o-lock { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; line-height: 1.4; color: #cfe2ff; background: rgba(29, 74, 138, 0.35); border: 1px solid #3d6aa8; }
@@ -1001,22 +1031,8 @@ header .gear-btn { margin-left: 4px; }
             FINISH
           </button>
         </div>
-        <div class="tip-group" id="toolsCut" role="group" aria-label="Chisel tip">
-          <button class="tip-btn" id="tipGouge" data-tip="gouge" aria-pressed="true">
-            <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
-              <path d="M4 4 h26 v10 c0 7 -6 12 -13 12 c-7 0 -13 -5 -13 -12 z" fill="none" stroke="#e8a33d" stroke-width="2.4"/>
-              <path d="M9 9 v5 c0 4.4 3.6 8 8 8 c4.4 0 8 -3.6 8 -8 v-5" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/>
-            </svg>
-            <span><span class="tname">GOUGE</span><div class="tdesc">Wide, rounded scoop · roughing &amp; curves</div></span>
-          </button>
-          <button class="tip-btn" id="tipSkew" data-tip="skew" aria-pressed="false">
-            <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
-              <path d="M6 22 L28 6 v16 L6 26 z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
-              <path d="M10 22.6 L28 10" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/>
-            </svg>
-            <span><span class="tname">SKEW</span><div class="tdesc">Narrow, angled flat · crisp grooves &amp; beads</div></span>
-          </button>
-        </div>
+        <!-- the tool rack: compact buttons built by main.js (setTips), with MORE opening the drawer when they overflow -->
+        <div class="tip-group tool-row" id="toolsCut" role="group" aria-label="Lathe tools"></div>
         <div class="paint-tools" id="toolsPaint" hidden>
           <div class="tip-group" role="group" aria-label="Applicator">
             <button class="tip-btn" id="brushWide" aria-pressed="true">
@@ -1615,14 +1631,14 @@ header .gear-btn { margin-left: 4px; }
     // (before RATE_SCALE, RPM and pressure; see removalRate)
     // shape: "round" is a rounded trough (cos^2), "flat" a flat bottom (to `flat` of the half
     // width) with rounded shoulders. look/size: how the views draw the tip. finish: the
-    // roughness a cut leaves behind. The gouge, skew and sandpaper are on the rack from the
+    // roughness a cut leaves behind. short: the label on the compact tool row. The gouge, skew and sandpaper are on the rack from the
     // start; the rest are sold at Arbor Freight (shop.js). kind "abrasive" sands, not cuts.
-    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    finish: 0.55, desc: "Wide, rounded scoop · roughing & curves" },
-    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, finish: 0.35, desc: "Narrow, angled flat · crisp grooves & beads" },
-    sand:     { halfWidth: 0.35, rate: 0,    name: "Sandpaper",      shape: "round", look: "sand", size: 1, kind: "abrasive", desc: "Smooths the surface · fades the chisel marks" },
-    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, finish: 0.6, desc: "Thin and deep · handles & shoulders" },
-    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, finish: 0.45, desc: "Small and round · tight beads & coves" },
-    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, finish: 0.75, desc: "Big and wide · takes a log round fast" }
+    gouge:    { short: "GOUGE", halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    finish: 0.55, desc: "Wide, rounded scoop · roughing & curves" },
+    skew:     { short: "SKEW", halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, finish: 0.35, desc: "Narrow, angled flat · crisp grooves & beads" },
+    sand:     { short: "SANDPAPER", halfWidth: 0.35, rate: 0,    name: "Sandpaper",      shape: "round", look: "sand", size: 1, kind: "abrasive", desc: "Smooths the surface · fades the chisel marks" },
+    parting:  { short: "PARTING", halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, finish: 0.6, desc: "Thin and deep · handles & shoulders" },
+    detail:   { short: "DETAIL", halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, finish: 0.45, desc: "Small and round · tight beads & coves" },
+    roughing: { short: "ROUGHING", halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, finish: 0.75, desc: "Big and wide · takes a log round fast" }
   };
   var TIP_ORDER = ["gouge", "skew", "sand", "parting", "detail", "roughing"];
 
@@ -3113,6 +3129,12 @@ header .gear-btn { margin-left: 4px; }
       audio.sawFilter = sawBp;
       audio.sawGain = ctx.createGain(); audio.sawGain.gain.value = 0;
       noise.connect(sawBp); sawBp.connect(audio.sawGain); audio.sawGain.connect(audio.master);
+      // sanding: a soft, airy hiss from the same noise, level set per frame
+      var sandHp = ctx.createBiquadFilter(); sandHp.type = "highpass"; sandHp.frequency.value = 2200; sandHp.Q.value = 0.5;
+      var sandBp = ctx.createBiquadFilter(); sandBp.type = "bandpass"; sandBp.frequency.value = 4200; sandBp.Q.value = 0.6;
+      audio.sandFilter = sandBp;
+      audio.sandGain = ctx.createGain(); audio.sandGain.gain.value = 0;
+      noise.connect(sandHp); sandHp.connect(sandBp); sandBp.connect(audio.sandGain); audio.sandGain.connect(audio.master);
       var humOsc = ctx.createOscillator(); humOsc.type = "sawtooth"; humOsc.frequency.value = 52;
       audio.humOsc = humOsc;
       var humLp = ctx.createBiquadFilter(); humLp.type = "lowpass"; humLp.frequency.value = 220;
@@ -3187,6 +3209,13 @@ header .gear-btn { margin-left: 4px; }
     audio.init();
     audio.burst("bandpass", 4200, 2.5, 0.05, 0.12); audio.thump(1046, 1046, 0.16, 0.06, 0.04); audio.thump(1568, 1568, 0.3, 0.06, 0.12);
   };
+  /* sanding: level 0..1 (pressure x speed x how rough it still is), rpm brightens the hiss */
+  audio.sand = function (level, rpmNow) {
+    if (!audio.ctx || !audio.sandGain) return;
+    var now = audio.ctx.currentTime, lv = audio.on && audio.latheOn ? Math.min(1, Math.max(0, level)) : 0;
+    audio.sandGain.gain.setTargetAtTime(lv * 0.34, now, 0.05);
+    audio.sandFilter.frequency.setTargetAtTime(3200 + (rpmNow || 1100) * 0.9, now, 0.1);
+  };
   /* sawing: level 0..1 follows how fast the blade is moving */
   audio.saw = function (level) {
     if (!audio.ctx || !audio.sawGain) return;
@@ -3202,6 +3231,7 @@ header .gear-btn { margin-left: 4px; }
     var now = audio.ctx.currentTime;
     if (!on) {
       audio.cutGain.gain.setTargetAtTime(0, now, 0.05);
+      if (audio.sandGain) audio.sandGain.gain.setTargetAtTime(0, now, 0.05);
       if (audio.humGain) audio.humGain.gain.setTargetAtTime(0, now, 0.05);
     } else if (audio.sawGain) {
       audio.sawGain.gain.setTargetAtTime(0, now, 0.05);
@@ -3243,6 +3273,7 @@ header .gear-btn { margin-left: 4px; }
     if (!on && audio.ctx) {
       if (audio.sawGain) audio.sawGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
       audio.cutGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
+      if (audio.sandGain) audio.sandGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
       if (audio.humGain) audio.humGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
     }
   };
@@ -3261,6 +3292,16 @@ header .gear-btn { margin-left: 4px; }
    LatheGeometry runs along its local +Y, and spinGroup turns local
    +Y onto world +X (rotation.z = -PI/2). The Nov 12 prototype used
    +PI/2, which put slice 0 on the right and mirrored every cut.
+
+   Sanding: the wood texture is redrawn per slice from the cutting
+   model's rough. Each slice's bare-wood row gets a flat, even tan laid
+   over it at alpha 0.65 x (1 - rough), so sanded wood comes out a more
+   uniform tan with the dark grain streaks faded but not gone, and the
+   bump map (its own composited canvas) loses its grain there too.
+   A second, finer dust (sandDust) flies off the pad tangentially, in the
+   direction of spin; it spawns with pressure x roughness under the pad,
+   so it thins out as the spot gets smooth. The pad is its own tool
+   (look "sand"), a folded sheet over a cork block, held under the work.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -3703,15 +3744,58 @@ header .gear-btn { margin-left: 4px; }
     envTex.mapping = THREE.EquirectangularReflectionMapping;
     envTex.colorSpace = THREE.SRGBColorSpace;
 
-    var woodMat = new THREE.MeshStandardMaterial({ map: paintTex, roughness: 1, roughnessMap: roughTex, metalness: 0.0, bumpMap: woodTex, bumpScale: 0.6, envMap: envTex, envMapIntensity: 0 });
-    var paintSeen = -1, roughSeen = -1, paintFrame = 0;
+    /* The bump map is its own canvas too: the wood's grain, flattened where it is sanded. */
+    var bumpCanvas = document.createElement("canvas"); bumpCanvas.width = PAINT_W; bumpCanvas.height = PAINT_H;
+    var bg2 = bumpCanvas.getContext("2d");
+    bg2.drawImage(woodCanvas, 0, 0);
+    var bumpTex = new THREE.CanvasTexture(bumpCanvas);
+    bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+    var SANDED_TAN = "rgb(203,160,104)", SANDED_BUMP = "rgb(176,128,72)", SAND_ALPHA = 0.65, BUMP_FLAT = 0.9;
+    var sandQ = new Uint8Array(SEG), sandWorkSeen = -1, SAND_LEVELS = 24;
+    /* Has the sanding changed enough to redraw? Quantised, so a cut's tiny drift doesn't repaint. */
+    function sandChanged() {
+      if (work.version === sandWorkSeen) return false;
+      sandWorkSeen = work.version;
+      var ch = false, rough = work.rough;
+      for (var j = 0; j < SEG; j++) {
+        var q = Math.round((1 - rough[j]) * SAND_LEVELS);
+        if (q !== sandQ[j]) { sandQ[j] = q; ch = true; }
+      }
+      return ch;
+    }
+    /* Lay a flat colour over each run of slices sanded alike, at alpha k x smoothness. */
+    function sandOverlay(cx, color, k) {
+      var step = PAINT_H / (SEG - 1), j = 0;
+      cx.fillStyle = color;
+      while (j < SEG) {
+        var q = sandQ[j], e = j;
+        while (e + 1 < SEG && sandQ[e + 1] === q) e++;
+        if (q > 0) {
+          var y1 = Math.max(0, PAINT_H - (e + 0.5) * step), y2 = Math.min(PAINT_H, PAINT_H - (j - 0.5) * step);
+          cx.globalAlpha = Math.min(1, k * q / SAND_LEVELS);
+          cx.fillRect(0, y1, PAINT_W, y2 - y1 + 0.6);
+        }
+        j = e + 1;
+      }
+      cx.globalAlpha = 1;
+    }
+    var woodMat = new THREE.MeshStandardMaterial({ map: paintTex, roughness: 1, roughnessMap: roughTex, metalness: 0.0, bumpMap: bumpTex, bumpScale: 0.6, envMap: envTex, envMapIntensity: 0 });
+    var paintSeen = -1, roughSeen = -1, paintFrame = 0, sandDirty = false;
     function cssRgb(c) { return "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")"; }
     function syncPaint(force) {
-      if (!force && coat.version === paintSeen) return;
-      if (!force && (++paintFrame % 2)) return;            // repaint at most every other frame while painting
+      if (sandChanged()) sandDirty = true;
+      if (!force && coat.version === paintSeen && !sandDirty) return;
+      if (!force && (++paintFrame % 2)) return;            // repaint at most every other frame while painting or sanding
       paintSeen = coat.version;
+      if (sandDirty || force) {
+        bg2.globalAlpha = 1; bg2.drawImage(woodCanvas, 0, 0);
+        sandOverlay(bg2, SANDED_BUMP, BUMP_FLAT);
+        bumpTex.needsUpdate = true;
+      }
+      sandDirty = false;
       pg.globalCompositeOperation = "source-over"; pg.globalAlpha = 1;
       pg.drawImage(woodCanvas, 0, 0);
+      sandOverlay(pg, SANDED_TAN, SAND_ALPHA);
       var step = PAINT_H / (SEG - 1), tmp = [0, 0, 0];
       for (var j = 0; j < SEG; j++) {
         var a = coat.coat[j];
@@ -3821,6 +3905,36 @@ header .gear-btn { margin-left: 4px; }
     skewSteel.position.y = -0.1; skewSteel.rotation.z = 0.5;
     skewTip.add(skewSteel);
     chisel.add(skewTip);
+    /* The sanding pad: a sheet of paper folded over a cork block, held under the work.
+       Same convention as the chisel: origin where it touches, the hand up local +Y. */
+    var sandG = new THREE.Group();
+    sandG.scale.setScalar(1.22);
+    sandG.visible = false;
+    scene.add(sandG);
+    var paperTex = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 64;
+      var g = c.getContext("2d");
+      g.fillStyle = "#b8894f"; g.fillRect(0, 0, 64, 64);
+      for (var i = 0; i < 380; i++) { g.fillStyle = Math.random() < 0.5 ? "rgba(60,36,16,0.55)" : "rgba(240,214,170,0.5)"; g.fillRect(Math.random() * 64, Math.random() * 64, 1.2, 1.2); }
+      var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2);
+      return t;
+    })();
+    var paperMat = new THREE.MeshStandardMaterial({ map: paperTex, roughness: 0.95, metalness: 0 });
+    var paperBack = new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.9 });
+    var sheet = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.025, 0.36), [paperBack, paperBack, paperBack, paperMat, paperBack, paperBack]);
+    sheet.position.y = 0.012; sheet.castShadow = true; sandG.add(sheet);
+    var cork = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.2, 0.3), new THREE.MeshStandardMaterial({ color: 0x9c6b3c, roughness: 0.85 }));
+    cork.position.y = 0.125; cork.castShadow = true; sandG.add(cork);
+    [-1, 1].forEach(function (sd) {    // the paper folded up over the block's ends
+      var flap = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.2, 0.36), paperBack);
+      flap.position.set(sd * 0.3, 0.12, 0); sandG.add(flap);
+    });
+    var fingerMat = new THREE.MeshStandardMaterial({ color: 0xd9a27c, roughness: 0.7 });
+    for (var fi = 0; fi < 3; fi++) {    // fingertips on top of the block
+      var f = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.16, 4, 8), fingerMat);
+      f.rotation.x = Math.PI / 2; f.position.set(-0.13 + fi * 0.13, 0.25, 0.02); sandG.add(f);
+    }
+
     var shownTip = null;
     function showTip() {
       if (shownTip === S.tip) return;
@@ -3876,13 +3990,14 @@ header .gear-btn { margin-left: 4px; }
     liquid.position.y = 1.0; bottleG.add(liquid);
 
     var activeTool = chisel, shownMode = "cut", shownBrushKey = "";
-    var toolFor = { cut: chisel, paint: brushG, finish: bottleG };
+    var toolFor = { cut: chisel, sand: sandG, paint: brushG, finish: bottleG };
     function showTool() {
-      if (shownMode !== S.mode) {
-        var next = toolFor[S.mode];
+      var tp = L.TIPS[S.tip], m = S.mode === "cut" && tp && tp.look === "sand" ? "sand" : S.mode;
+      if (shownMode !== m) {
+        var next = toolFor[m];
         next.position.copy(activeTool.position); next.quaternion.copy(activeTool.quaternion);
         activeTool.visible = false; next.visible = true;
-        activeTool = next; shownMode = S.mode;
+        activeTool = next; shownMode = m;
       }
       if (S.mode === "paint") {
         var key = S.paintTool + ":" + S.color;
@@ -3967,6 +4082,43 @@ header .gear-btn { margin-left: 4px; }
         }
       }
       dustGeo.attributes.position.needsUpdate = true;
+    }
+
+    /* Sanding dust: finer, paler and more of it, flung off the pad along the spin. */
+    var SDUST_N = 900;
+    var sdPos = new Float32Array(SDUST_N * 3), sdDat = [];
+    for (var sdi = 0; sdi < SDUST_N; sdi++) { sdDat.push({ life: 0, vx: 0, vy: 0, vz: 0 }); sdPos[sdi * 3 + 1] = -10; }
+    var sdGeo = new THREE.BufferGeometry();
+    sdGeo.setAttribute("position", new THREE.BufferAttribute(sdPos, 3).setUsage(THREE.DynamicDrawUsage));
+    var sandDust = new THREE.Points(sdGeo, new THREE.PointsMaterial({ map: makeChipSprite(), size: 0.05, transparent: true, opacity: 0.8, depthWrite: false, color: 0xf6e6c4, sizeAttenuation: true }));
+    sandDust.frustumCulled = false;
+    scene.add(sandDust);
+    var sdCursor = 0, sdLive = 0;
+    function spawnSandDust(origin, n) {
+      for (var i = 0; i < n; i++) {
+        var d = sdDat[sdCursor], idx = sdCursor; sdCursor = (sdCursor + 1) % SDUST_N;
+        var sp = 0.9 + Math.random() * 1.8;
+        d.life = 0.5 + Math.random() * 0.7;
+        // tangential, the way the surface is travelling, with a little spread off the surface
+        d.vx = (Math.random() - 0.5) * 0.6;
+        d.vy = T3.y * sp + N3.y * Math.random() * 0.4;
+        d.vz = T3.z * sp + N3.z * Math.random() * 0.4 + 0.15;
+        sdPos[idx * 3] = origin.x + (Math.random() - 0.5) * 0.5; sdPos[idx * 3 + 1] = origin.y; sdPos[idx * 3 + 2] = origin.z;
+      }
+    }
+    function updateSandDust(dt) {
+      var live = 0;
+      for (var i = 0; i < SDUST_N; i++) {
+        var d = sdDat[i];
+        if (d.life > 0) {
+          d.life -= dt; live++;
+          d.vy -= 0.9 * dt; d.vx *= 1 - 1.2 * dt; d.vy *= 1 - 1.2 * dt; d.vz *= 1 - 1.2 * dt;   // light: it hangs, then drifts down
+          sdPos[i * 3] += d.vx * dt; sdPos[i * 3 + 1] += d.vy * dt; sdPos[i * 3 + 2] += d.vz * dt;
+          if (d.life <= 0) sdPos[i * 3 + 1] = -10;
+        }
+      }
+      sdLive = live;
+      sdGeo.attributes.position.needsUpdate = true;
     }
 
     /* ---------------- paint drops (flung off the spinning piece) and spray mist ---------------- */
@@ -4189,6 +4341,13 @@ header .gear-btn { margin-left: 4px; }
         spawnChips(contactPoint, amount);
         if (Math.random() < 0.6) spawnDust(contactPoint, 2);
       },
+      /* Sanding at t: fine dust, as much as pressure x how much rougher than the grit's floor it still is. */
+      onSand: function (t, pr, rough, dt) {
+        var r = work.sample(t);
+        contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
+        spawnSandDust(contactPoint, Math.floor(pr * rough * dt * 1400 + Math.random()));
+      },
+      dustCount: function () { return sdLive; },
       onPaint: function (pr, dt) {
         var t = S.tool.t, r = work.sample(t);
         contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
@@ -4221,6 +4380,7 @@ header .gear-btn { margin-left: 4px; }
         poseChisel(dt);
         updateChips(dt);
         updateDust(dt);
+        updateSandDust(dt);
         updateDrops(dt);
         updateMist(dt);
         if (S.shake > 0 && !S.reduceMotion) {
@@ -4257,6 +4417,10 @@ header .gear-btn { margin-left: 4px; }
    silhouetted from the live profile, the chisel, flying chips.
    Every webview can paint it, so it is both the fallback when
    WebGL will not composite and a first-class view of its own.
+
+   Sanded slices (the cutting model's rough) are tinted a lighter,
+   even tan over the grain, and the sandpaper throws a fine pale dust
+   that thins as the wood gets smooth, as in the 3D view.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -4303,6 +4467,39 @@ header .gear-btn { margin-left: 4px; }
           rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 18,
           life: 0.9 + Math.random() * 0.6, s: 2 + Math.random() * 3.4
         });
+      }
+    }
+
+    /* ---- sanding: an even, lighter tan over the grain where the wood is smooth ---- */
+    var sandGrad = null, sandKey = "";
+    function drawSanded(Lp, cy, rPx, len) {
+      var rough = work.rough, coat = S.coat, n = SEG, step = len / (n - 1);
+      var key = cy.toFixed(1) + ":" + rPx.toFixed(1);
+      if (key !== sandKey) {
+        sandKey = key;
+        sandGrad = g.createLinearGradient(0, cy - rPx, 0, cy + rPx);
+        sandGrad.addColorStop(0, "#94683a"); sandGrad.addColorStop(0.3, "#d4a76c");
+        sandGrad.addColorStop(0.46, "#f2d3a2"); sandGrad.addColorStop(0.62, "#d9b27c");
+        sandGrad.addColorStop(0.85, "#a27445"); sandGrad.addColorStop(1, "#77532c");
+      }
+      // smoothness quantised so a run is one rectangle; paint on top hides it
+      function lvl(i) { return Math.round((1 - rough[i]) * (1 - (coat ? Math.min(1, coat.coat[i]) : 0)) * 12); }
+      g.fillStyle = sandGrad;
+      eachRun(n, function (a, b) { return lvl(a) === lvl(b); }, function (a, b) {
+        var q = lvl(a);
+        if (q <= 0) return;
+        g.globalAlpha = Math.min(1, 0.7 * q / 12);
+        g.fillRect(Lp.left + (a - 0.5) * step, cy - rPx - 1, (b - a + 1) * step + 0.5, rPx * 2 + 2);
+      });
+      g.globalAlpha = 1;
+    }
+    /* sanding dust: fine and pale, flung off along the spin (down and out at the pad) */
+    function onSand(t, pr, rough, dt) {
+      var tp = tipXY(), n = Math.floor(pr * rough * dt * 260 + Math.random());
+      for (var i = 0; i < n; i++) {
+        if (drops.length > 320) drops.shift();
+        drops.push({ x: tp.x + (Math.random() - 0.5) * 24, y: tp.y - 2, vx: (Math.random() - 0.5) * 70, vy: 40 + Math.random() * 110,
+                     g: 40, life: 0.6 + Math.random() * 0.6, fade: 1.6, s: 0.7 + Math.random() * 1.1, mist: true, col: "rgba(246,230,196,A)", sand: true });
       }
     }
 
@@ -4408,11 +4605,23 @@ header .gear-btn { margin-left: 4px; }
       g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
       g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
       var tip = L.TIPS[S.tip] || L.TIPS.gouge, z = tip.size || 1;
+      if (tip.look === "sand") return;
       if (tip.look === "gouge") {
         g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4 * z, 0, Math.PI * 2); g.stroke();
       } else {
         g.beginPath(); g.moveTo(tipX - 5 * z, tipY + 3 * z); g.lineTo(tipX + 5 * z, tipY - 4 * z); g.stroke();
       }
+    }
+
+    /* the sanding pad: a cork block wrapped in paper, pressed up under the work */
+    function drawPad(tipX, tipY, rPx) {
+      var w = Math.max(28, rPx * 0.9), h = Math.max(8, rPx * 0.26);
+      g.fillStyle = "#9c6b3c"; g.fillRect(tipX - w / 2, tipY + 3, w, h);
+      g.fillStyle = "#c79a5c"; g.fillRect(tipX - w / 2 - 2, tipY, w + 4, 4);
+      g.fillStyle = "rgba(60,36,16,0.55)";
+      for (var i = 0; i < 9; i++) g.fillRect(tipX - w / 2 + (i * 7.3) % w, tipY + 1 + (i % 2), 1.2, 1.2);
+      g.fillStyle = "#d9a27c";
+      for (var f = 0; f < 3; f++) { g.beginPath(); g.ellipse(tipX - w * 0.28 + f * w * 0.28, tipY + 3 + h + 4, w * 0.11, 5, 0, 0, Math.PI * 2); g.fill(); }
     }
 
     function drawBrush(tipX, tipY, dx, dy, rPx) {
@@ -4578,6 +4787,7 @@ header .gear-btn { margin-left: 4px; }
         g.beginPath(); g.ellipse(kx, ky, 7, 3.4, 0.2, 0, Math.PI * 2); g.stroke();
         g.beginPath(); g.ellipse(kx, ky, 3.6, 1.7, 0.2, 0, Math.PI * 2); g.stroke();
       }
+      drawSanded(Lp, cy, rPx, len);   // over the grain, so sanded wood reads even (the streaks fade, not vanish)
       drawSheen(Lp, cy, rPx, len);
       g.restore();
       g.strokeStyle = "rgba(40,24,10,0.55)"; g.lineWidth = 1.2; g.stroke();
@@ -4630,6 +4840,7 @@ header .gear-btn { margin-left: 4px; }
       g.lineCap = "round";
       if (S.mode === "paint") drawBrush(tipX, tipY, dx, dy, rPx);
       else if (S.mode === "finish") drawBottle(tipX, tipY, dx, dy, rPx);
+      else if ((L.TIPS[S.tip] || {}).look === "sand") drawPad(tipX, tipY, rPx);
       else drawChisel(tipX, tipY, dx, dy, rPx);
 
       if (S.mode === "finish") drawLamp(Lp, cy, rPx, len);
@@ -4664,6 +4875,8 @@ header .gear-btn { margin-left: 4px; }
       onCut: onCut,
       onPaint: onPaint,
       onSpray: onSpray,
+      onSand: onSand,
+      dustCount: function () { var k = 0; for (var i = 0; i < drops.length; i++) if (drops[i].sand) k++; return k; },
       frame: frame,
       sliceToScreenX: function (i) { var Lp = lay || layout(); return Lp.left + (i / (SEG - 1)) * Lp.len; }
     };
@@ -6717,6 +6930,7 @@ header .gear-btn { margin-left: 4px; }
       stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
       wood: null,                       // the wood of the stock, null for practice
       flow: 0,                          // brush / spray activity 0..1, drives the sound
+      sandLevel: 0,                     // sanding activity 0..1, drives the hiss
       rpm: 1100,
       spinAngle: 0,
       cutIntensity: 0,
@@ -6814,44 +7028,212 @@ header .gear-btn { margin-left: 4px; }
     var rpmSlider = document.getElementById("rpm"), rpmVal = document.getElementById("rpmVal");
     S.rpm = parseInt(rpmSlider.value, 10);
     rpmSlider.addEventListener("input", function () { S.rpm = parseInt(rpmSlider.value, 10); rpmVal.textContent = S.rpm + " RPM"; });
-    /* The chisel rack: one button per tip the workshop owns. Gouge and skew are in
-       the page; tips bought at Arbor Freight (shop.js) get a button here. */
+    /* ---------------- the tool rack ----------------
+       One compact button (icon and name) per tool the workshop owns: the chisel tips
+       and the sandpaper (cutting.js TIPS; more are sold at Arbor Freight, shop.js).
+       As many slots as fit across the footer (4 on a 360 px phone). With more tools
+       than slots, the last slot is MORE, which opens a bottom drawer: every tool as a
+       full card with its description, the unowned ones greyed with their price (a tap
+       opens that line in the store). Picking one there puts it in the row in place of
+       the least recently used one. A newly bought tool goes in the row and glows NEW
+       the first time the row shows it. The row's order and what has been seen live in
+       the save (game.toolRow), so they survive a reload. */
     var tipGroup = document.getElementById("toolsCut");
     var TIP_ICON = {
+      gouge: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M4 4 h26 v10 c0 7 -6 12 -13 12 c-7 0 -13 -5 -13 -12 z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M9 9 v5 c0 4.4 3.6 8 8 8 c4.4 0 8 -3.6 8 -8 v-5" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/></svg>',
+      skew: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M6 22 L28 6 v16 L6 26 z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/><path d="M10 22.6 L28 10" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/></svg>',
       parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
       detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
       roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>',
       sand: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M4 9h26l-3 14H7z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/><path d="M4 9c4-4 22-4 26 0" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.6"/><g fill="#e8a33d" opacity="0.7"><circle cx="11" cy="14" r="1"/><circle cx="16" cy="17" r="1"/><circle cx="21" cy="13" r="1"/><circle cx="24" cy="18" r="1"/><circle cx="13" cy="19" r="1"/><circle cx="19" cy="20" r="1"/></g></svg>'
     };
+    var MORE_ICON = '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><rect x="5" y="6" width="9" height="8" rx="2" fill="none" stroke="#e8a33d" stroke-width="2"/><rect x="20" y="6" width="9" height="8" rx="2" fill="none" stroke="#e8a33d" stroke-width="2"/><rect x="5" y="17" width="9" height="8" rx="2" fill="none" stroke="#e8a33d" stroke-width="2"/><path d="M24.5 17v8M20.5 21h8" stroke="#e8a33d" stroke-width="2" stroke-linecap="round"/></svg>';
+    var SLOT_PX = 80;                         // a compact button and its gap; 4 fit across a 360 px phone
     S.tips = ["gouge", "skew", "sand"];
+    S.row = [];                               // the tools shown in the row, in slot order
+    var rowSlots = 0, rowState = null;
+    function tipId(k) { return "tip" + k.charAt(0).toUpperCase() + k.slice(1); }
+    /* The row's memory, in the save: { order: [...], used: { key: n }, seen: [...] }. */
+    function toolRowState() {
+      if (rowState) return rowState;
+      var game = root.__farm && root.__farm.game;
+      var st = game && game.toolRow && typeof game.toolRow === "object" ? game.toolRow : null;
+      if (!st || !Array.isArray(st.order) || !Array.isArray(st.seen) || !st.used || typeof st.used !== "object") st = { order: [], used: {}, seen: null };
+      if (game) { game.toolRow = st; rowState = st; }
+      return st;
+    }
     function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
     function sanding() { return S.mode === "cut" && !!L.TIPS[S.tip] && L.TIPS[S.tip].kind === "abrasive"; }
     function setTip(t) {
       if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
+      var st = toolRowState();
+      st.used[t] = 1 + Object.keys(st.used).reduce(function (m, k) { return Math.max(m, st.used[k] || 0); }, 0);   // least recently used = lowest
       S.pressure.catches = S.mode === "cut" && !sanding();   // sandpaper doesn't catch
       if (typeof syncDepthLabel === "function") syncDepthLabel();
+      if (S.row.length && S.row.indexOf(t) < 0) { placeInRow(t); renderRow(); }
       tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
+      renderDrawer();
+    }
+    /* How many slots fit across the footer. */
+    function slotsFit() {
+      var host = tipGroup.parentNode, w = (host && host.clientWidth) || 360;
+      var cs = host && root.getComputedStyle ? root.getComputedStyle(host) : null;
+      if (cs) w -= (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      return Math.max(3, Math.min(7, Math.floor((w + 8) / SLOT_PX)));
+    }
+    function overflowing() { return S.tips.length > rowSlots; }
+    /* Put a tool in the row, in place of the least recently used one (never the one in hand). */
+    function placeInRow(k) {
+      if (S.row.indexOf(k) >= 0) return;
+      var cap = overflowing() ? rowSlots - 1 : rowSlots;
+      if (S.row.length < cap) { S.row.push(k); return; }
+      var st = toolRowState(), worst = -1, wi = -1;
+      S.row.forEach(function (r, i) {
+        if (r === S.tip && r !== k) return;
+        var u = st.used[r] || 0;
+        if (wi < 0 || u < worst) { worst = u; wi = i; }
+      });
+      if (wi >= 0) S.row[wi] = k;
+    }
+    function makeBtn(k) {
+      var tp = L.TIPS[k], b = document.createElement("button");
+      b.className = "tip-btn tool-btn"; b.type = "button"; b.id = tipId(k);
+      b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
+      b.setAttribute("aria-label", tp.name); b.title = tp.name + ": " + tp.desc;
+      b.innerHTML = (TIP_ICON[k] || "") + '<span class="tname">' + (tp.short || tp.name.toUpperCase()) + "</span>";
+      return b;
+    }
+    var moreBtn = document.createElement("button");
+    moreBtn.className = "tip-btn tool-btn tool-more"; moreBtn.type = "button"; moreBtn.id = "tipMore";
+    moreBtn.setAttribute("aria-haspopup", "dialog"); moreBtn.setAttribute("aria-expanded", "false");
+    moreBtn.innerHTML = MORE_ICON + '<span class="tname">MORE</span>';
+    function renderRow() {
+      var st = toolRowState(), have = {};
+      tipButtons().forEach(function (b) { have[b.getAttribute("data-tip")] = b; });
+      // lay the row out in slot order, then MORE; owned tools not in the row live in the drawer
+      S.row.forEach(function (k) { var b = have[k] || makeBtn(k); b.hidden = false; tipGroup.appendChild(b); });
+      Object.keys(have).forEach(function (k) { if (S.row.indexOf(k) < 0) have[k].hidden = true; });
+      moreBtn.hidden = !overflowing();
+      tipGroup.appendChild(moreBtn);
+      tipGroup.style.gridTemplateColumns = "repeat(" + rowSlots + ", minmax(0, 1fr))";
+      // NEW: the first time the row shows a tool the workshop didn't start with
+      // (only while the row is on screen: bought in the store, it glows when the lathe comes back)
+      var unseenInDrawer = false, onScreen = !!tipGroup.offsetParent && !L.hidden;
+      S.tips.forEach(function (k) {
+        if (st.seen.indexOf(k) >= 0) return;
+        if (S.row.indexOf(k) >= 0 && onScreen) {
+          st.seen.push(k);
+          var b = tipGroup.querySelector('[data-tip="' + k + '"]');
+          if (b) { b.classList.add("is-new"); setTimeout(function () { b.classList.remove("is-new"); }, 4200); }
+        } else if (S.row.indexOf(k) < 0) unseenInDrawer = true;
+      });
+      moreBtn.classList.toggle("is-new", unseenInDrawer && !moreBtn.hidden);
+      st.order = S.row.slice();
     }
     function setTips(list) {
+      var st = toolRowState(), before = S.tips;
       S.tips = L.TIP_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
-      S.tips.forEach(function (k) {
-        if (tipGroup.querySelector('[data-tip="' + k + '"]')) return;
-        var tp = L.TIPS[k], b = document.createElement("button");
-        b.className = "tip-btn"; b.type = "button"; b.id = "tip" + k.charAt(0).toUpperCase() + k.slice(1);
-        b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
-        b.innerHTML = (TIP_ICON[k] || "") + '<span><span class="tname">' + tp.name.toUpperCase() + '</span><div class="tdesc">' + tp.desc + "</div></span>";
-        tipGroup.appendChild(b);
-      });
-      tipButtons().forEach(function (b) { b.hidden = S.tips.indexOf(b.getAttribute("data-tip")) < 0; });
-      tipGroup.classList.toggle("many", S.tips.length > 2);
-      tipGroup.style.gridTemplateColumns = S.tips.length > 2 ? "repeat(" + (S.tips.length > 4 ? 3 : 2) + ", 1fr)" : "";
-      if (S.tips.indexOf(S.tip) < 0) setTip("gouge"); else setTip(S.tip);
+      if (!st.seen) st.seen = S.tips.slice();                 // what the workshop starts with is not NEW
+      rowSlots = slotsFit();
+      var cap = overflowing() ? rowSlots - 1 : rowSlots;
+      // keep the saved order, drop what isn't owned, fill up in rack order
+      if (S.tips.indexOf(S.tip) < 0) S.tip = "gouge";
+      S.row = (S.row.length ? S.row : st.order).filter(function (k) { return S.tips.indexOf(k) >= 0; });
+      // too many for the slots: the least recently used go to the drawer (never the tool in hand)
+      while (S.row.length > cap) {
+        var lru = -1;
+        S.row.forEach(function (k, i) { if (k !== S.tip && (lru < 0 || (st.used[k] || 0) < (st.used[S.row[lru]] || 0))) lru = i; });
+        S.row.splice(lru, 1);
+      }
+      if (S.row.indexOf(S.tip) < 0) placeInRow(S.tip);
+      // a tool bought just now goes straight into the row
+      S.tips.forEach(function (k) { if (before.indexOf(k) < 0 && st.seen.indexOf(k) < 0 && S.row.indexOf(k) < 0) placeInRow(k); });
+      S.tips.forEach(function (k) { if (S.row.length < cap && S.row.indexOf(k) < 0) S.row.push(k); });
+      renderRow();
+      setTip(S.tip);
     }
-    tipGroup.addEventListener("click", function (e) {
-      var b = e.target.closest ? e.target.closest("[data-tip]") : null;
-      if (b) { audio.init(); setTip(b.getAttribute("data-tip")); }
+    root.addEventListener("resize", function () {
+      if (!tipGroup.offsetParent) return;
+      var n = slotsFit();
+      if (n !== rowSlots) setTips(S.tips); else renderRow();   // the lathe came back into view: show what is NEW
     });
+    tipGroup.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-tip], #tipMore") : null;
+      if (!b) return;
+      audio.init();
+      if (b === moreBtn) { if (drawer.hidden) openDrawer(); else closeDrawer(); return; }
+      setTip(b.getAttribute("data-tip"));
+    });
+
+    /* ---------------- the drawer: every tool, as a full card ---------------- */
+    var drawer = document.createElement("div");
+    drawer.id = "toolDrawer"; drawer.className = "tool-drawer"; drawer.hidden = true;
+    drawer.setAttribute("role", "dialog"); drawer.setAttribute("aria-label", "All tools");
+    drawer.innerHTML = '<div class="td-sheet" id="toolSheet"><div class="td-grab" aria-hidden="true"></div><h2>TOOLS</h2><div class="td-list" id="toolList"></div></div>';
+    (document.getElementById("latheScreen") || document.body).appendChild(drawer);
+    var sheet = drawer.querySelector(".td-sheet"), listEl = drawer.querySelector(".td-list");
+    /* The tip sold in a shop line tier, with its price, for the tools not on the rack. */
+    function forSale(k) {
+      var Sh = G.Shop;
+      if (!Sh) return null;
+      for (var li = 0; li < Sh.LINE_ORDER.length; li++) {
+        var ln = Sh.LINES[Sh.LINE_ORDER[li]];
+        for (var ti = 0; ti < ln.tiers.length; ti++) if ((ln.tiers[ti].tips || []).indexOf(k) >= 0) return { line: Sh.LINE_ORDER[li], price: ln.tiers[ti].price, tier: ln.tiers[ti].name };
+      }
+      return null;
+    }
+    function renderDrawer() {
+      if (drawer.hidden) return;
+      var h = "";
+      L.TIP_ORDER.forEach(function (k) {
+        var tp = L.TIPS[k], own = S.tips.indexOf(k) >= 0;
+        if (own) {
+          h += '<button type="button" class="td-card" data-pick="' + k + '" aria-pressed="' + (S.tip === k) + '">' + (TIP_ICON[k] || "") +
+            '<span><b>' + tp.name.toUpperCase() + "</b><small>" + tp.desc + "</small></span></button>";
+        } else {
+          var sale = forSale(k);
+          h += '<button type="button" class="td-card locked" data-shop="' + (sale ? sale.line : "") + '">' + (TIP_ICON[k] || "") +
+            '<span><b>' + tp.name.toUpperCase() + "</b><small>" + tp.desc + "</small><em>" + (sale ? "Arbor Freight · " + sale.price + " coins" : "Not for sale yet") + "</em></span></button>";
+        }
+      });
+      listEl.innerHTML = h;
+    }
+    function openDrawer() {
+      drawer.hidden = false; moreBtn.setAttribute("aria-expanded", "true");
+      sheet.style.transform = "";
+      renderDrawer();
+    }
+    function closeDrawer() { drawer.hidden = true; moreBtn.setAttribute("aria-expanded", "false"); sheet.style.transform = ""; }
+    drawer.addEventListener("click", function (e) {
+      if (e.target === drawer) { closeDrawer(); return; }        // a tap outside the sheet
+      var pick = e.target.closest ? e.target.closest("[data-pick]") : null;
+      if (pick) { var k = pick.getAttribute("data-pick"); placeInRow(k); renderRow(); setTip(k); closeDrawer(); return; }
+      var shopBtn = e.target.closest ? e.target.closest("[data-shop]") : null;
+      if (shopBtn) {
+        closeDrawer();
+        var line = shopBtn.getAttribute("data-shop");
+        if (G.showScreen) G.showScreen("shop");
+        if (line && G.ShopUI && G.ShopUI.focusLine) G.ShopUI.focusLine(line);
+      }
+    });
+    // swipe the sheet down to close it
+    var swipe = null;
+    sheet.addEventListener("pointerdown", function (e) { swipe = { y: e.clientY, id: e.pointerId, dy: 0 }; });
+    sheet.addEventListener("pointermove", function (e) {
+      if (!swipe || e.pointerId !== swipe.id) return;
+      swipe.dy = Math.max(0, e.clientY - swipe.y);
+      if (swipe.dy > 6) sheet.style.transform = "translateY(" + swipe.dy + "px)";
+    });
+    function endSwipe(e) {
+      if (!swipe || (e && e.pointerId !== swipe.id)) return;
+      var far = swipe.dy > 60; swipe = null;
+      if (far) closeDrawer(); else sheet.style.transform = "";
+    }
+    sheet.addEventListener("pointerup", endSwipe);
+    sheet.addEventListener("pointercancel", endSwipe);
+    root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !drawer.hidden) closeDrawer(); });
+    S.openDrawer = openDrawer; S.closeDrawer = closeDrawer;
     root.addEventListener("keydown", function (e) {
       if (e.key === "1") setTip("gouge");        // 3, 4 and 5 switch modes, so only the first two tips have keys
       if (e.key === "2") setTip("skew");
@@ -7453,8 +7835,9 @@ header .gear-btn { margin-left: 4px; }
             if (pr > 0.02) {
               // paint and finish under the pad wear away; the hair of wood sanding takes is not a cut through the coat
               S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
-              S.cutIntensity = Math.max(S.cutIntensity, 0.22 * pr * (0.3 + roughHere));
-              if (view.onSand) view.onSand(p.t, pr, roughHere, dt);
+              S.sandLevel = Math.max(S.sandLevel, pr * (0.35 + 0.65 * Math.min(1, S.rpm / 1800)) * (0.35 + 0.65 * roughHere));
+              // the dust is the cue: it thins out as the spot nears the best this grit can do
+              if (view.onSand) view.onSand(p.t, pr, Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor)), dt);
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
             }
             S.coat.rebase(S.work);
@@ -7479,6 +7862,8 @@ header .gear-btn { margin-left: 4px; }
         else tool.mode = "rest";
 
         audio.update(S.mode === "cut" ? S.cutIntensity : S.flow, p.active ? 1 : 0, S.rpm);
+        audio.sand(S.sandLevel, S.rpm);
+        S.sandLevel = Math.max(0, S.sandLevel - dt * 4);
         updateStats(dt);
         updateMeter();
     }
@@ -10163,8 +10548,8 @@ header .gear-btn { margin-left: 4px; }
     if (G.OrdersUI) G.OrdersUI.render(true);
     return r;
   }
-  function flash(k) {
-    var card = bodyEl.querySelector('[data-bp-card="' + k + '"]');
+  function flash(k, sel) {
+    var card = bodyEl.querySelector(sel || '[data-bp-card="' + k + '"]');
     if (!card) return null;
     card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
     setTimeout(function () { card.classList.remove("flash"); }, 1600);
@@ -10174,6 +10559,13 @@ header .gear-btn { margin-left: 4px; }
   function focusBlueprint(k) {
     render(true);
     var card = flash(k);
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  /* Show the store on one line (the lathe's tool drawer lands here). */
+  function focusLine(k) {
+    render(true);
+    var card = flash(k, '.af-line[data-line="' + k + '"]');
     if (card && card.scrollIntoView) card.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
@@ -10203,7 +10595,7 @@ header .gear-btn { margin-left: 4px; }
   });
   setInterval(function () { if (shown) render(false); }, 1000);
 
-  var api = { show: function () { shown = true; render(true); }, hide: function () { shown = false; }, render: render, toast: toast, focusBlueprint: focusBlueprint, buyBlueprint: buyBlueprint };
+  var api = { show: function () { shown = true; render(true); }, hide: function () { shown = false; }, render: render, toast: toast, focusBlueprint: focusBlueprint, focusLine: focusLine, buyBlueprint: buyBlueprint };
   G.ShopUI = api;
   root.__shop = { shop: shop, ui: api };
   if (G.startScreen === "shop") api.show();
