@@ -16,7 +16,8 @@
    active: the one on the lathe.
 
    Grading a turned piece (grade) scores the shape against the target,
-   the paint against the spec, and the sheen. Below CFG.PASS the customer
+   the paint against the spec, the sheen, and how smooth the wood is
+   (the piece's rough per slice, from cutting.js: sanded is smoother). Below CFG.PASS the customer
    turns it down and pays nothing; above it the pay rises with the grade,
    with a bonus at CFG.FULL and up. Any wood can be turned against an
    order for practice, but only the wood the order names can be delivered.
@@ -58,7 +59,10 @@
     SHAPE_FULL: 0.035, SHAPE_ZERO: 0.26,
     EDGE: 0.03,                // the ends sit in the centres and are not graded
     // how the grade is made up
-    W_SHAPE: 0.55, W_PAINT: 0.35, W_SHEEN: 0.1,
+    W_SHAPE: 0.55, W_PAINT: 0.31, W_SHEEN: 0.08, W_SMOOTH: 0.06,
+    // smoothness: mean roughness over the graded span scored as nothing, and as perfect.
+    // A skew-finished piece (0.35) earns about half; 80 grit gets about the same, finer grits more.
+    ROUGH_ZERO: 0.6, ROUGH_FULL: 0.08,
     // pay: below PASS the customer turns the piece down (no pay, the piece stays in the shed);
     // from PASS to FULL pay rises from MIN_PAY to all of the reward; at FULL and above, all of it plus BONUS
     PASS: 0.5, FULL: 0.9, MIN_PAY: 0.3, BONUS: 0.1,
@@ -211,6 +215,15 @@
     var u = Math.min(1, Math.max(0, (zero - err) / (zero - CFG.SHAPE_FULL)));
     return { score: Math.pow(u, 1.3), err: err };
   }
+  /* How smooth a piece is, 0..1: progress from ROUGH_ZERO down to ROUGH_FULL in the
+     mean roughness over the graded span. No roughness saved means rough-sawn. */
+  function smoothScore(rough) {
+    if (!rough || rough.length !== SEG) return { score: 0, rough: 1 };
+    var e = Math.round(CFG.EDGE * (SEG - 1)), sum = 0, cnt = 0;
+    for (var i = e; i < SEG - e; i++) { sum += rough[i]; cnt++; }
+    var m = cnt ? sum / cnt : 1;
+    return { score: Math.min(1, Math.max(0, (CFG.ROUGH_ZERO - m) / (CFG.ROUGH_ZERO - CFG.ROUGH_FULL))), rough: m };
+  }
   function starsFor(g) { var s = 0; for (var i = 0; i < CFG.STARS.length; i++) if (g >= CFG.STARS[i]) s = i + 1; return s; }
   /* A coating rebuilt from a piece's saved coat, for paint.js to grade. */
   function coatingOf(coat) {
@@ -218,8 +231,8 @@
     if (coat && coat.coat) { c.coat.set(State.unpack(coat.coat)); c.color.set(State.unpack(coat.color)); c.gloss.set(State.unpack(coat.gloss)); }
     return c;
   }
-  /* Grade work against an order. work: { wood, profile, start, coat } where
-     profile/start are radius arrays and coat is a Coating, or the saved
+  /* Grade work against an order. work: { wood, profile, start, coat, rough } where
+     profile/start/rough are slice arrays and coat is a Coating, or the saved
      { coat, color, gloss } arrays of a piece. */
   function grade(order, work) {
     var target = targetProfile(order);
@@ -227,10 +240,11 @@
     var sh = shapeScore(prof, target, start);
     var coating = work.coat instanceof P.Coating ? work.coat : coatingOf(work.coat);
     var m = P.matchSpec(order.spec, coating);
-    var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish;
+    var sm = smoothScore(work.rough ? State.unpack(work.rough) : null);
+    var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish + CFG.W_SMOOTH * sm.score;
     var woodOk = work.wood === order.wood, accepted = woodOk && g >= CFG.PASS;
     return {
-      shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen,
+      shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen, smooth: sm.score, rough: sm.rough,
       total: g, stars: starsFor(g), woodOk: woodOk, accepted: accepted,
       pay: accepted ? payFor(order.reward, g) : 0, bonus: accepted && g >= CFG.FULL
     };
@@ -435,7 +449,7 @@
 
   var api = {
     CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, FREE_BLUEPRINTS: FREE_BLUEPRINTS, BLUEPRINT_ORDER: BLUEPRINT_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
-    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor, payFor: payFor,
+    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, smoothScore: smoothScore, grade: grade, starsFor: starsFor, payFor: payFor,
     defaultBoard: defaultBoard, normalizeBoard: normalizeBoard, createBoard: createBoard
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

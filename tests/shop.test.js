@@ -24,7 +24,8 @@ test("a new workshop has the first tier of every line, for nothing", () => {
   }
   assert.equal(shop.lightLevel(), 0);
   assert.ok(shop.cutBoost() < 0.5, "the stock motor is weak: " + shop.cutBoost());
-  assert.deepEqual(shop.tips(), ["gouge", "skew"]);
+  assert.deepEqual(shop.tips(), ["gouge", "skew", "sand"], "the sandpaper is on the rack from the start");
+  assert.deepEqual(shop.grit(), Shop.LINES.abrasives.tiers[0].grit, "80 grit");
 });
 
 test("every rung costs a lot more than the last, so there is always more to save for", () => {
@@ -99,7 +100,7 @@ test("what was bought survives a save round trip", () => {
   const g2 = Save.load(store);
   const s2 = Shop.createShop(g2, { state: St.createState(g2) });
   assert.equal(s2.level("light"), 1);
-  assert.deepEqual(s2.tips(), ["gouge", "skew", "parting"]);
+  assert.deepEqual(s2.tips(), ["gouge", "skew", "parting", "sand"]);
 });
 
 // ---------- brushes and finishing ----------
@@ -161,4 +162,22 @@ test("a save from before brushes and finishing were sold starts them at the stoc
   assert.equal(s.owned.brushes, 0);
   assert.equal(s.owned.finish, 0);
   assert.equal(s.owned.light, 2);
+});
+
+// ---------- sandpaper ----------
+test("sandpaper is one line of grits, upgraded in place: 80 free, then 150, 240 and 320 grit", () => {
+  const t = Shop.LINES.abrasives.tiers;
+  assert.deepEqual(t.map((x) => x.name), ["80 grit", "150 grit", "240 grit", "320 grit"]);
+  assert.deepEqual(t.map((x) => x.price), [0, 75, 300, 1000]);
+  const cheapest = Math.min(...Shop.LINE_ORDER.map((k) => Shop.LINES[k].tiers[1].price));
+  assert.equal(cheapest, 75, "150 grit is the cheapest upgrade in the store");
+  for (let i = 1; i < t.length; i++) {
+    assert.ok(t[i].grit.floor < t[i - 1].grit.floor, "finer grit, smoother floor");
+    assert.ok(t[i].grit.rate > t[i - 1].grit.rate && t[i].grit.smooth > t[i - 1].grit.smooth, "and faster");
+  }
+  assert.deepEqual(t.map((x) => x.grit.floor), [0.35, 0.22, 0.12, 0.05]);
+  const { shop } = setup(1000);
+  assert.ok(shop.buy("abrasives").ok);
+  assert.equal(shop.grit().floor, 0.22);
+  assert.deepEqual(shop.tips().filter((k) => k === "sand"), ["sand"], "still one sheet on the rack");
 });

@@ -99,6 +99,7 @@ console.log("\nDONE AND DELIVER");
 await page.evaluate(() => {
   const S = window.__lathe, P = window.Lathe.Paint, n = S.work.radius.length;
   for (let i = 0; i < n; i++) S.work.radius[i] = Math.min(S.work.baseRadius[i], S.target[i]);
+  S.work.rough.fill(0.08);   // and sanded smooth
   S.work.version++;
 });
 await tick(0.2);   // let a frame pass: wood cut away takes its paint, so paint after the cut
@@ -116,7 +117,7 @@ await page.click("#doneBtn");
 await tick(0.3);
 check(!(await page.locator("#gradeOverlay").isHidden()), "DONE with the order's wood opens the grade");
 const offerText = await page.locator("#gradeOverlay").textContent();
-check(/SHAPE/.test(offerText) && /PAINT/.test(offerText) && /SHEEN/.test(offerText), "the grade shows shape, paint and sheen");
+check(/SHAPE/.test(offerText) && /PAINT/.test(offerText) && /SHEEN/.test(offerText) && /SMOOTH\s*100%/.test(offerText), "the grade shows shape, paint, sheen and smoothness");
 const stars = await page.locator("#gradeOverlay .g-stars .stars span.on").count();
 check(stars === 3, `a piece made to the order earns three stars (${stars})`);
 if (shots) await page.screenshot({ path: `${shots}/grade.png` });

@@ -265,3 +265,135 @@ test("slow RPM with a light touch barely shaves", () => {
   const d = depth(w, 0.5);
   assert.ok(d > 0 && d < 0.02, "light slow cut: " + d);
 });
+
+/* ---------------- sanding and the surface ---------------- */
+const CC = L.CFG, SEGN = CC.SEG;
+function bumpy() {
+  const w = new L.Workpiece();
+  w.reset(0);
+  for (let i = 0; i < SEGN; i++) w.radius[i] = CC.R0 * 0.8 + (i % 2 ? 0.012 : -0.012) + 0.006 * Math.sin(i * 0.9);
+  w.baseRadius.set(w.radius); w.passRef.set(w.radius);
+  return w;
+}
+function variance(w, lo, hi) {
+  let s = 0, n = 0;
+  for (let i = lo; i <= hi; i++) { const avg = (w.radius[i - 1] + w.radius[i + 1]) / 2; s += (w.radius[i] - avg) ** 2; n++; }
+  return s / n;
+}
+function sandFor(w, t, secs, pressure = 0.8, grit, rpm) {
+  for (let k = 0; k < Math.round(secs * 60); k++) w.sand(t, pressure, 1 / 60, grit, rpm);
+}
+
+test("a new or loaded workpiece is rough-sawn all over", () => {
+  const w = new L.Workpiece();
+  assert.ok(w.rough.every((v) => v === 1));
+  w.rough.fill(0.2); w.reset(1);
+  assert.ok(w.rough.every((v) => v === 1), "reset roughens it again");
+  w.rough.fill(0.2); w.load({ profile: new Float32Array(SEGN).fill(CC.R0 * 0.9) });
+  assert.ok(w.rough.every((v) => v === 1), "and so does a fresh blank");
+  assert.equal(w.smoothness(), 0);
+});
+
+test("a cut leaves its tip's finish: a skew cleaner than a gouge, and both cleaner than the raw log", () => {
+  const cutWith = (tip) => {
+    const w = new L.Workpiece(); w.reset(0);
+    for (let k = 0; k < 60; k++) w.cut(0.5, 0.7, tip, 1 / 60, 1);
+    return w.rough[Math.round(0.5 * (SEGN - 1))];
+  };
+  const g = cutWith("gouge"), s = cutWith("skew"), r = cutWith("roughing");
+  assert.ok(Math.abs(g - L.TIPS.gouge.finish) < 0.05, "gouge " + g);
+  assert.ok(Math.abs(s - L.TIPS.skew.finish) < 0.05, "skew " + s);
+  assert.ok(s < g && g < r && r < 1, `skew ${s} < gouge ${g} < roughing ${r}`);
+  for (const k of L.TIP_ORDER) if (L.TIPS[k].kind !== "abrasive") assert.ok(L.TIPS[k].finish > 0 && L.TIPS[k].finish < 1, k + " has a finish");
+});
+
+test("sandpaper is on the tool list but never cuts", () => {
+  assert.equal(L.TIPS.sand.kind, "abrasive");
+  assert.ok(L.TIP_ORDER.includes("sand"));
+  const w = new L.Workpiece(); w.reset(0);
+  const before = Float32Array.from(w.radius);
+  assert.equal(w.cut(0.5, 1, "sand", 0.5, 1), 0);
+  assert.deepEqual(w.radius, before);
+});
+
+test("sanding evens out a bumpy surface and never raises a radius", () => {
+  const w = bumpy(), mid = Math.round(0.5 * (SEGN - 1));
+  const lo = mid - 8, hi = mid + 8;
+  const v0 = variance(w, lo, hi), before = Float32Array.from(w.radius);
+  for (let k = 0; k < 120; k++) {
+    const prev = Float32Array.from(w.radius);
+    w.sand(0.5, 0.8, 1 / 60);
+    for (let i = 0; i < SEGN; i++) assert.ok(w.radius[i] <= prev[i] + 1e-7, "slice " + i + " rose");
+  }
+  const v1 = variance(w, lo, hi);
+  assert.ok(v1 < v0 * 0.3, `neighbour variance ${v0.toExponential(2)} -> ${v1.toExponential(2)}`);
+  // far from the pad, nothing changes
+  assert.equal(w.radius[10], before[10]);
+});
+
+test("sanding takes only a little wood, but sanding one spot forever slowly thins it", () => {
+  const w = new L.Workpiece(); w.reset(0);
+  const mid = Math.round(0.5 * (SEGN - 1)), r0 = w.radius[mid];
+  sandFor(w, 0.5, 2);
+  const two = r0 - w.radius[mid];
+  assert.ok(two > 0, "some wood comes off");
+  assert.ok(two * CC.MM_PER_UNIT < 0.6, `two seconds takes under 0.6 mm (${(two * CC.MM_PER_UNIT).toFixed(3)} mm)`);
+  sandFor(w, 0.5, 30);
+  assert.ok(r0 - w.radius[mid] > two * 5, "but it keeps going");
+});
+
+test("sanding respects the core and the centres", () => {
+  const w = new L.Workpiece(); w.reset(0);
+  w.radius.fill(CC.MIN_R + 0.001);
+  sandFor(w, 0.5, 20, 1);
+  assert.ok(w.radius.every((v) => v >= CC.MIN_R - 1e-7), "never below MIN_R");
+  const v = new L.Workpiece(); v.reset(0);
+  const ends = [0, 1, SEGN - 2, SEGN - 1].map((i) => v.radius[i]);
+  sandFor(v, 0, 5, 1); sandFor(v, 1, 5, 1);
+  assert.deepEqual([0, 1, SEGN - 2, SEGN - 1].map((i) => v.radius[i]), ends, "the ends in the centres are not touched");
+  assert.equal(v.rough[0], 1);
+});
+
+test("the roughness floor follows the grit, and finer grit gets there faster", () => {
+  const G = [{ smooth: 1, rate: 1.6, floor: 0.35 }, { smooth: 1.3, rate: 2.2, floor: 0.22 }, { smooth: 1.7, rate: 3, floor: 0.12 }, { smooth: 2.2, rate: 4, floor: 0.05 }];
+  const mid = Math.round(0.5 * (SEGN - 1));
+  let prevHalf = Infinity;
+  for (const g of G) {
+    const w = new L.Workpiece(); w.reset(0);
+    sandFor(w, 0.5, 8, 1, g);
+    assert.ok(Math.abs(w.rough[mid] - g.floor) < 0.01, `floor ${g.floor}: ${w.rough[mid]}`);
+    assert.ok(w.rough.every((v) => v >= g.floor - 1e-6), "never below the floor");
+    const q = new L.Workpiece(); q.reset(0);
+    sandFor(q, 0.5, 0.5, 1, g);
+    const half = q.rough[mid] - g.floor;
+    assert.ok(half < prevHalf, "finer grit closes the gap faster");
+    prevHalf = half;
+  }
+  // and the default sheet is 80 grit
+  const d = new L.Workpiece(); d.reset(0); sandFor(d, 0.5, 8, 1);
+  assert.ok(Math.abs(d.rough[mid] - L.GRIT_80.floor) < 0.01);
+});
+
+test("faster spin and a harder push sand faster", () => {
+  const mid = Math.round(0.5 * (SEGN - 1));
+  const run = (p, rpm) => { const w = new L.Workpiece(); w.reset(0); sandFor(w, 0.5, 0.4, p, null, rpm); return w.rough[mid]; };
+  assert.ok(run(1, 2000) < run(1, 600), "RPM");
+  assert.ok(run(1, 1100) < run(0.3, 1100), "pressure");
+});
+
+test("cutting a sanded spot makes it rough again", () => {
+  const w = new L.Workpiece(); w.reset(0);
+  const mid = Math.round(0.5 * (SEGN - 1));
+  sandFor(w, 0.5, 6, 1, { smooth: 2.2, rate: 4, floor: 0.05 });
+  assert.ok(w.rough[mid] < 0.1);
+  for (let k = 0; k < 30; k++) w.cut(0.5, 0.7, "gouge", 1 / 60, 1);
+  assert.ok(w.rough[mid] > 0.45, "back to gouge marks: " + w.rough[mid]);
+});
+
+test("smoothness reads the whole piece, smoothAt the spot under the pad", () => {
+  const w = new L.Workpiece(); w.reset(0);
+  sandFor(w, 0.5, 6, 1);
+  assert.ok(w.smoothAt(0.5) > 0.6, "sanded spot " + w.smoothAt(0.5));
+  assert.ok(w.smoothAt(0.1) < 0.05, "untouched spot " + w.smoothAt(0.1));
+  assert.ok(w.smoothness() > 0.02 && w.smoothness() < 0.3, "the whole piece is mostly still rough: " + w.smoothness());
+});

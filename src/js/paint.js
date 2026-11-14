@@ -183,6 +183,34 @@
     return added;
   };
 
+  /* Sanding over paint wears it: under a soft pad of half width hw (the sandpaper's),
+     the coat thins by amount x the pad's weight, and the gloss on top goes about twice
+     as fast. amount is per call (the caller scales it by pressure, RPM and dt).
+     Returns how much came off. */
+  Coating.prototype.wear = function (t, amount, hw) {
+    var c = this.cfg, n = c.SEG;
+    if (!(amount > 0)) return 0;
+    hw = hw || 0.35;
+    var xc = Math.min(1, Math.max(0, t)) * (n - 1), hwS = hw / this.dx;
+    var lo = Math.max(0, Math.floor(xc - hwS)), hi = Math.min(n - 1, Math.ceil(xc + hwS)), worn = 0;
+    for (var i = lo; i <= hi; i++) {
+      var u = Math.abs(i - xc) * this.dx / hw;
+      if (u >= 1) continue;
+      var w = Math.cos(u * Math.PI * 0.5); w *= w;
+      var a = Math.min(1, amount * w), g = Math.min(1, amount * w * 2);
+      if (this.coat[i] > 0) { worn += this.coat[i] * a; this.coat[i] *= 1 - a; if (this.coat[i] < 0.002) this.coat[i] = 0; }
+      if (this.gloss[i] > 0) { worn += this.gloss[i] * g; this.gloss[i] *= 1 - g; if (this.gloss[i] < 0.002) this.gloss[i] = 0; }
+    }
+    if (worn > 0) this.version++;
+    return worn;
+  };
+  /* The wood under the coat moved without being cut through (sanding takes a hair
+     off): take these radii as the new normal, so syncWork does not strip the paint. */
+  Coating.prototype.rebase = function (work) {
+    if (!this._haveR) return;
+    this._lastR.set(work.radius);
+  };
+
   /* UNDO on the lathe takes off one layer and what lies on top of it: the finish
      alone, or the paint and the finish over it. The wood is the cutting model's. */
   Coating.prototype.clearFinish = function () {

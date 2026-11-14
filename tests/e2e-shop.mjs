@@ -33,10 +33,11 @@ const coins = () => page.evaluate(() => window.__farm.state.wallet.balance("coin
 console.log("\nTHE STORE");
 check(/ARBOR/.test(await page.locator("#screenTitle").textContent()), "the SHOP tab opens Arbor Freight");
 check((await page.locator("#tabOrders").textContent()).trim() === "ORDERS" && (await page.locator("#tabShop").textContent()).trim() === "SHOP", "the tabs read ORDERS and SHOP");
-check(await page.locator(".af-line[data-line]").count() === 5, "five lines: lighting, motor, chisels, brushes, finishing");
+check(await page.locator(".af-line[data-line]").count() === 6, "six lines: lighting, motor, chisels, sandpaper, brushes, finishing");
 check(await page.locator(".bp-card").count() === 5 && await page.locator(".bp-card .bp-art").count() === 5, "and a blueprint card, with its drawing, for every piece");
 check(/OWNED/.test(await page.locator('[data-blueprint="rolling_pin"]').textContent()), "the rolling pin blueprint comes with the shed");
-check(await page.locator(".af-price").count() === 5, "each shows the next rung's price tag");
+check(await page.locator(".af-price").count() === 6, "each shows the next rung's price tag");
+check(/80 grit/.test(await page.locator('.af-line[data-line="abrasives"]').textContent()) && /150 grit/.test(await page.locator('.af-line[data-line="abrasives"]').textContent()), "sandpaper: 80 grit installed, 150 grit next");
 if (shots) await page.screenshot({ path: `${shots}/shop.png` });
 
 console.log("\nSHORT OF COINS");

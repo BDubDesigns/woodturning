@@ -33,7 +33,8 @@ function perfectPiece(order) {
     if (seg && seg.paint) { coat.coat[i] = 1; coat.color.set(want, i * 3); }
     coat.gloss[i] = P.SHEEN[order.spec.sheen].gloss;
   }
-  return { wood: order.wood, profile: St.pack(target), start: St.pack(new Float32Array(SEG).fill(R0)), coat: { coat: St.pack(coat.coat, 3), color: St.pack(coat.color, 3), gloss: St.pack(coat.gloss, 3) } };
+  // sanded to glass: a perfect piece is smooth too
+  return { wood: order.wood, profile: St.pack(target), start: St.pack(new Float32Array(SEG).fill(R0)), coat: { coat: St.pack(coat.coat, 3), color: St.pack(coat.color, 3), gloss: St.pack(coat.gloss, 3) }, rough: St.pack(new Float32Array(SEG).fill(0.05), 3) };
 }
 function blankPiece(wood) {
   const r = new Float32Array(SEG).fill(R0 * 0.98);
@@ -99,6 +100,7 @@ test("a perfect piece scores full marks and earns the whole reward plus the bonu
     const g = C.grade(o, perfectPiece(o));
     assert.ok(g.shape > 0.99, kind + " shape " + g.shape);
     assert.ok(g.paint > 0.95, kind + " paint " + g.paint);
+    assert.equal(g.smooth, 1, kind + " smooth " + g.smooth);
     assert.ok(g.total > 0.95 && g.stars === 3, kind + " total " + g.total);
     assert.equal(g.pay, Math.round(o.reward * (1 + C.CFG.BONUS)));
     assert.ok(g.accepted && g.bonus);
@@ -297,4 +299,28 @@ test("an empty slot can be filled now for a diamond, or waits NEW_ORDER_MS", () 
   s.board.decline(s.board.state.orders[0].id);
   s.state.wallet.spend("diamonds", s.state.wallet.balance("diamonds"));
   assert.equal(s.board.rushNext().reason, "not enough diamonds");
+});
+
+/* ---------------- smoothness ---------------- */
+
+test("the grade weights add up to 1: shape 0.55, paint 0.31, sheen 0.08, smoothness 0.06", () => {
+  const W = C.CFG;
+  assert.deepEqual([W.W_SHAPE, W.W_PAINT, W.W_SHEEN, W.W_SMOOTH], [0.55, 0.31, 0.08, 0.06]);
+  assert.ok(Math.abs(W.W_SHAPE + W.W_PAINT + W.W_SHEEN + W.W_SMOOTH - 1) < 1e-9);
+});
+
+test("smoothness: rough-sawn scores nothing, skew-finished about half, sanded fine gets it all", () => {
+  const at = (v) => C.smoothScore(new Float32Array(SEG).fill(v)).score;
+  assert.equal(at(1), 0);
+  assert.equal(C.smoothScore(null).score, 0, "no roughness saved reads as rough-sawn");
+  assert.ok(at(Cut.TIPS.gouge.finish) < 0.15, "gouge marks earn little: " + at(Cut.TIPS.gouge.finish));
+  const skew = at(Cut.TIPS.skew.finish);
+  assert.ok(skew > 0.35 && skew < 0.6, "a skew finish earns part of it: " + skew);
+  assert.equal(at(0.05), 1);
+  // a smoother piece grades higher, all else equal
+  const o = C.makeOrder(11, { kind: "rolling_pin" }), p = perfectPiece(o);
+  const rough = C.grade(o, Object.assign({}, p, { rough: St.pack(new Float32Array(SEG).fill(0.55), 3) }));
+  const smooth = C.grade(o, p);
+  assert.ok(Math.abs(smooth.total - rough.total - C.CFG.W_SMOOTH * (smooth.smooth - rough.smooth)) < 1e-9);
+  assert.ok(smooth.total > rough.total);
 });

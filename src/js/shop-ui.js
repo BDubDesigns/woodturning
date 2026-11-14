@@ -28,6 +28,7 @@
     motor: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="9" width="18" height="15" rx="3" fill="#46625a"/><path d="M7 12v9M10 12v9M13 12v9M16 12v9M19 12v9" stroke="#2b3532" stroke-width="1.4"/><rect x="22" y="14" width="6" height="5" rx="1" fill="#99a1a6"/><rect x="6" y="24" width="14" height="3" fill="#2b3532"/></svg>',
     brushes: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="13" y="16" width="6" height="14" rx="2" fill="#7c4a22"/><rect x="11.5" y="11" width="9" height="6" rx="1" fill="#c8cfd4"/><path d="M11 11c0-5 2-9 5-9s5 4 5 9z" fill="#2f5fb3"/></svg>',
     finish: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="12" width="9" height="16" rx="3" fill="#a9d3e8" stroke="#5b8396" stroke-width="1.4"/><rect x="10.5" y="7" width="6" height="5" fill="#3a3a3a"/><path d="M16.5 8h6l-1 3h-5z" fill="#3a3a3a"/><path d="M24 7l4-2M24 9.5h5M24 12l4 2" stroke="#e8a33d" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    abrasives: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 10h22l-3 15H8z" fill="#c9a26a" stroke="#7c5a2a" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 10c5-4 17-4 22 0" fill="none" stroke="#7c5a2a" stroke-width="1.4"/><g fill="#7c5a2a"><circle cx="11" cy="15" r="1"/><circle cx="16" cy="18" r="1"/><circle cx="21" cy="14" r="1"/><circle cx="20" cy="21" r="1"/><circle cx="13" cy="21" r="1"/></g></svg>',
     chisels: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 3l3 0 0 14-1.5 3-1.5-3z" fill="#d6dde1"/><rect x="7.5" y="20" width="4" height="10" rx="1.5" fill="#7c4a22"/><path d="M19 3h5v12c0 2-1.2 3.5-2.5 3.5S19 17 19 15z" fill="#d6dde1"/><rect x="19.5" y="19" width="4" height="11" rx="1.5" fill="#7c4a22"/></svg>'
   };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -122,6 +123,7 @@
     light: "Go and see it hanging over the lathe.",
     motor: "The lathe cuts faster now.",
     chisels: "It is on the rack by the lathe, with the other chisels.",
+    abrasives: "The new sheet is on the rack: sanding is faster and smoother now.",
     brushes: "Paint goes on faster now.",
     finish: "The sheen builds faster and more evenly now."
   };
