@@ -1203,7 +1203,7 @@ header .gear-btn { margin-left: 4px; }
   var ITEMS = {
     log:   { id: "log",   name: "Log",   many: "Logs",   stack: true,  by: "wood" },
     blank: { id: "blank", name: "Blank", many: "Blanks", stack: false, fields: ["wood", "seed", "profile", "lengthUnits", "lengthRatio", "girthUnits"] },
-    piece: { id: "piece", name: "Piece", many: "Pieces", stack: false, fields: ["wood", "from", "shape", "profile", "start", "coat", "sheen", "spec", "match", "removed", "order"] }
+    piece: { id: "piece", name: "Piece", many: "Pieces", stack: false, fields: ["wood", "from", "shape", "profile", "start", "coat", "sheen", "spec", "match", "removed", "order", "rough"] }
   };
   var ITEM_ORDER = ["log", "blank", "piece"];
 
@@ -1556,6 +1556,20 @@ header .gear-btn { margin-left: 4px; }
       cuts toward a smoothed copy of the surface. Ridges between
       overlapping cuts get planed off, light passes act as
       finishing cuts, and the shape reads as turned, not chewed.
+
+   4. Surface finish. Each slice also has a roughness, rough (1 is
+      rough-sawn, 0 glass smooth). A cut moves the slices it cuts toward
+      its tip's finish (a skew leaves a cleaner surface than a roughing
+      gouge), so cutting a sanded spot makes it rough again.
+      Sandpaper (TIPS.sand, kind "abrasive") is a tool on the rack like
+      any tip, but main.js sends it to sand() instead of cut(). Under a
+      soft pad it evens the profile out (each slice is pulled toward the
+      average of its neighbours, only ever downward, so sanding takes off
+      high spots and never builds wood up), takes a tiny, even amount off
+      (sanding one spot forever slowly thins it) and eases rough toward
+      the grit's floor. The grit is the workshop's sandpaper (shop.js
+      abrasives): { smooth, rate, floor }. smoothness() is the mean of
+      1 - rough over the graded span.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -1584,22 +1598,33 @@ header .gear-btn { margin-left: 4px; }
     PRESS_RATE_EXP: 1.6,  // pressureFactor = MIN + (1 - MIN) * p ^ EXP: a hard push cuts much faster than a nudge
 
     CATCH_WINDOW: 0.035, // seconds: pressure slammed 0 -> full faster than this is a catch
-    CATCH_COOLDOWN: 0.9
+    CATCH_COOLDOWN: 0.9,
+
+    // surface finish (rough: 1 rough-sawn .. 0 glass smooth)
+    FINISH_RATE: 9,      // how fast a cut brings the slices it cuts to its tip's finish (per second at the kernel centre)
+    SAND_SMOOTH: 1.6,    // how fast sanding pulls a slice toward its neighbours (x grit.smooth, pressure, RPM)
+    SAND_MAX_RATE: 0.02, // ...never more than this many units/sec off a slice: sanding is gentle
+    SAND_REMOVE: 0.0025, // units/sec taken off evenly under the pad at full pressure (about 0.1 mm/s)
+    GRADE_EDGE: 0.03     // the ends sit in the centres and are not graded (as commissions.js EDGE)
   };
+  /* The sandpaper the workshop starts with, if none is passed (shop.js abrasives tier 0). */
+  var GRIT_80 = { smooth: 1, rate: 1.6, floor: 0.35 };
 
   var TIPS = {
     // halfWidth in world units; rate = max units/sec removed at the kernel centre
     // (before RATE_SCALE, RPM and pressure; see removalRate)
     // shape: "round" is a rounded trough (cos^2), "flat" a flat bottom (to `flat` of the half
-    // width) with rounded shoulders. look/size: how the views draw the tip. The first two are
-    // on the rack from the start; the rest are sold at Arbor Freight (shop.js).
-    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    desc: "Wide, rounded scoop · roughing & curves" },
-    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, desc: "Narrow, angled flat · crisp grooves & beads" },
-    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, desc: "Thin and deep · handles & shoulders" },
-    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, desc: "Small and round · tight beads & coves" },
-    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, desc: "Big and wide · takes a log round fast" }
+    // width) with rounded shoulders. look/size: how the views draw the tip. finish: the
+    // roughness a cut leaves behind. The gouge, skew and sandpaper are on the rack from the
+    // start; the rest are sold at Arbor Freight (shop.js). kind "abrasive" sands, not cuts.
+    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    finish: 0.55, desc: "Wide, rounded scoop · roughing & curves" },
+    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, finish: 0.35, desc: "Narrow, angled flat · crisp grooves & beads" },
+    sand:     { halfWidth: 0.35, rate: 0,    name: "Sandpaper",      shape: "round", look: "sand", size: 1, kind: "abrasive", desc: "Smooths the surface · fades the chisel marks" },
+    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, finish: 0.6, desc: "Thin and deep · handles & shoulders" },
+    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, finish: 0.45, desc: "Small and round · tight beads & coves" },
+    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, finish: 0.75, desc: "Big and wide · takes a log round fast" }
   };
-  var TIP_ORDER = ["gouge", "skew", "parting", "detail", "roughing"];
+  var TIP_ORDER = ["gouge", "skew", "sand", "parting", "detail", "roughing"];
 
   function rpmFactor(rpm, cfg) {
     cfg = cfg || CFG;
@@ -1640,7 +1665,9 @@ header .gear-btn { margin-left: 4px; }
     this.radius = new Float32Array(n);
     this.baseRadius = new Float32Array(n);
     this.passRef = new Float32Array(n);
+    this.rough = new Float32Array(n);   // surface roughness per slice: 1 rough-sawn .. 0 glass smooth
     this._tmp = new Float32Array(n);
+    this._tmp2 = new Float32Array(n);
     this.dx = this.cfg.LOG_LEN / (n - 1);
     this.version = 0;    // bumps whenever the profile changes; views redraw on change
     this.reset();
@@ -1657,6 +1684,7 @@ header .gear-btn { margin-left: 4px; }
     }
     this.baseRadius.set(this.radius);
     this.passRef.set(this.radius);
+    this.rough.fill(1);
     this.startVol = this.volume();
     this.blank = null;
     this.version++;
@@ -1669,6 +1697,7 @@ header .gear-btn { margin-left: 4px; }
     for (var i = 0; i < n; i++) this.radius[i] = Math.min(this.cfg.R0, Math.max(this.cfg.MIN_R * 2, p[i]));
     this.baseRadius.set(this.radius);
     this.passRef.set(this.radius);
+    this.rough.fill(1);
     this.startVol = this.volume();
     this.blank = blank;
     this.version++;
@@ -1705,6 +1734,7 @@ header .gear-btn { margin-left: 4px; }
   Workpiece.prototype.cut = function (t, pressure, tipKey, dt, rateScale, rpm) {
     var c = this.cfg, n = c.SEG, r = this.radius, ref = this.passRef;
     var spec = TIPS[tipKey];
+    if (!spec || spec.kind === "abrasive") return 0;   // sandpaper sands (sand()), it does not cut
     var p = Math.min(1, Math.max(0, pressure));
     if (p < 0.02) { this.endPass(); return 0; }
 
@@ -1735,6 +1765,7 @@ header .gear-btn { margin-left: 4px; }
     if (sumW <= 0) return 0;
     var edge = sumR / sumW - p * c.PASS_DEPTH;   // cutting edge height at the centre
 
+    var fin = spec.finish == null ? 0.5 : spec.finish, fa, rough = this.rough;
     for (i = lo; i <= hi; i++) {
       w = ws[i];
       if (w <= 0) continue;
@@ -1743,11 +1774,71 @@ header .gear-btn { margin-left: 4px; }
       nr = Math.max(target, r[i] - rate * w * dt);
       removed += r[i] * r[i] - nr * nr;
       r[i] = nr;
+      // where the edge is taking wood off, the surface it leaves is the tip's finish
+      fa = 1 - Math.exp(-c.FINISH_RATE * w * dt);
+      rough[i] += (fin - rough[i]) * fa;
     }
 
     removed += this._roundOver(lo, hi);
     if (removed > 0) this.version++;
     return removed;
+  };
+
+  /* One timestep of sanding. t = axial position 0..1, pressure 0..1, grit the
+     sandpaper ({ smooth, rate, floor }, GRIT_80 if not given), rpm the spindle
+     speed: faster spin sands faster, through the same rpmFactor as cutting.
+     Returns the wood taken off (sum of r^2 deltas, like cut()). */
+  Workpiece.prototype.sand = function (t, pressure, dt, grit, rpm) {
+    var c = this.cfg, n = c.SEG, r = this.radius, rough = this.rough;
+    var p = Math.min(1, Math.max(0, pressure));
+    if (p < 0.02 || !(dt > 0)) return 0;
+    grit = grit || GRIT_80;
+    var drive = pressureFactor(p, c) * rpmFactor(rpm, c);
+    var xc = Math.min(1, Math.max(0, t)) * (n - 1);
+    var hwS = TIPS.sand.halfWidth / this.dx;
+    var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
+    var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
+    var old = this._tmp2, i, j, w;
+    for (i = Math.max(0, lo - 2); i <= Math.min(n - 1, hi + 2); i++) old[i] = r[i];
+    var removed = 0, cap = c.SAND_MAX_RATE * dt, take = c.SAND_REMOVE * p * dt * rpmFactor(rpm, c);
+    var kBase = c.SAND_SMOOTH * (grit.smooth > 0 ? grit.smooth : 1) * drive * dt;
+    var fa = 1 - Math.exp(-(grit.rate > 0 ? grit.rate : GRIT_80.rate) * drive * dt);
+    var floor = grit.floor >= 0 ? grit.floor : GRIT_80.floor;
+    for (i = lo; i <= hi; i++) {
+      w = kernel("sand", Math.abs(i - xc) * this.dx);
+      if (w <= 0) continue;
+      // 1. even out: toward the neighbours' average (two slices each side), only ever down
+      var sum = 0, cnt = 0;
+      for (j = i - 2; j <= i + 2; j++) if (j !== i && j >= 0 && j < n) { sum += old[j] * (j === i - 1 || j === i + 1 ? 2 : 1); cnt += (j === i - 1 || j === i + 1 ? 2 : 1); }
+      var avg = sum / cnt, nr = old[i];
+      if (avg < nr) {
+        // a spot that is already level hardly changes: the pull is the gap, so returns diminish as it evens out
+        var k = Math.min(0.5, kBase * w);
+        nr = Math.max(nr - cap, nr + (avg - nr) * k);
+      }
+      // 2. a tiny, even amount of wood off under the pad
+      nr -= take * w;
+      nr = Math.max(c.MIN_R, Math.min(old[i], nr));
+      if (nr < r[i]) { removed += r[i] * r[i] - nr * nr; r[i] = nr; }
+      this.passRef[i] = Math.min(this.passRef[i], r[i]);
+      // 3. the surface: rough eases toward the grit's floor (sanding never roughens it)
+      if (rough[i] > floor) rough[i] = Math.max(floor, rough[i] + (floor - rough[i]) * fa * w);
+    }
+    this.version++;
+    return removed;
+  };
+  /* How smooth the piece is: the mean of 1 - rough over the graded span. */
+  Workpiece.prototype.smoothness = function () {
+    var n = this.cfg.SEG, e = Math.round(this.cfg.GRADE_EDGE * (n - 1)), s = 0, cnt = 0;
+    for (var i = e; i < n - e; i++) { s += 1 - this.rough[i]; cnt++; }
+    return cnt ? s / cnt : 0;
+  };
+  /* How smooth it is under the pad at t: 1 - rough, weighted by the sanding kernel. */
+  Workpiece.prototype.smoothAt = function (t) {
+    var n = this.cfg.SEG, xc = Math.min(1, Math.max(0, t)) * (n - 1), hwS = TIPS.sand.halfWidth / this.dx;
+    var lo = Math.max(0, Math.floor(xc - hwS)), hi = Math.min(n - 1, Math.ceil(xc + hwS)), s = 0, ws = 0;
+    for (var i = lo; i <= hi; i++) { var w = kernel("sand", Math.abs(i - xc) * this.dx); s += w * (1 - this.rough[i]); ws += w; }
+    return ws > 0 ? s / ws : 1 - this.rough[Math.round(xc)];
   };
 
   /* Roll a ball of the tool's nose radius over the profile under the
@@ -1862,7 +1953,7 @@ header .gear-btn { margin-left: 4px; }
     return "Cylinder";
   }
 
-  var api = { CFG: CFG, TIPS: TIPS, TIP_ORDER: TIP_ORDER, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
+  var api = { CFG: CFG, TIPS: TIPS, TIP_ORDER: TIP_ORDER, GRIT_80: GRIT_80, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var L = root.Lathe || (root.Lathe = {});
   for (var key in api) L[key] = api[key];
@@ -2052,6 +2143,34 @@ header .gear-btn { margin-left: 4px; }
     }
     if (added > 0) this.version++;
     return added;
+  };
+
+  /* Sanding over paint wears it: under a soft pad of half width hw (the sandpaper's),
+     the coat thins by amount x the pad's weight, and the gloss on top goes about twice
+     as fast. amount is per call (the caller scales it by pressure, RPM and dt).
+     Returns how much came off. */
+  Coating.prototype.wear = function (t, amount, hw) {
+    var c = this.cfg, n = c.SEG;
+    if (!(amount > 0)) return 0;
+    hw = hw || 0.35;
+    var xc = Math.min(1, Math.max(0, t)) * (n - 1), hwS = hw / this.dx;
+    var lo = Math.max(0, Math.floor(xc - hwS)), hi = Math.min(n - 1, Math.ceil(xc + hwS)), worn = 0;
+    for (var i = lo; i <= hi; i++) {
+      var u = Math.abs(i - xc) * this.dx / hw;
+      if (u >= 1) continue;
+      var w = Math.cos(u * Math.PI * 0.5); w *= w;
+      var a = Math.min(1, amount * w), g = Math.min(1, amount * w * 2);
+      if (this.coat[i] > 0) { worn += this.coat[i] * a; this.coat[i] *= 1 - a; if (this.coat[i] < 0.002) this.coat[i] = 0; }
+      if (this.gloss[i] > 0) { worn += this.gloss[i] * g; this.gloss[i] *= 1 - g; if (this.gloss[i] < 0.002) this.gloss[i] = 0; }
+    }
+    if (worn > 0) this.version++;
+    return worn;
+  };
+  /* The wood under the coat moved without being cut through (sanding takes a hair
+     off): take these radii as the new normal, so syncWork does not strip the paint. */
+  Coating.prototype.rebase = function (work) {
+    if (!this._haveR) return;
+    this._lastR.set(work.radius);
   };
 
   /* UNDO on the lathe takes off one layer and what lies on top of it: the finish
@@ -2253,7 +2372,8 @@ header .gear-btn { margin-left: 4px; }
    active: the one on the lathe.
 
    Grading a turned piece (grade) scores the shape against the target,
-   the paint against the spec, and the sheen. Below CFG.PASS the customer
+   the paint against the spec, the sheen, and how smooth the wood is
+   (the piece's rough per slice, from cutting.js: sanded is smoother). Below CFG.PASS the customer
    turns it down and pays nothing; above it the pay rises with the grade,
    with a bonus at CFG.FULL and up. Any wood can be turned against an
    order for practice, but only the wood the order names can be delivered.
@@ -2295,7 +2415,10 @@ header .gear-btn { margin-left: 4px; }
     SHAPE_FULL: 0.035, SHAPE_ZERO: 0.26,
     EDGE: 0.03,                // the ends sit in the centres and are not graded
     // how the grade is made up
-    W_SHAPE: 0.55, W_PAINT: 0.35, W_SHEEN: 0.1,
+    W_SHAPE: 0.55, W_PAINT: 0.31, W_SHEEN: 0.08, W_SMOOTH: 0.06,
+    // smoothness: mean roughness over the graded span scored as nothing, and as perfect.
+    // A skew-finished piece (0.35) earns about half; 80 grit gets about the same, finer grits more.
+    ROUGH_ZERO: 0.6, ROUGH_FULL: 0.08,
     // pay: below PASS the customer turns the piece down (no pay, the piece stays in the shed);
     // from PASS to FULL pay rises from MIN_PAY to all of the reward; at FULL and above, all of it plus BONUS
     PASS: 0.5, FULL: 0.9, MIN_PAY: 0.3, BONUS: 0.1,
@@ -2448,6 +2571,15 @@ header .gear-btn { margin-left: 4px; }
     var u = Math.min(1, Math.max(0, (zero - err) / (zero - CFG.SHAPE_FULL)));
     return { score: Math.pow(u, 1.3), err: err };
   }
+  /* How smooth a piece is, 0..1: progress from ROUGH_ZERO down to ROUGH_FULL in the
+     mean roughness over the graded span. No roughness saved means rough-sawn. */
+  function smoothScore(rough) {
+    if (!rough || rough.length !== SEG) return { score: 0, rough: 1 };
+    var e = Math.round(CFG.EDGE * (SEG - 1)), sum = 0, cnt = 0;
+    for (var i = e; i < SEG - e; i++) { sum += rough[i]; cnt++; }
+    var m = cnt ? sum / cnt : 1;
+    return { score: Math.min(1, Math.max(0, (CFG.ROUGH_ZERO - m) / (CFG.ROUGH_ZERO - CFG.ROUGH_FULL))), rough: m };
+  }
   function starsFor(g) { var s = 0; for (var i = 0; i < CFG.STARS.length; i++) if (g >= CFG.STARS[i]) s = i + 1; return s; }
   /* A coating rebuilt from a piece's saved coat, for paint.js to grade. */
   function coatingOf(coat) {
@@ -2455,8 +2587,8 @@ header .gear-btn { margin-left: 4px; }
     if (coat && coat.coat) { c.coat.set(State.unpack(coat.coat)); c.color.set(State.unpack(coat.color)); c.gloss.set(State.unpack(coat.gloss)); }
     return c;
   }
-  /* Grade work against an order. work: { wood, profile, start, coat } where
-     profile/start are radius arrays and coat is a Coating, or the saved
+  /* Grade work against an order. work: { wood, profile, start, coat, rough } where
+     profile/start/rough are slice arrays and coat is a Coating, or the saved
      { coat, color, gloss } arrays of a piece. */
   function grade(order, work) {
     var target = targetProfile(order);
@@ -2464,10 +2596,11 @@ header .gear-btn { margin-left: 4px; }
     var sh = shapeScore(prof, target, start);
     var coating = work.coat instanceof P.Coating ? work.coat : coatingOf(work.coat);
     var m = P.matchSpec(order.spec, coating);
-    var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish;
+    var sm = smoothScore(work.rough ? State.unpack(work.rough) : null);
+    var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish + CFG.W_SMOOTH * sm.score;
     var woodOk = work.wood === order.wood, accepted = woodOk && g >= CFG.PASS;
     return {
-      shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen,
+      shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen, smooth: sm.score, rough: sm.rough,
       total: g, stars: starsFor(g), woodOk: woodOk, accepted: accepted,
       pay: accepted ? payFor(order.reward, g) : 0, bonus: accepted && g >= CFG.FULL
     };
@@ -2672,7 +2805,7 @@ header .gear-btn { margin-left: 4px; }
 
   var api = {
     CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, FREE_BLUEPRINTS: FREE_BLUEPRINTS, BLUEPRINT_ORDER: BLUEPRINT_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
-    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor, payFor: payFor,
+    targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, smoothScore: smoothScore, grade: grade, starsFor: starsFor, payFor: payFor,
     defaultBoard: defaultBoard, normalizeBoard: normalizeBoard, createBoard: createBoard
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -2802,11 +2935,14 @@ header .gear-btn { margin-left: 4px; }
              weak on purpose (about a third of the top one), and every rung is
              about 1.5x the last, so the motor is a real reason to save up.
      chisels the chisel tips on the rack (cutting.js TIPS)
+     abrasives grit { smooth, rate, floor }: the sandpaper on the rack, upgraded in place.
+             Finer grit evens the wood out faster and leaves it smoother (cutting.js sand).
+             The sandpaper itself ("sand") is on the rack from the start, like gouge and skew.
      brushes brush { flow, width }: paint goes on faster, and the wide brush is wider (paint.js brush)
      finish  spray { rate, width, even }: sheen builds faster, wider and more evenly (paint.js spray)
 
    The model owns the shop section of the save:
-     game.shop { owned: { light: 0, motor: 0, chisels: 0, brushes: 0, finish: 0 }, spent }
+     game.shop { owned: { light: 0, motor: 0, chisels: 0, abrasives: 0, brushes: 0, finish: 0 }, spent }
    Coins go through the shared wallet (state.js).
    ============================================================ */
 (function (root) {
@@ -2843,6 +2979,15 @@ header .gear-btn { margin-left: 4px; }
         { name: "Roughing gouge", price: 2500, blurb: "A big wide gouge that takes a log round in a few passes.", tips: ["roughing"] }
       ]
     },
+    abrasives: {
+      name: "Sandpaper", blurb: "Finer grit, smoother wood. The sheet on the rack is swapped for the new one.",
+      tiers: [
+        { name: "80 grit", price: 0, blurb: "Coarse paper from a drawer. It takes the chisel marks down, mostly.", grit: { smooth: 1, rate: 1.6, floor: 0.35 } },
+        { name: "150 grit", price: 75, blurb: "Medium paper. Smooths faster, and the surface comes up finer.", grit: { smooth: 1.3, rate: 2.2, floor: 0.22 } },
+        { name: "240 grit", price: 300, blurb: "Fine paper. Faster still, and smooth enough to feel through a coat.", grit: { smooth: 1.7, rate: 3, floor: 0.12 } },
+        { name: "320 grit", price: 1000, blurb: "Very fine paper. The quickest, and the wood comes up like glass.", grit: { smooth: 2.2, rate: 4, floor: 0.05 } }
+      ]
+    },
     brushes: {
       name: "Brushes", blurb: "Better bristles hold more paint. A coat goes on in fewer passes.",
       tiers: [
@@ -2862,7 +3007,7 @@ header .gear-btn { margin-left: 4px; }
       ]
     }
   };
-  var LINE_ORDER = ["light", "motor", "chisels", "brushes", "finish"];
+  var LINE_ORDER = ["light", "motor", "chisels", "abrasives", "brushes", "finish"];
 
   function defaultShop() {
     var owned = {};
@@ -2916,16 +3061,18 @@ header .gear-btn { margin-left: 4px; }
     /* The paint brushes and the finish sprayer the workshop owns, for paint.js. */
     function brush() { return current("brushes").brush; }
     function spray() { return current("finish").spray; }
-    /* Every chisel tip on the rack: each chisels tier owned adds its tips. */
+    /* The sandpaper on the rack, for cutting.js sand(). */
+    function grit() { return current("abrasives").grit; }
+    /* Every tool on the rack: each chisels tier owned adds its tips, and the sandpaper is always there. */
     function tips() {
       var out = [], t = LINES.chisels.tiers;
       for (var i = 0; i <= level("chisels"); i++) out = out.concat(t[i].tips);
-      return out;
+      return out.concat(["sand"]);
     }
 
     return {
       state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
-      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray
+      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray, grit: grit
     };
   }
 
@@ -6533,6 +6680,12 @@ header .gear-btn { margin-left: 4px; }
      from zero to full. Pressure sets the depth of the pass.
    - The tip rides the bottom of the cut, so the finger stays
      below the wood and the cut is never covered.
+
+   Sandpaper is a tool on the rack like a chisel tip (cutting.js
+   TIPS.sand). With it picked, the same input sands instead of cuts
+   (work.sand, with the workshop's grit from shop.js), wears any paint
+   and finish under the pad (coat.wear), and the CUT DEPTH stat reads
+   SMOOTH under the pad instead.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -6667,13 +6820,17 @@ header .gear-btn { margin-left: 4px; }
     var TIP_ICON = {
       parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
       detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
-      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>'
+      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>',
+      sand: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M4 9h26l-3 14H7z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/><path d="M4 9c4-4 22-4 26 0" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.6"/><g fill="#e8a33d" opacity="0.7"><circle cx="11" cy="14" r="1"/><circle cx="16" cy="17" r="1"/><circle cx="21" cy="13" r="1"/><circle cx="24" cy="18" r="1"/><circle cx="13" cy="19" r="1"/><circle cx="19" cy="20" r="1"/></g></svg>'
     };
-    S.tips = ["gouge", "skew"];
+    S.tips = ["gouge", "skew", "sand"];
     function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
+    function sanding() { return S.mode === "cut" && !!L.TIPS[S.tip] && L.TIPS[S.tip].kind === "abrasive"; }
     function setTip(t) {
       if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
+      S.pressure.catches = S.mode === "cut" && !sanding();   // sandpaper doesn't catch
+      if (typeof syncDepthLabel === "function") syncDepthLabel();
       tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
     }
     function setTips(list) {
@@ -6709,6 +6866,7 @@ header .gear-btn { margin-left: 4px; }
       S.cutBoost = shop.cutBoost();
       S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
       S.sprayGun = shop.spray();
+      S.grit = shop.grit ? shop.grit() : null;   // the sandpaper on the rack
       var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
       if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
       setTips(shop.tips());
@@ -6722,6 +6880,9 @@ header .gear-btn { margin-left: 4px; }
     };
     var used = { cut: false, paint: false, finish: false };
     var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
+    var statDepthK = statDepth.parentNode.querySelector(".k");
+    /* While sanding, CUT DEPTH HERE reads SMOOTH under the pad instead. */
+    function syncDepthLabel() { if (statDepthK) statDepthK.textContent = sanding() ? "SMOOTH HERE" : "CUT DEPTH HERE"; }
     /* Mount a blank: the harvested one, or a practice blank when none is given. */
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
@@ -6925,7 +7086,8 @@ header .gear-btn { margin-left: 4px; }
         sheen: m ? m.sheen : null,
         spec: S.spec || null,
         match: m ? Math.round(m.total * 1000) / 1000 : null,
-        removed: Math.round(S.work.removedFraction() * 1000) / 1000
+        removed: Math.round(S.work.removedFraction() * 1000) / 1000,
+        rough: St.pack(S.work.rough, 3)
       });
       var order = S.order;
       clearLathe();
@@ -6949,7 +7111,8 @@ header .gear-btn { margin-left: 4px; }
     function setMode(m) {
       if (!panels[m]) return;
       S.mode = m;
-      S.pressure.catches = m === "cut";
+      S.pressure.catches = m === "cut" && !sanding();
+      syncDepthLabel();
       S.flow = 0;
       for (var k in modeBtns) {
         modeBtns[k].setAttribute("aria-pressed", k === m ? "true" : "false");
@@ -7231,8 +7394,13 @@ header .gear-btn { margin-left: 4px; }
       if (statTick < 0.12) return; statTick = 0;
       var pct = S.work.removedFraction() * 100;
       statRemoved.innerHTML = pct.toFixed(pct < 10 ? 1 : 0) + "<small>%</small>";
-      var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
-      statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
+      if (sanding()) {
+        var sm = S.lastT >= 0 ? S.work.smoothAt(S.lastT) : S.work.smoothness();
+        statDepth.innerHTML = Math.round(sm * 100) + "<small>%</small>";
+      } else {
+        var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
+        statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
+      }
       statShape.textContent = L.shapeName(S.work);
       if (S.target) updateShape();
       if (S.mode === "cut") drawProfile(); else { drawSpec(); updateSpecInfo(); }
@@ -7240,6 +7408,7 @@ header .gear-btn { margin-left: 4px; }
 
     /* ---------------- main loop ---------------- */
     var CHIP_SCALE = (120 / C.SEG) * 2.8;   // chip/sound tuning was done at 120 slices and the old, ~3x faster removal rate
+    var SAND_WEAR = 0.8;                    // how fast sanding wears paint and finish (per second at full pressure)
     var lastFrame = performance.now(), frameN = 0;
     /* ?testclock (browser tests only): the simulation does not follow the wall clock.
        Time only moves, and frames only draw, when a test calls S.advance(seconds),
@@ -7278,7 +7447,18 @@ header .gear-btn { margin-left: 4px; }
         var p = S.pointer, pr = S.pressure.update(dt);
         if (p.active) {
           S.lastT = p.t;
-          if (S.mode === "cut") {
+          if (sanding()) {
+            var roughHere = 1 - S.work.smoothAt(p.t);
+            S.work.sand(p.t, pr, dt, S.grit, S.rpm);
+            if (pr > 0.02) {
+              // paint and finish under the pad wear away; the hair of wood sanding takes is not a cut through the coat
+              S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
+              S.cutIntensity = Math.max(S.cutIntensity, 0.22 * pr * (0.3 + roughHere));
+              if (view.onSand) view.onSand(p.t, pr, roughHere, dt);
+              if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
+            }
+            S.coat.rebase(S.work);
+          } else if (S.mode === "cut") {
             var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
@@ -7306,6 +7486,8 @@ header .gear-btn { margin-left: 4px; }
     syncOrder();
     applyUpgrades();
     clearLathe();      // nothing is loaded on its own: the player picks what to turn
+    S.sanding = sanding;
+    S.smoothHere = function () { return S.lastT >= 0 ? S.work.smoothAt(S.lastT) : 0; };
     S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
@@ -9801,7 +9983,7 @@ header .gear-btn { margin-left: 4px; }
   }
   function gradeHtml(o, g) {
     var h = '<div class="g-stars">' + starsHtml(g.stars) + "</div>";
-    h += bar("SHAPE", g.shape) + bar("PAINT", g.paint) + bar("SHEEN", g.sheen);
+    h += bar("SHAPE", g.shape) + bar("PAINT", g.paint) + bar("SHEEN", g.sheen) + bar("SMOOTH", g.smooth);
     h += '<p class="g-note">' + P.SHEEN[o.spec.sheen].name + " wanted, " + P.SHEEN[g.sheenGot].name.toLowerCase() + " given.</p>";
     return h;
   }
@@ -9904,6 +10086,7 @@ header .gear-btn { margin-left: 4px; }
     motor: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="9" width="18" height="15" rx="3" fill="#46625a"/><path d="M7 12v9M10 12v9M13 12v9M16 12v9M19 12v9" stroke="#2b3532" stroke-width="1.4"/><rect x="22" y="14" width="6" height="5" rx="1" fill="#99a1a6"/><rect x="6" y="24" width="14" height="3" fill="#2b3532"/></svg>',
     brushes: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="13" y="16" width="6" height="14" rx="2" fill="#7c4a22"/><rect x="11.5" y="11" width="9" height="6" rx="1" fill="#c8cfd4"/><path d="M11 11c0-5 2-9 5-9s5 4 5 9z" fill="#2f5fb3"/></svg>',
     finish: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="12" width="9" height="16" rx="3" fill="#a9d3e8" stroke="#5b8396" stroke-width="1.4"/><rect x="10.5" y="7" width="6" height="5" fill="#3a3a3a"/><path d="M16.5 8h6l-1 3h-5z" fill="#3a3a3a"/><path d="M24 7l4-2M24 9.5h5M24 12l4 2" stroke="#e8a33d" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    abrasives: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 10h22l-3 15H8z" fill="#c9a26a" stroke="#7c5a2a" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 10c5-4 17-4 22 0" fill="none" stroke="#7c5a2a" stroke-width="1.4"/><g fill="#7c5a2a"><circle cx="11" cy="15" r="1"/><circle cx="16" cy="18" r="1"/><circle cx="21" cy="14" r="1"/><circle cx="20" cy="21" r="1"/><circle cx="13" cy="21" r="1"/></g></svg>',
     chisels: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 3l3 0 0 14-1.5 3-1.5-3z" fill="#d6dde1"/><rect x="7.5" y="20" width="4" height="10" rx="1.5" fill="#7c4a22"/><path d="M19 3h5v12c0 2-1.2 3.5-2.5 3.5S19 17 19 15z" fill="#d6dde1"/><rect x="19.5" y="19" width="4" height="11" rx="1.5" fill="#7c4a22"/></svg>'
   };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -9998,6 +10181,7 @@ header .gear-btn { margin-left: 4px; }
     light: "Go and see it hanging over the lathe.",
     motor: "The lathe cuts faster now.",
     chisels: "It is on the rack by the lathe, with the other chisels.",
+    abrasives: "The new sheet is on the rack: sanding is faster and smoother now.",
     brushes: "Paint goes on faster now.",
     finish: "The sheen builds faster and more evenly now."
   };

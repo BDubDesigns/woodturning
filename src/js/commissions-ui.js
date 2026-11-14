@@ -238,7 +238,7 @@
   }
   function gradeHtml(o, g) {
     var h = '<div class="g-stars">' + starsHtml(g.stars) + "</div>";
-    h += bar("SHAPE", g.shape) + bar("PAINT", g.paint) + bar("SHEEN", g.sheen);
+    h += bar("SHAPE", g.shape) + bar("PAINT", g.paint) + bar("SHEEN", g.sheen) + bar("SMOOTH", g.smooth);
     h += '<p class="g-note">' + P.SHEEN[o.spec.sheen].name + " wanted, " + P.SHEEN[g.sheenGot].name.toLowerCase() + " given.</p>";
     return h;
   }

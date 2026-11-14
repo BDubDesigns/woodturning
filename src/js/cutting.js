@@ -30,6 +30,20 @@
       cuts toward a smoothed copy of the surface. Ridges between
       overlapping cuts get planed off, light passes act as
       finishing cuts, and the shape reads as turned, not chewed.
+
+   4. Surface finish. Each slice also has a roughness, rough (1 is
+      rough-sawn, 0 glass smooth). A cut moves the slices it cuts toward
+      its tip's finish (a skew leaves a cleaner surface than a roughing
+      gouge), so cutting a sanded spot makes it rough again.
+      Sandpaper (TIPS.sand, kind "abrasive") is a tool on the rack like
+      any tip, but main.js sends it to sand() instead of cut(). Under a
+      soft pad it evens the profile out (each slice is pulled toward the
+      average of its neighbours, only ever downward, so sanding takes off
+      high spots and never builds wood up), takes a tiny, even amount off
+      (sanding one spot forever slowly thins it) and eases rough toward
+      the grit's floor. The grit is the workshop's sandpaper (shop.js
+      abrasives): { smooth, rate, floor }. smoothness() is the mean of
+      1 - rough over the graded span.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -58,22 +72,33 @@
     PRESS_RATE_EXP: 1.6,  // pressureFactor = MIN + (1 - MIN) * p ^ EXP: a hard push cuts much faster than a nudge
 
     CATCH_WINDOW: 0.035, // seconds: pressure slammed 0 -> full faster than this is a catch
-    CATCH_COOLDOWN: 0.9
+    CATCH_COOLDOWN: 0.9,
+
+    // surface finish (rough: 1 rough-sawn .. 0 glass smooth)
+    FINISH_RATE: 9,      // how fast a cut brings the slices it cuts to its tip's finish (per second at the kernel centre)
+    SAND_SMOOTH: 1.6,    // how fast sanding pulls a slice toward its neighbours (x grit.smooth, pressure, RPM)
+    SAND_MAX_RATE: 0.02, // ...never more than this many units/sec off a slice: sanding is gentle
+    SAND_REMOVE: 0.0025, // units/sec taken off evenly under the pad at full pressure (about 0.1 mm/s)
+    GRADE_EDGE: 0.03     // the ends sit in the centres and are not graded (as commissions.js EDGE)
   };
+  /* The sandpaper the workshop starts with, if none is passed (shop.js abrasives tier 0). */
+  var GRIT_80 = { smooth: 1, rate: 1.6, floor: 0.35 };
 
   var TIPS = {
     // halfWidth in world units; rate = max units/sec removed at the kernel centre
     // (before RATE_SCALE, RPM and pressure; see removalRate)
     // shape: "round" is a rounded trough (cos^2), "flat" a flat bottom (to `flat` of the half
-    // width) with rounded shoulders. look/size: how the views draw the tip. The first two are
-    // on the rack from the start; the rest are sold at Arbor Freight (shop.js).
-    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    desc: "Wide, rounded scoop · roughing & curves" },
-    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, desc: "Narrow, angled flat · crisp grooves & beads" },
-    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, desc: "Thin and deep · handles & shoulders" },
-    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, desc: "Small and round · tight beads & coves" },
-    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, desc: "Big and wide · takes a log round fast" }
+    // width) with rounded shoulders. look/size: how the views draw the tip. finish: the
+    // roughness a cut leaves behind. The gouge, skew and sandpaper are on the rack from the
+    // start; the rest are sold at Arbor Freight (shop.js). kind "abrasive" sands, not cuts.
+    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    finish: 0.55, desc: "Wide, rounded scoop · roughing & curves" },
+    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, finish: 0.35, desc: "Narrow, angled flat · crisp grooves & beads" },
+    sand:     { halfWidth: 0.35, rate: 0,    name: "Sandpaper",      shape: "round", look: "sand", size: 1, kind: "abrasive", desc: "Smooths the surface · fades the chisel marks" },
+    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, finish: 0.6, desc: "Thin and deep · handles & shoulders" },
+    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, finish: 0.45, desc: "Small and round · tight beads & coves" },
+    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, finish: 0.75, desc: "Big and wide · takes a log round fast" }
   };
-  var TIP_ORDER = ["gouge", "skew", "parting", "detail", "roughing"];
+  var TIP_ORDER = ["gouge", "skew", "sand", "parting", "detail", "roughing"];
 
   function rpmFactor(rpm, cfg) {
     cfg = cfg || CFG;
@@ -114,7 +139,9 @@
     this.radius = new Float32Array(n);
     this.baseRadius = new Float32Array(n);
     this.passRef = new Float32Array(n);
+    this.rough = new Float32Array(n);   // surface roughness per slice: 1 rough-sawn .. 0 glass smooth
     this._tmp = new Float32Array(n);
+    this._tmp2 = new Float32Array(n);
     this.dx = this.cfg.LOG_LEN / (n - 1);
     this.version = 0;    // bumps whenever the profile changes; views redraw on change
     this.reset();
@@ -131,6 +158,7 @@
     }
     this.baseRadius.set(this.radius);
     this.passRef.set(this.radius);
+    this.rough.fill(1);
     this.startVol = this.volume();
     this.blank = null;
     this.version++;
@@ -143,6 +171,7 @@
     for (var i = 0; i < n; i++) this.radius[i] = Math.min(this.cfg.R0, Math.max(this.cfg.MIN_R * 2, p[i]));
     this.baseRadius.set(this.radius);
     this.passRef.set(this.radius);
+    this.rough.fill(1);
     this.startVol = this.volume();
     this.blank = blank;
     this.version++;
@@ -179,6 +208,7 @@
   Workpiece.prototype.cut = function (t, pressure, tipKey, dt, rateScale, rpm) {
     var c = this.cfg, n = c.SEG, r = this.radius, ref = this.passRef;
     var spec = TIPS[tipKey];
+    if (!spec || spec.kind === "abrasive") return 0;   // sandpaper sands (sand()), it does not cut
     var p = Math.min(1, Math.max(0, pressure));
     if (p < 0.02) { this.endPass(); return 0; }
 
@@ -209,6 +239,7 @@
     if (sumW <= 0) return 0;
     var edge = sumR / sumW - p * c.PASS_DEPTH;   // cutting edge height at the centre
 
+    var fin = spec.finish == null ? 0.5 : spec.finish, fa, rough = this.rough;
     for (i = lo; i <= hi; i++) {
       w = ws[i];
       if (w <= 0) continue;
@@ -217,11 +248,71 @@
       nr = Math.max(target, r[i] - rate * w * dt);
       removed += r[i] * r[i] - nr * nr;
       r[i] = nr;
+      // where the edge is taking wood off, the surface it leaves is the tip's finish
+      fa = 1 - Math.exp(-c.FINISH_RATE * w * dt);
+      rough[i] += (fin - rough[i]) * fa;
     }
 
     removed += this._roundOver(lo, hi);
     if (removed > 0) this.version++;
     return removed;
+  };
+
+  /* One timestep of sanding. t = axial position 0..1, pressure 0..1, grit the
+     sandpaper ({ smooth, rate, floor }, GRIT_80 if not given), rpm the spindle
+     speed: faster spin sands faster, through the same rpmFactor as cutting.
+     Returns the wood taken off (sum of r^2 deltas, like cut()). */
+  Workpiece.prototype.sand = function (t, pressure, dt, grit, rpm) {
+    var c = this.cfg, n = c.SEG, r = this.radius, rough = this.rough;
+    var p = Math.min(1, Math.max(0, pressure));
+    if (p < 0.02 || !(dt > 0)) return 0;
+    grit = grit || GRIT_80;
+    var drive = pressureFactor(p, c) * rpmFactor(rpm, c);
+    var xc = Math.min(1, Math.max(0, t)) * (n - 1);
+    var hwS = TIPS.sand.halfWidth / this.dx;
+    var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
+    var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
+    var old = this._tmp2, i, j, w;
+    for (i = Math.max(0, lo - 2); i <= Math.min(n - 1, hi + 2); i++) old[i] = r[i];
+    var removed = 0, cap = c.SAND_MAX_RATE * dt, take = c.SAND_REMOVE * p * dt * rpmFactor(rpm, c);
+    var kBase = c.SAND_SMOOTH * (grit.smooth > 0 ? grit.smooth : 1) * drive * dt;
+    var fa = 1 - Math.exp(-(grit.rate > 0 ? grit.rate : GRIT_80.rate) * drive * dt);
+    var floor = grit.floor >= 0 ? grit.floor : GRIT_80.floor;
+    for (i = lo; i <= hi; i++) {
+      w = kernel("sand", Math.abs(i - xc) * this.dx);
+      if (w <= 0) continue;
+      // 1. even out: toward the neighbours' average (two slices each side), only ever down
+      var sum = 0, cnt = 0;
+      for (j = i - 2; j <= i + 2; j++) if (j !== i && j >= 0 && j < n) { sum += old[j] * (j === i - 1 || j === i + 1 ? 2 : 1); cnt += (j === i - 1 || j === i + 1 ? 2 : 1); }
+      var avg = sum / cnt, nr = old[i];
+      if (avg < nr) {
+        // a spot that is already level hardly changes: the pull is the gap, so returns diminish as it evens out
+        var k = Math.min(0.5, kBase * w);
+        nr = Math.max(nr - cap, nr + (avg - nr) * k);
+      }
+      // 2. a tiny, even amount of wood off under the pad
+      nr -= take * w;
+      nr = Math.max(c.MIN_R, Math.min(old[i], nr));
+      if (nr < r[i]) { removed += r[i] * r[i] - nr * nr; r[i] = nr; }
+      this.passRef[i] = Math.min(this.passRef[i], r[i]);
+      // 3. the surface: rough eases toward the grit's floor (sanding never roughens it)
+      if (rough[i] > floor) rough[i] = Math.max(floor, rough[i] + (floor - rough[i]) * fa * w);
+    }
+    this.version++;
+    return removed;
+  };
+  /* How smooth the piece is: the mean of 1 - rough over the graded span. */
+  Workpiece.prototype.smoothness = function () {
+    var n = this.cfg.SEG, e = Math.round(this.cfg.GRADE_EDGE * (n - 1)), s = 0, cnt = 0;
+    for (var i = e; i < n - e; i++) { s += 1 - this.rough[i]; cnt++; }
+    return cnt ? s / cnt : 0;
+  };
+  /* How smooth it is under the pad at t: 1 - rough, weighted by the sanding kernel. */
+  Workpiece.prototype.smoothAt = function (t) {
+    var n = this.cfg.SEG, xc = Math.min(1, Math.max(0, t)) * (n - 1), hwS = TIPS.sand.halfWidth / this.dx;
+    var lo = Math.max(0, Math.floor(xc - hwS)), hi = Math.min(n - 1, Math.ceil(xc + hwS)), s = 0, ws = 0;
+    for (var i = lo; i <= hi; i++) { var w = kernel("sand", Math.abs(i - xc) * this.dx); s += w * (1 - this.rough[i]); ws += w; }
+    return ws > 0 ? s / ws : 1 - this.rough[Math.round(xc)];
   };
 
   /* Roll a ball of the tool's nose radius over the profile under the
@@ -336,7 +427,7 @@
     return "Cylinder";
   }
 
-  var api = { CFG: CFG, TIPS: TIPS, TIP_ORDER: TIP_ORDER, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
+  var api = { CFG: CFG, TIPS: TIPS, TIP_ORDER: TIP_ORDER, GRIT_80: GRIT_80, kernel: kernel, rpmFactor: rpmFactor, pressureFactor: pressureFactor, removalRate: removalRate, Workpiece: Workpiece, Pressure: Pressure, shapeName: shapeName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var L = root.Lathe || (root.Lathe = {});
   for (var key in api) L[key] = api[key];

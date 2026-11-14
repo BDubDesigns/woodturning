@@ -52,7 +52,7 @@
   var ITEMS = {
     log:   { id: "log",   name: "Log",   many: "Logs",   stack: true,  by: "wood" },
     blank: { id: "blank", name: "Blank", many: "Blanks", stack: false, fields: ["wood", "seed", "profile", "lengthUnits", "lengthRatio", "girthUnits"] },
-    piece: { id: "piece", name: "Piece", many: "Pieces", stack: false, fields: ["wood", "from", "shape", "profile", "start", "coat", "sheen", "spec", "match", "removed", "order"] }
+    piece: { id: "piece", name: "Piece", many: "Pieces", stack: false, fields: ["wood", "from", "shape", "profile", "start", "coat", "sheen", "spec", "match", "removed", "order", "rough"] }
   };
   var ITEM_ORDER = ["log", "blank", "piece"];
 

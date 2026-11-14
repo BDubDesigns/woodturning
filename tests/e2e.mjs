@@ -344,6 +344,31 @@ for (const kind of ["3d", "2d"]) {
   }
 }
 
+console.log("\nSANDING (2D)");
+await page.evaluate(() => window.__lathe.views.use2D());
+await page.evaluate(() => window.Lathe.mountBlank(null));
+await page.click("#tipGouge");
+await carve(0.5, { hold: 900 });
+const mid = await page.evaluate(() => Math.round(0.5 * (window.__lathe.work.rough.length - 1)));
+const afterCut = await page.evaluate((i) => ({ rough: window.__lathe.work.rough[i], r: Array.from(window.__lathe.work.radius) }), mid);
+check(Math.abs(afterCut.rough - 0.55) < 0.1, `the gouge leaves its marks: rough ${afterCut.rough.toFixed(2)} where it cut`);
+// some paint and a sheen on it, to see the pad wear them
+await page.evaluate(() => { const S = window.__lathe; for (let k = 0; k < 90; k++) { S.coat.brush(0.5, 1, "brush", "crimson", 1 / 60); S.coat.spray(0.5, 1, 1 / 60); } });
+const painted = await page.evaluate((i) => ({ coat: window.__lathe.coat.coat[i], gloss: window.__lathe.coat.gloss[i] }), mid);
+check(await page.locator("#tipSand").isVisible(), "the sandpaper is on the rack from the start");
+await page.click("#tipSand");
+check(await page.evaluate(() => window.__lathe.tip) === "sand" && /SMOOTH HERE/.test(await page.locator("#statDepth").locator("xpath=..").textContent()), "picking it switches the stat to SMOOTH HERE");
+await carve(0.5, { push: 30, hold: 1500 });
+const sanded = await page.evaluate((i) => ({ rough: window.__lathe.work.rough[i], r: Array.from(window.__lathe.work.radius), coat: window.__lathe.coat.coat[i], gloss: window.__lathe.coat.gloss[i], smooth: window.__lathe.smoothHere() }), mid);
+check(sanded.rough < afterCut.rough - 0.1 && sanded.rough >= 0.35 - 1e-6, `sanding smooths it to 80 grit's floor: rough ${afterCut.rough.toFixed(2)} -> ${sanded.rough.toFixed(2)}`);
+check(sanded.r.every((v, i) => v <= afterCut.r[i] + 1e-6), "and never builds wood up");
+const took = Math.max(...sanded.r.map((v, i) => afterCut.r[i] - v)) * 40;
+check(took > 0 && took < 0.6, `it takes only a hair of wood (${took.toFixed(2)} mm at most)`);
+check(sanded.coat > 0.02 && sanded.coat < painted.coat * 0.8 && sanded.gloss < painted.gloss * 0.5, `the paint wears under the pad but is not stripped (coat ${painted.coat.toFixed(2)} -> ${sanded.coat.toFixed(2)}, gloss ${painted.gloss.toFixed(2)} -> ${sanded.gloss.toFixed(2)})`);
+check(/^\d+%$/.test((await page.locator("#statDepth").textContent()).trim()) && Math.abs(parseInt(await page.locator("#statDepth").textContent(), 10) - Math.round(sanded.smooth * 100)) <= 1, "the stat reads SMOOTH under the pad as a percentage");
+await page.click("#tipGouge");
+check(/CUT DEPTH HERE/.test(await page.locator("#statDepth").locator("xpath=..").textContent()), "back on the gouge it reads CUT DEPTH again");
+
 check(errors.length === 0, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));
 await browser.close();
 console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");

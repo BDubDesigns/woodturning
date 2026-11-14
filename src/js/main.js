@@ -16,6 +16,12 @@
      from zero to full. Pressure sets the depth of the pass.
    - The tip rides the bottom of the cut, so the finger stays
      below the wood and the cut is never covered.
+
+   Sandpaper is a tool on the rack like a chisel tip (cutting.js
+   TIPS.sand). With it picked, the same input sands instead of cuts
+   (work.sand, with the workshop's grit from shop.js), wears any paint
+   and finish under the pad (coat.wear), and the CUT DEPTH stat reads
+   SMOOTH under the pad instead.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -150,13 +156,17 @@
     var TIP_ICON = {
       parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
       detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
-      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>'
+      roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>',
+      sand: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M4 9h26l-3 14H7z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/><path d="M4 9c4-4 22-4 26 0" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.6"/><g fill="#e8a33d" opacity="0.7"><circle cx="11" cy="14" r="1"/><circle cx="16" cy="17" r="1"/><circle cx="21" cy="13" r="1"/><circle cx="24" cy="18" r="1"/><circle cx="13" cy="19" r="1"/><circle cx="19" cy="20" r="1"/></g></svg>'
     };
-    S.tips = ["gouge", "skew"];
+    S.tips = ["gouge", "skew", "sand"];
     function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
+    function sanding() { return S.mode === "cut" && !!L.TIPS[S.tip] && L.TIPS[S.tip].kind === "abrasive"; }
     function setTip(t) {
       if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
+      S.pressure.catches = S.mode === "cut" && !sanding();   // sandpaper doesn't catch
+      if (typeof syncDepthLabel === "function") syncDepthLabel();
       tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
     }
     function setTips(list) {
@@ -192,6 +202,7 @@
       S.cutBoost = shop.cutBoost();
       S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
       S.sprayGun = shop.spray();
+      S.grit = shop.grit ? shop.grit() : null;   // the sandpaper on the rack
       var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
       if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
       setTips(shop.tips());
@@ -205,6 +216,9 @@
     };
     var used = { cut: false, paint: false, finish: false };
     var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
+    var statDepthK = statDepth.parentNode.querySelector(".k");
+    /* While sanding, CUT DEPTH HERE reads SMOOTH under the pad instead. */
+    function syncDepthLabel() { if (statDepthK) statDepthK.textContent = sanding() ? "SMOOTH HERE" : "CUT DEPTH HERE"; }
     /* Mount a blank: the harvested one, or a practice blank when none is given. */
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
@@ -408,7 +422,8 @@
         sheen: m ? m.sheen : null,
         spec: S.spec || null,
         match: m ? Math.round(m.total * 1000) / 1000 : null,
-        removed: Math.round(S.work.removedFraction() * 1000) / 1000
+        removed: Math.round(S.work.removedFraction() * 1000) / 1000,
+        rough: St.pack(S.work.rough, 3)
       });
       var order = S.order;
       clearLathe();
@@ -432,7 +447,8 @@
     function setMode(m) {
       if (!panels[m]) return;
       S.mode = m;
-      S.pressure.catches = m === "cut";
+      S.pressure.catches = m === "cut" && !sanding();
+      syncDepthLabel();
       S.flow = 0;
       for (var k in modeBtns) {
         modeBtns[k].setAttribute("aria-pressed", k === m ? "true" : "false");
@@ -714,8 +730,13 @@
       if (statTick < 0.12) return; statTick = 0;
       var pct = S.work.removedFraction() * 100;
       statRemoved.innerHTML = pct.toFixed(pct < 10 ? 1 : 0) + "<small>%</small>";
-      var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
-      statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
+      if (sanding()) {
+        var sm = S.lastT >= 0 ? S.work.smoothAt(S.lastT) : S.work.smoothness();
+        statDepth.innerHTML = Math.round(sm * 100) + "<small>%</small>";
+      } else {
+        var d = S.lastT >= 0 ? S.work.depthAt(S.lastT) * C.MM_PER_UNIT : 0;
+        statDepth.innerHTML = d.toFixed(1) + "<small> mm</small>";
+      }
       statShape.textContent = L.shapeName(S.work);
       if (S.target) updateShape();
       if (S.mode === "cut") drawProfile(); else { drawSpec(); updateSpecInfo(); }
@@ -723,6 +744,7 @@
 
     /* ---------------- main loop ---------------- */
     var CHIP_SCALE = (120 / C.SEG) * 2.8;   // chip/sound tuning was done at 120 slices and the old, ~3x faster removal rate
+    var SAND_WEAR = 0.8;                    // how fast sanding wears paint and finish (per second at full pressure)
     var lastFrame = performance.now(), frameN = 0;
     /* ?testclock (browser tests only): the simulation does not follow the wall clock.
        Time only moves, and frames only draw, when a test calls S.advance(seconds),
@@ -761,7 +783,18 @@
         var p = S.pointer, pr = S.pressure.update(dt);
         if (p.active) {
           S.lastT = p.t;
-          if (S.mode === "cut") {
+          if (sanding()) {
+            var roughHere = 1 - S.work.smoothAt(p.t);
+            S.work.sand(p.t, pr, dt, S.grit, S.rpm);
+            if (pr > 0.02) {
+              // paint and finish under the pad wear away; the hair of wood sanding takes is not a cut through the coat
+              S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
+              S.cutIntensity = Math.max(S.cutIntensity, 0.22 * pr * (0.3 + roughHere));
+              if (view.onSand) view.onSand(p.t, pr, roughHere, dt);
+              if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
+            }
+            S.coat.rebase(S.work);
+          } else if (S.mode === "cut") {
             var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
@@ -789,6 +822,8 @@
     syncOrder();
     applyUpgrades();
     clearLathe();      // nothing is loaded on its own: the player picks what to turn
+    S.sanding = sanding;
+    S.smoothHere = function () { return S.lastT >= 0 ? S.work.smoothAt(S.lastT) : 0; };
     S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };

@@ -14,11 +14,14 @@
              weak on purpose (about a third of the top one), and every rung is
              about 1.5x the last, so the motor is a real reason to save up.
      chisels the chisel tips on the rack (cutting.js TIPS)
+     abrasives grit { smooth, rate, floor }: the sandpaper on the rack, upgraded in place.
+             Finer grit evens the wood out faster and leaves it smoother (cutting.js sand).
+             The sandpaper itself ("sand") is on the rack from the start, like gouge and skew.
      brushes brush { flow, width }: paint goes on faster, and the wide brush is wider (paint.js brush)
      finish  spray { rate, width, even }: sheen builds faster, wider and more evenly (paint.js spray)
 
    The model owns the shop section of the save:
-     game.shop { owned: { light: 0, motor: 0, chisels: 0, brushes: 0, finish: 0 }, spent }
+     game.shop { owned: { light: 0, motor: 0, chisels: 0, abrasives: 0, brushes: 0, finish: 0 }, spent }
    Coins go through the shared wallet (state.js).
    ============================================================ */
 (function (root) {
@@ -55,6 +58,15 @@
         { name: "Roughing gouge", price: 2500, blurb: "A big wide gouge that takes a log round in a few passes.", tips: ["roughing"] }
       ]
     },
+    abrasives: {
+      name: "Sandpaper", blurb: "Finer grit, smoother wood. The sheet on the rack is swapped for the new one.",
+      tiers: [
+        { name: "80 grit", price: 0, blurb: "Coarse paper from a drawer. It takes the chisel marks down, mostly.", grit: { smooth: 1, rate: 1.6, floor: 0.35 } },
+        { name: "150 grit", price: 75, blurb: "Medium paper. Smooths faster, and the surface comes up finer.", grit: { smooth: 1.3, rate: 2.2, floor: 0.22 } },
+        { name: "240 grit", price: 300, blurb: "Fine paper. Faster still, and smooth enough to feel through a coat.", grit: { smooth: 1.7, rate: 3, floor: 0.12 } },
+        { name: "320 grit", price: 1000, blurb: "Very fine paper. The quickest, and the wood comes up like glass.", grit: { smooth: 2.2, rate: 4, floor: 0.05 } }
+      ]
+    },
     brushes: {
       name: "Brushes", blurb: "Better bristles hold more paint. A coat goes on in fewer passes.",
       tiers: [
@@ -74,7 +86,7 @@
       ]
     }
   };
-  var LINE_ORDER = ["light", "motor", "chisels", "brushes", "finish"];
+  var LINE_ORDER = ["light", "motor", "chisels", "abrasives", "brushes", "finish"];
 
   function defaultShop() {
     var owned = {};
@@ -128,16 +140,18 @@
     /* The paint brushes and the finish sprayer the workshop owns, for paint.js. */
     function brush() { return current("brushes").brush; }
     function spray() { return current("finish").spray; }
-    /* Every chisel tip on the rack: each chisels tier owned adds its tips. */
+    /* The sandpaper on the rack, for cutting.js sand(). */
+    function grit() { return current("abrasives").grit; }
+    /* Every tool on the rack: each chisels tier owned adds its tips, and the sandpaper is always there. */
     function tips() {
       var out = [], t = LINES.chisels.tiers;
       for (var i = 0; i <= level("chisels"); i++) out = out.concat(t[i].tips);
-      return out;
+      return out.concat(["sand"]);
     }
 
     return {
       state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
-      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray
+      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray, grit: grit
     };
   }
 

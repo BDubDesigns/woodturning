@@ -75,7 +75,7 @@ mine, monetization, distribution, and the one-month bet.
   and the spec card) that the piece is practice only and cannot be delivered.
   With the wood in the shed, PRACTISE is still there: the order goes on a free
   practice blank and the wood stays in the shed.
-  DONE grades the piece (shape 55%, paint 35%, sheen 10%). Under 50% the
+  DONE grades the piece (shape 55%, paint 31%, sheen 8%, smoothness 6%). Under 50% the
   customer turns it down: no pay, and the piece stays in the shed. From 50% to
   90% the pay rises from 30% to all of the reward, and at 90% and up it is the
   full reward plus a 10% bonus (one to three stars). DELIVER or KEEP IT. Only
@@ -85,6 +85,21 @@ mine, monetization, distribution, and the one-month bet.
   game is closed; GET ONE NOW on the empty slot posts one at once for a
   diamond. Model in `src/js/commissions.js`, screen in
 `src/js/commissions-ui.js`; the save section is `commissions`.
+
+- Sanding: every slice of the piece has a roughness. The raw log is rough;
+  each chisel leaves its own finish (a skew cleaner than a gouge, the roughing
+  gouge roughest), and cutting a sanded spot makes it rough again. SANDPAPER is
+  on the chisel rack from the start: with it picked, the same touch-below,
+  nudge-up input sands instead of cutting. Under a soft pad it pulls each slice
+  toward its neighbours (only ever down, so high spots come off and nothing is
+  built up), takes a hair of wood (sanding one spot forever slowly thins it),
+  wears paint and finish, and brings the roughness down to the grit's floor.
+  RPM and pressure speed it up, like cutting. The CUT DEPTH stat reads SMOOTH
+  under the pad while sanding. Arbor Freight's Sandpaper line upgrades the sheet
+  in place: 80 grit to start (roughness down to 0.35), 150 grit (75 coins,
+  0.22), 240 grit (300, 0.12) and 320 grit (1000, 0.05). Smoothness is 6% of
+  the grade: a mean roughness of 0.6 scores nothing, 0.08 scores it all.
+  Model in `cutting.js` (`rough`, `sand`, `smoothness`) and `paint.js` (`wear`).
 
 - Blueprints: the board only rolls orders for pieces whose blueprint you own.
   The rolling pin comes free; the baseball bat is 100 coins, the walking stick
