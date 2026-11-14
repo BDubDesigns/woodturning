@@ -77,7 +77,8 @@
   /* ---------------- blueprints ---------------- */
   function blueprintsHtml(coins) {
     var h = '<section class="af-line af-bp" id="afBlueprints"><div class="af-head"><span class="af-icon bp-icon">' + BP_ICON + '</span><div><h2>BLUEPRINTS</h2><p>Plans for new pieces. Own the plan and customers start ordering that piece. Harder pieces pay more.</p></div></div>';
-    C.BLUEPRINT_ORDER.forEach(function (k) {
+    // the ones still for sale first, cheapest at the top; what is owned below
+    C.BLUEPRINT_ORDER.filter(function (k) { return !board.ownsBlueprint(k); }).concat(C.BLUEPRINT_ORDER.filter(function (k) { return board.ownsBlueprint(k); })).forEach(function (k) {
       var def = C.PIECES[k], own = board.ownsBlueprint(k), ok = coins >= def.price;
       var pay = Math.round(def.base * (1 + C.CFG.BONUS));
       h += '<div class="bp-card' + (own ? " owned" : "") + '" data-bp-card="' + k + '">';
@@ -102,7 +103,7 @@
     host.renderWallet();
     render(true);
     flash(k);
-    if (G.OrdersUI) G.OrdersUI.render(true);
+    if (G.OrdersUI) { if (G.OrdersUI.bought) G.OrdersUI.bought(k); G.OrdersUI.render(true); }
     return r;
   }
   function flash(k, sel) {
@@ -139,7 +140,10 @@
     if (bp) { if (!bp.classList.contains("owned")) buyBlueprint(bp.getAttribute("data-blueprint")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;
     if (!b) return;
-    var k = b.getAttribute("data-buy"), r = shop.buy(k);
+    var k = b.getAttribute("data-buy"), tc = G.tutorial && G.tutorial.current();
+    // the tutorial's 100 coins are for the bat blueprint: nothing else until it is bought
+    if (tc && tc.id === "buy_bat" && !G.tutorial.isReplay()) { toast("First the Baseball bat blueprint, at the top of the store."); return; }
+    var r = shop.buy(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
       return;

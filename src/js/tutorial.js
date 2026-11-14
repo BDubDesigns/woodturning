@@ -37,24 +37,34 @@
      pieces(wood) logs(wood) blanks(wood) canDeliver(wood) delivered() activeWood()
      selectedEmpty() planted(wood) grown(wood) harvestPhase()
      coins() diamonds() plantPrice(wood)
+     tip() smoothHere() ownsBlueprint(kind) activeKind() hasOrder(kind)
      piecesAll() plantedAll() grownAll() emptyPlots() doneTaps()
      grant({ coins, diamonds, logs: { wood: n } })
-     postFirstBoard(list) resumeBoard() takeOrder(wood) setMode(mode) startReplay()
+     postFirstBoard(list) postOrder(def) resumeBoard() takeOrder(wood) setMode(mode) startReplay()
+     (grant may also carry blueprints: [kind], the skip pack's bat blueprint)
 
    The model owns the tutorial section of the save:
-     game.tutorial { step, done, replay, base, taps, granted: { coins, diamonds } }
+     game.tutorial { step, done, replay, base, taps, granted: { coins, diamonds, batLog, bat, bonus } }
    taps counts DONE presses (tutorial-ui.js), which a replay step can ask for.
    granted counts what the flow has handed out, so skipping part way through
-   tops the starter pack up instead of paying it twice.
+   tops the starter pack up instead of paying it twice. batLog, bat and bonus
+   flag the bat step's gifts (a pine log, 100 coins, the closing bonus), each
+   given once ever: a rescue that sends the player back, a reload or a replay
+   never pays them again.
    A save from before this flow existed is marked done on load (save.js).
    ============================================================ */
 (function (root) {
   "use strict";
 
-  /* Skipping the flow hands over what a player would have had by its end, and a bit to start with. */
-  var STARTER = { coins: 250, diamonds: 5 };
-  /* The speed-up step grants enough diamonds to finish an oak (5 x 2 minutes covers its 8). */
-  var GRANT_DIAMONDS = 5;
+  /* Skipping the flow hands over what a player would have had by its end, and a bit to start with:
+     coins and diamonds net of what the flow already gave, and the bat blueprint. */
+  var STARTER = { coins: 250, diamonds: 10, blueprints: ["baseball_bat"] };
+  /* The speed-up step grants enough diamonds to finish an oak (2 minutes each), with some to spare. */
+  var GRANT_DIAMONDS = 10;
+  var SAND_SMOOTH = 0.6;     // the practice sanding is done once SMOOTH under the pad reads this
+  /* The bat step: one authored order (the first piece you need a blueprint for), what it hands out. */
+  var BAT_ORDER = { seed: 3303, wood: "pine", kind: "baseball_bat", specKind: "twotone", sheen: "satin", client: "Coach Barrow" };
+  var BAT_COINS = 100, BONUS = { coins: 150, diamonds: 5 };
   var CUT_FRACTION = 0.02;   // the practice cut is done once this much wood is off
   var PAINT_COVER = 0.12;    // ...and the practice paint once this much of the piece has a coat
   var SHAPE_GOOD = 0.6;      // the first order's shape is "close enough to paint" here
@@ -87,9 +97,19 @@
       text: "A pine log is spinning. Touch below it, then nudge your finger up to push the chisel in. Slow and steady cuts deep. Take off a little wood. If this card is in the way, tap the glowing button at its top right to tuck it away.",
       showMin: true,
       done: function (c) { return n(c, "removed") >= CUT_FRACTION; } },
-    { id: "to_paint", screen: "lathe", target: ["#modePaint"],
+    { id: "pick_sand", screen: "lathe", target: ["#tipSand"],
       title: "Nice cut",
-      text: "Now let's give it some colour. Tap PAINT.",
+      text: "Wood comes off the chisel a bit rough. Tap SANDPAPER.",
+      hint: function (c) { var m = s(c, "mode"); return m && m !== "cut" ? "The sandpaper is with the chisels: tap CUT first." : null; },
+      done: function (c) { return s(c, "tip") === "sand"; } },
+    { id: "sand", screen: "lathe", target: ["#stage"],
+      title: "Sand it smooth",
+      text: "Press it to the spinning wood, just like the chisel. The dark lines fade and dust flies off. When the dust thins out, that spot is smooth. Sand until SMOOTH reads " + Math.round(SAND_SMOOTH * 100) + "%.",
+      hint: function (c) { return s(c, "tip") !== "sand" ? "Tap SANDPAPER again to pick it back up." : null; },
+      done: function (c) { return n(c, "smoothHere") >= SAND_SMOOTH; } },
+    { id: "to_paint", screen: "lathe", target: ["#modePaint"],
+      title: "Nice and smooth",
+      text: "Smooth. Now let's give it some colour. Tap PAINT.",
       done: function (c) { var m = s(c, "mode"); return !!m && m !== "cut"; } },
     { id: "paint", screen: "lathe", target: ["#swatches"],
       title: "Paint it spinning",
@@ -207,20 +227,44 @@
         text: "Your blank is on the lathe. Turn it for an order whose wood it is, or just for fun. That is the whole loop: grow, harvest, turn, paint, finish, deliver.",
         done: function () { return false; } } },
 
-    /* ---- graduation ---- */
-    { id: "graduate", unlock: ["shop", "mine"], target: ["#tabShop"],
+    /* ---- the bat: a blueprint, the shop, a job of your own ---- */
+    { id: "bat_order", unlock: ["shop"], target: ["#tabShop"],
+      title: "A bigger job",
+      text: "Coach Barrow wants a bat. Bigger jobs pay more, but you need the blueprint first. Tap SHOP.",
+      enter: function (c, t) {
+        if (!s(c, "hasOrder", BAT_ORDER.kind)) call(c, "postOrder", BAT_ORDER);
+        if (!t.state.granted.batLog && t.give({ logs: { pine: 1 }, note: "A neighbour dropped off a pine log." })) t.state.granted.batLog = true;
+      },
+      done: function (c) { return s(c, "screen") === "shop" || !!s(c, "ownsBlueprint", BAT_ORDER.kind); },
+      rescue: rescueBatPine,
+      replay: { enter: null, rescue: null, title: "Blueprints", text: "New kinds of orders need a blueprint from Arbor Freight. Tap SHOP." } },
+    { id: "buy_bat", target: ['[data-blueprint="' + BAT_ORDER.kind + '"]', "#tabShop"],
+      title: "Buy the blueprint",
+      text: "Blueprints unlock new kinds of orders. The harder the piece, the more it pays. Here are " + BAT_COINS + " coins: buy the Baseball bat.",
+      enter: function (c, t) {
+        if (!t.state.granted.bat && !s(c, "ownsBlueprint", BAT_ORDER.kind) && t.give({ coins: BAT_COINS, note: "Here are " + BAT_COINS + " coins for the blueprint." })) t.state.granted.bat = true;
+      },
+      done: function (c) { return !!s(c, "ownsBlueprint", BAT_ORDER.kind); },
+      rescue: rescueBatPine,
+      replay: { enter: null, rescue: null } },
+    { id: "take_bat", target: ['[data-kind="' + BAT_ORDER.kind + '"] [data-act="take"]', '[data-kind="' + BAT_ORDER.kind + '"] [data-act="lathe"]', "#tabOrders"],
+      title: "Take the job",
+      text: "The bat job is yours now. Tap ORDERS and take it.",
+      done: function (c) { return s(c, "activeKind") === BAT_ORDER.kind && s(c, "screen") === "lathe"; },
+      rescue: rescueBatPine,
+      replay: { rescue: null, title: "Take a job", target: ['[data-act="take"]', '[data-act="lathe"]', "#tabOrders"],
+        text: "Tap ORDERS and take any job you like.",
+        done: function (c) { return !!s(c, "activeKind") && s(c, "screen") === "lathe"; } } },
+    { id: "wrap", unlock: ["mine"], target: ["#tabMine"], dismiss: true,
       title: "You're a woodturner",
-      text: "The board fills up with new orders now. Coins buy better tools at Arbor Freight. Tap SHOP.",
-      enter: function (c) { call(c, "resumeBoard"); },
-      done: function (c) { return s(c, "screen") === "shop"; },
-      replay: { title: "That's the tour", enter: null, dismiss: true, target: ["#tabShop", "#tabMine"],
-        text: "Coins buy better tools at Arbor Freight (SHOP). The MINE is for diamonds: watch a short ad, crack the vein, 5 diamonds. Replay this any time from Settings.",
-        done: function () { return false; } } },
-    { id: "shop", screen: "shop", target: ['[data-buy="light"]'], dismiss: true,
-      title: "Arbor Freight",
-      text: "A halogen work light is a good first buy. The MINE tab is for diamonds: watch a short ad, crack the vein, 5 diamonds. Everything is open now. Have fun.",
+      text: "Here's a little extra to get you going: " + BONUS.coins + " coins and " + BONUS.diamonds + " diamonds. Finish this bat on your own. New blueprints, finer sandpaper and better tools are at Arbor Freight. The MINE is for diamonds.",
+      enter: function (c, t) {
+        if (!t.state.granted.bonus && t.give({ coins: BONUS.coins, diamonds: BONUS.diamonds, note: "Bonus: " + BONUS.coins + " coins and " + BONUS.diamonds + " diamonds." })) t.state.granted.bonus = true;
+        call(c, "resumeBoard");
+      },
       done: function () { return false; },
-      replay: { skip: true } }
+      replay: { title: "That's the tour", target: ["#tabShop", "#tabMine"],
+        text: "New blueprints, finer sandpaper and better tools are at Arbor Freight (SHOP). The MINE is for diamonds: watch a short ad, crack the vein, 5 diamonds. Replay this any time from Settings." } }
   ];
 
   function topUpOak(c, t) {
@@ -236,19 +280,28 @@
     }
   }
 
+  /* The bat needs pine. If the gifted log went into a rejected piece, a neighbour drops off another. */
+  function rescueBatPine(c, t) {
+    if (s(c, "activeKind") === BAT_ORDER.kind && s(c, "screen") === "lathe") return;
+    if (!hasWood(c, "pine")) t.give({ logs: { pine: 1 }, note: "A neighbour dropped off a pine log." });
+  }
+
   var BY_ID = {};
   STEPS.forEach(function (st, i) { st.index = i; BY_ID[st.id] = st; });
 
   function count(v) { return typeof v === "number" && isFinite(v) && v > 0 ? v : 0; }
   function normalize(t) {
-    var out = { step: null, done: false, replay: false, base: {}, granted: { coins: 0, diamonds: 0 } };
+    var out = { step: null, done: false, replay: false, base: {}, granted: { coins: 0, diamonds: 0, batLog: false, bat: false, bonus: false } };
     if (!t || typeof t !== "object") return out;
     out.done = !!t.done;
     out.replay = !t.done && !!t.replay;
     if (typeof t.step === "string" && BY_ID[t.step]) out.step = t.step;
     if (t.base && typeof t.base === "object") BASE_READINGS.forEach(function (k) { if (count(t.base[k])) out.base[k] = t.base[k]; });
     if (count(t.taps)) out.taps = Math.floor(t.taps);
-    if (t.granted && typeof t.granted === "object") { out.granted.coins = count(t.granted.coins); out.granted.diamonds = count(t.granted.diamonds); }
+    if (t.granted && typeof t.granted === "object") {
+      out.granted.coins = count(t.granted.coins); out.granted.diamonds = count(t.granted.diamonds);
+      out.granted.batLog = !!t.granted.batLog; out.granted.bat = !!t.granted.bat; out.granted.bonus = !!t.granted.bonus;
+    }
     return out;
   }
   /* A step as it runs: in a replay its replay fields stand in for the usual ones. */
@@ -328,14 +381,14 @@
     /* What skipping would hand over now: the starter pack, less what the flow already gave. */
     function skipGrant() {
       if (T.done || T.replay) return { coins: 0, diamonds: 0 };
-      return { coins: Math.max(0, STARTER.coins - T.granted.coins), diamonds: Math.max(0, STARTER.diamonds - T.granted.diamonds) };
+      return { coins: Math.max(0, STARTER.coins - T.granted.coins), diamonds: Math.max(0, STARTER.diamonds - T.granted.diamonds), blueprints: STARTER.blueprints.slice() };
     }
     /* Leave the flow: everything opens, the rest of the starter pack is handed over and the
        board fills. Leaving a replay just ends it. */
     function skip() {
       if (T.done) return;
       var g = skipGrant();
-      if (g.coins || g.diamonds) give(g);
+      if (g.coins || g.diamonds || (g.blueprints && g.blueprints.length)) give(g);
       finish();
       call(ctx, "resumeBoard");
     }
@@ -353,8 +406,8 @@
       replay: replay, give: give, skipGrant: skipGrant, base: function () { return T.base || {}; },
       get done() { return T.done; }, isActive: function () { return !T.done; },
       isReplay: function () { return !T.done && T.replay; },
-      // the board waits until graduation, which refills it; a replay never holds it up
-      boardPaused: function () { var c = current(); return !!c && !T.replay && c.index < BY_ID.graduate.index; },
+      // the board waits until the last card, which refills it; a replay never holds it up
+      boardPaused: function () { var c = current(); return !!c && !T.replay && c.index < BY_ID.wrap.index; },
       // while a first run is on, the board is just its two orders (commissions-ui.js)
       guidedBoard: function () { return !T.done && !T.replay; }
     };
@@ -363,6 +416,7 @@
 
   var api = {
     STEPS: STEPS, BY_ID: BY_ID, TABS: TABS, FIRST_BOARD: FIRST_BOARD, PRACTICE_SPEC: PRACTICE_SPEC, STARTER: STARTER, GRANT_DIAMONDS: GRANT_DIAMONDS,
+    BAT_ORDER: BAT_ORDER, BAT_COINS: BAT_COINS, BONUS: BONUS, SAND_SMOOTH: SAND_SMOOTH,
     CUT_FRACTION: CUT_FRACTION, PAINT_COVER: PAINT_COVER, SHAPE_GOOD: SHAPE_GOOD,
     normalize: normalize, createTutorial: createTutorial
   };
