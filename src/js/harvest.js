@@ -550,15 +550,20 @@
     // the whole limb comes away and leaves a flush stub
     if (arc <= cleanStub(L)) arc = Math.min(arc, H.FLUSH);
     // cut through: everything past arc comes away
-    var piece = { id: L.id, b: L.b, from: arc, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: true };
+    // only the stretch from the cut to the old stub comes away: the rest fell with the last cut.
+    // The first cut takes the leafy end; a stub cut shorter again is bare wood, so its piece is too
+    var to = L.stub, first = L.stub >= L.b.len - 1e-6;
+    var piece = { id: L.id, b: L.b, from: arc, to: to, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: first };
     var wp = L.wp, k, X, Y;
     var cutPt = this._pointAt(L, arc);
     piece.ox = cutPt.x; piece.oy = cutPt.y; piece.ox0 = cutPt.x; piece.oy0 = cutPt.y;
     for (k = 0; k < wp.length; k++) {
-      if (wp[k].s <= arc) continue;
+      if (wp[k].s <= arc || wp[k].s >= to) continue;
       piece.pts.push({ x: wp[k].x - cutPt.x, y: wp[k].y - cutPt.y, s: wp[k].s });
     }
     piece.pts.unshift({ x: 0, y: 0, s: arc });
+    var endPt = this._pointAt(L, to);
+    piece.pts.push({ x: endPt.x - cutPt.x, y: endPt.y - cutPt.y, s: to });
     var dirx = wp[wp.length - 1].x - cutPt.x;
     piece.vx = (dirx >= 0 ? 1 : -1) * (0.6 + Math.random() * 0.9);
     piece.vy = 1.2 + Math.random() * 1.0;

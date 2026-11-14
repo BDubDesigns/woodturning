@@ -347,6 +347,14 @@
     if (cur && !tut.unlocked(cur)) G.showScreen("lathe");
     setInterval(refresh, 400);
     root.addEventListener("resize", function () { if (minimized) pillHome(true); place(tut.current()); });
+    // the ring is fixed to the window, so it follows its control on every scrolled frame
+    // (the store and the board scroll; capture catches scrolls on any element)
+    var scrollQueued = false;
+    document.addEventListener("scroll", function () {
+      if (scrollQueued || ring.hidden) return;          // nothing to follow: no work on a scroll at all
+      scrollQueued = true;
+      requestAnimationFrame(function () { scrollQueued = false; place(tut.current()); });
+    }, true);
     document.addEventListener("click", function () { setTimeout(refresh, 0); }, true);
     document.addEventListener("pointerup", function () { setTimeout(refresh, 30); }, true);
   }

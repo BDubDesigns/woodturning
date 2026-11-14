@@ -168,7 +168,8 @@
         return '<li>' + starsHtml(r.stars) + '<span class="h-what"><b>' + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + "</b><small>for " + esc(r.client) + (w ? " · " + w.name : "") + '</small></span><span class="h-pay">' + COIN + "+" + r.pay + "</span></li>";
       }).join("") + "</ul></section>";
     }
-    f += '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p>';
+    f += '<section class="order help" aria-label="How orders work"><div class="h-top"><span class="h-k">HOW ORDERS WORK</span></div>' +
+      '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p></section>';
     footEl.innerHTML = f;
   }
   function tickClock() {

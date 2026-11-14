@@ -878,8 +878,9 @@
         g.save(); g.globalAlpha = fade;
         g.translate(sx(p.ox), sy(p.oy)); g.rotate(-p.rot); g.translate(-sx(p.ox0), -sy(p.oy0));
         frame(sx(lg.bx), sy(lg.by), lg.dir * Math.PI / 2, function () {
-          drawBranch(p.b, p.from, p.b.len, lg.hStar, false);
-          drawCanopy([{ b: p.b, a0: p.from, a1: p.b.len }], lg.hStar, false);
+          var to = p.to != null ? p.to : p.b.len;
+          drawBranch(p.b, p.from, to, lg.hStar, false);
+          if (p.leaf !== false) drawCanopy([{ b: p.b, a0: p.from, a1: to }], lg.hStar, false);   // a bare stub cut again drops bare wood
         });
         g.restore();
       }
