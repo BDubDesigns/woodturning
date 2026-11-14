@@ -723,11 +723,41 @@ header .gear-btn { margin-left: 4px; }
 .coach.at-bottom { bottom: max(16px, env(safe-area-inset-bottom)); }
 .coach.at-top { top: 112px; }
 .coach-k { font-size: 10px; letter-spacing: 0.14em; color: var(--amber); display: flex; justify-content: space-between; }
-.coach-k span { color: var(--faint); }
+.coach-k span { color: var(--faint); display: inline-flex; align-items: center; gap: 8px; }
+.coach-min {
+  pointer-events: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 26px; margin: -6px -6px -6px 0; border-radius: 7px; cursor: pointer;
+  background: var(--btn-bg); color: var(--dim); border: 1px solid var(--chrome-line);
+}
+.coach-min:active { transform: scale(0.94); }
+/* the tucked-away card: a glowing button by DONE, or floating on the other screens */
+.coach-pill {
+  border-color: var(--amber) !important; color: var(--amber);
+  animation: coach-glow 1.6s ease-in-out infinite;
+}
+.coach-pill { position: relative; z-index: 6; }
+.coach-pill.docked, .coach-pill.corner { width: 44px; padding: 0; justify-content: center; border-radius: 50%; }
+.coach-pill.docked .cp-word, .coach-pill.corner .cp-word { display: none; }
+.coach-pill .cp-n { display: none; }
+.coach-pill.docked .cp-n, .coach-pill.corner .cp-n {
+  display: block; position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
+  border-radius: 9px; background: var(--amber); color: #1b130b; font-size: 11px; line-height: 18px; text-align: center; font-weight: 700;
+}
+.coach-pill.corner { position: absolute; right: 12px; bottom: 12px; background: var(--chrome-bg); }
+.coach-pill.floating {
+  position: fixed; gap: 8px; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+  background: var(--chrome-bg); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+@keyframes coach-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 163, 61, 0.55), 0 0 10px rgba(232, 163, 61, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(232, 163, 61, 0), 0 0 18px rgba(232, 163, 61, 0.6); }
+}
 .coach-t { margin: 4px 0 4px; font-size: 17px; line-height: 1.2; }
 .coach-p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--dim); }
 .coach-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .coach-row button { pointer-events: auto; }
+.coach.confirm { border-color: var(--amber); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
+.coach.confirm .coach-row .act { flex: 1 1 140px; }
 .coach-skip {
   background: none; border: 0; padding: 6px 2px; color: var(--faint);
   font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer;
@@ -739,4 +769,4 @@ header .gear-btn { margin-left: 4px; }
 }
 @keyframes coach-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes coach-pulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.25); } 50% { box-shadow: 0 0 0 10px rgba(232, 163, 61, 0.08); } }
-@media (prefers-reduced-motion: reduce) { .coach, .coach-ring { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .coach, .coach-ring, .coach-pill { animation: none; transition: none; } }

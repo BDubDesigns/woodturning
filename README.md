@@ -126,8 +126,15 @@ mine, monetization, distribution, and the one-month bet.
   short), 5 diamonds to GROW NOW, and the forest's chop, delimb and saw; then
   the oak order is turned and delivered. Graduation opens SHOP and MINE and
   fills the board. While the flow runs the board does not post or offer
-  DECLINE, PRACTISE or GET ONE NOW. "Skip tutorial" on the first card opens
-  everything with the starter pack (250 coins, 5 diamonds). Saves from before
+  DECLINE, PRACTISE or GET ONE NOW. "Skip tutorial" is on every card and asks
+  first (KEEP LEARNING or SKIP IT), saying what skipping means: everything opens,
+  with the starter pack (250 coins, 5 diamonds) less whatever the tutorial already
+  handed out. The hide button on a card tucks it into a glowing "?" button
+  (by DONE on the lathe, floating elsewhere); tapping it brings the step back,
+  and a new step opens its card again. Settings has REPLAY TUTORIAL once the
+  tutorial is over: the same steps, but every tab stays open, nothing is handed
+  out, the board runs as usual and it starts on a practice blank; its steps
+  accept any order, any wood, and waiting instead of diamonds. Saves from before
   the flow skip it. The steps are data in `src/js/tutorial.js`; the card, ring
   and tab gating are `src/js/tutorial-ui.js`. `?tutorial=off` skips it (the
   older browser checks use it).

@@ -191,6 +191,8 @@
       S.cutBoost = shop.cutBoost();
       S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
       S.sprayGun = shop.spray();
+      var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
+      if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
       setTips(shop.tips());
     }
     L.applyUpgrades = applyUpgrades;

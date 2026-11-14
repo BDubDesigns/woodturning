@@ -41,6 +41,9 @@
   function openSettings() {
     armed = false;
     settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' +
+      (G.tutorial && G.tutorial.done ?
+        '<p class="g-note">Walk through the tutorial again. Nothing in your game changes: every tab stays open and nothing is given out a second time.</p>' +
+        '<div class="row"><button type="button" class="act primary" data-act="replay"><span class="an">REPLAY TUTORIAL</span><span class="ad">A guided tour of the game</span></button></div>' : "") +
       '<p class="g-note">Reset to see the game as a new player sees it. This wipes everything on this device: coins, diamonds, trees, the shed, orders and upgrades.</p>' +
       '<div class="row"><button type="button" class="act danger" data-act="reset"><span class="an">RESET PROFILE</span><span class="ad">Start over from nothing</span></button>' +
       '<button type="button" class="act" data-act="close"><span class="an">CLOSE</span><span class="ad">Keep playing</span></button></div></div>';
@@ -57,6 +60,11 @@
     var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
     if (!b) return;
     if (b.getAttribute("data-act") === "close") { closeSettings(); return; }
+    if (b.getAttribute("data-act") === "replay") {
+      closeSettings();
+      if (G.tutorial && G.tutorial.replay() && G.tutorialRefresh) G.tutorialRefresh();
+      return;
+    }
     if (!armed) {
       armed = true;
       b.classList.add("armed");

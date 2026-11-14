@@ -106,6 +106,7 @@ await page.click('[data-buy="finish"]');
 check(/Installed: Trigger sprayer/.test(await page.locator("#stoast").textContent()), "the trigger sprayer is installed");
 await page.evaluate(() => window.Game.showScreen("lathe"));
 const paint1 = await stroke("paint"), sheen1 = await stroke("finish");
+check((await page.locator("#finishName").textContent()) === "TRIGGER SPRAYER", "the finish panel names the trigger sprayer");
 check(paint1 > paint0 * 1.2, `the same stroke lays more paint with the sash brush (${paint0.toFixed(3)} -> ${paint1.toFixed(3)})`);
 check(sheen1 > sheen0 * 1.2, `the same sweep builds more sheen with the trigger sprayer (${sheen0.toFixed(3)} -> ${sheen1.toFixed(3)})`);
 await page.evaluate(() => window.__lathe.setMode("cut"));

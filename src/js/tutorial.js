@@ -15,6 +15,19 @@
                to go on (a pine log) or send them back a step (returns an id)
      dismiss   the card has a GOT IT button that ends the step
      mode      the lathe mode the step starts in (an order starts at the chisel)
+     replay    what changes when the flow is replayed (see below): any of the
+               fields above, and skip: true to leave the step out
+
+   done, enter and rescue are called as (ctx, t), t being the tutorial; hand-outs
+   go through t.give(bundle), never ctx.grant, so they can be counted and held back.
+
+   Replay (Settings, REPLAY TUTORIAL, once the flow is done or skipped) walks the
+   same steps for a player who has played. It never takes anything back and never
+   hands anything out: every tab stays open, give() does nothing, the board keeps
+   running as normal and no first board is posted. A returning player may have no
+   pine or no diamonds, so in a replay a step counts doing the thing at all (any
+   order, any wood, waiting instead of diamonds), measured against t.base(), the
+   readings taken when the step began.
 
    ctx is how the flow sees the game, supplied by tutorial-ui.js and faked
    in the tests. Everything is optional; a missing reading counts as 0:
@@ -22,11 +35,15 @@
      pieces(wood) logs(wood) blanks(wood) canDeliver(wood) delivered() activeWood()
      selectedEmpty() planted(wood) grown(wood) harvestPhase()
      coins() diamonds() plantPrice(wood)
+     piecesAll() plantedAll() grownAll() emptyPlots() doneTaps()
      grant({ coins, diamonds, logs: { wood: n } })
-     postFirstBoard(list) resumeBoard() takeOrder(wood) setMode(mode)
+     postFirstBoard(list) resumeBoard() takeOrder(wood) setMode(mode) startReplay()
 
    The model owns the tutorial section of the save:
-     game.tutorial { step, done }
+     game.tutorial { step, done, replay, base, taps, granted: { coins, diamonds } }
+   taps counts DONE presses (tutorial-ui.js), which a replay step can ask for.
+   granted counts what the flow has handed out, so skipping part way through
+   tops the starter pack up instead of paying it twice.
    A save from before this flow existed is marked done on load (save.js).
    ============================================================ */
 (function (root) {
@@ -53,6 +70,10 @@
   /* Can the player still make (or hand over) a piece of this wood? A rejected piece stays in the shed but cannot go. */
   function hasWood(ctx, wood) { return n(ctx, "logs", wood) + n(ctx, "blanks", wood) > 0 || !!s(ctx, "canDeliver", wood); }
 
+  /* For replay steps: has this reading gone up since the step began? */
+  function grew(c, t, name) { return n(c, name) > ((t && t.base()[name]) || 0); }
+  var BASE_READINGS = ["delivered", "piecesAll", "plantedAll", "doneTaps"];
+
   var STEPS = [
     /* ---- the lathe, on a practice piece of real pine ---- */
     { id: "cut", screen: "lathe", unlock: ["lathe"], target: ["#stage"],
@@ -78,60 +99,80 @@
     { id: "keep", screen: "lathe", target: ["#doneBtn"],
       title: "Your first piece",
       text: "Tap DONE to take it off the lathe. It goes in the shed.",
-      done: function (c) { return n(c, "pieces", "pine") >= 1 || n(c, "delivered") >= 1; } },
+      done: function (c) { return n(c, "pieces", "pine") >= 1 || n(c, "delivered") >= 1; },
+      replay: { text: "Tap DONE to take it off the lathe. Real wood goes in the shed as a piece; this practice blank was just for practice.",
+        done: function (c, t) { return grew(c, t, "doneTaps") || grew(c, t, "piecesAll"); } } },
 
     /* ---- the first commission ---- */
     { id: "to_orders", unlock: ["orders"], target: ["#tabOrders"],
       title: "Customers are waiting",
       text: "People pay for turned pieces. Tap ORDERS to see who wants what.",
       enter: function (c) { call(c, "postFirstBoard", FIRST_BOARD); },
-      done: function (c) { return s(c, "screen") === "orders"; } },
+      done: function (c) { return s(c, "screen") === "orders"; },
+      replay: { enter: null } },
     { id: "take", screen: "orders", target: ['[data-wood="pine"] [data-act="take"]', '[data-wood="pine"]'],
       title: "Pick the pine one",
       text: "Each order names a shape, a wood, a paint and a finish. You have pine logs, so take the pine rolling pin.",
-      done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; } },
+      done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; },
+      replay: { title: "Pick an order", target: ['[data-act="take"]', '[data-act="lathe"]', ".order[data-order]"],
+        text: "Each order names a shape, a wood, a paint and a finish. The card says if your shed has that wood. Tap TAKE IT (or PRACTISE IT if you have none).",
+        done: function (c) { return !!s(c, "activeWood") && s(c, "screen") === "lathe"; } } },
     { id: "turn", screen: "lathe", target: ["#profileBar"], mode: "cut",
       title: "Turn to the line",
       text: "The dashed line is the shape they want, on the log and in the strip below it. Cut down to it. SHAPE shows how close you are.",
       done: function (c) { return n(c, "shape") >= SHAPE_GOOD || (s(c, "mode") && s(c, "mode") !== "cut"); },
-      rescue: rescuePine },
+      rescue: rescuePine, replay: { rescue: null } },
     { id: "order_paint", screen: "lathe", target: ["#modePaint", "#specBar"],
       title: "Paint to the order",
       text: "Close enough. Tap PAINT and match the WANTED strip. The colours it needs are marked in the palette. Then FINISH and spray to the sheen it asks for.",
       done: function (c) { return s(c, "mode") === "finish" || n(c, "delivered") >= 1; },
-      rescue: rescuePine },
+      rescue: rescuePine,
+      replay: { rescue: null, done: function (c, t) { return s(c, "mode") === "finish" || grew(c, t, "delivered"); } } },
     { id: "deliver", target: ['[data-act="give"]', '[data-act="deliver"]', "#doneBtn"],
       title: "Deliver it",
       text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay. Kept it instead? DELIVER is on its order in ORDERS.",
       done: function (c) { return n(c, "delivered") >= 1; },
-      rescue: rescuePine },
+      rescue: rescuePine,
+      replay: { rescue: null, text: "When the sheen matches, tap DONE. If it is the order's own wood, DELIVER gets you paid: the closer, the more. Practice pieces can't be delivered.",
+        done: function (c, t) { return grew(c, t, "delivered") || grew(c, t, "doneTaps"); } } },
 
     /* ---- the wood you don't have ---- */
     { id: "to_farm", unlock: ["farm"], target: ["#tabFarm"],
       title: "No oak in the shed",
       text: "The other order wants oak, and you have none. Trees grow on the farm. Tap FARM.",
-      done: function (c) { return s(c, "screen") === "farm" || n(c, "planted", "oak") > 0; } },
+      done: function (c) { return s(c, "screen") === "farm" || n(c, "planted", "oak") > 0; },
+      replay: { title: "Where wood comes from", text: "Every log starts as a tree on the farm. Tap FARM.",
+        done: function (c) { return s(c, "screen") === "farm"; } } },
     { id: "plot", screen: "farm", target: [".plot.empty"],
       title: "Pick a plot",
       text: "Tap an empty plot.",
-      done: function (c) { return !!s(c, "selectedEmpty") || n(c, "planted", "oak") > 0; } },
+      done: function (c) { return !!s(c, "selectedEmpty") || n(c, "planted", "oak") > 0; },
+      replay: { text: "Tap an empty plot. (No room? Every plot is growing already, so on we go.)",
+        done: function (c, t) { return !!s(c, "selectedEmpty") || grew(c, t, "plantedAll") || !n(c, "emptyPlots"); } } },
     { id: "plant", screen: "farm", target: ['[data-plant="oak"]', ".plot.empty"],
       title: "Plant an oak",
       text: "Tap OAK to plant it. Seeds cost coins. Trees grow in real time, even with the game closed, so keep some planted.",
       enter: topUpOak,
-      rescue: function (c) { topUpOak(c); },
-      done: function (c) { return n(c, "planted", "oak") > 0; } },
+      rescue: function (c, t) { topUpOak(c, t); },
+      done: function (c) { return n(c, "planted", "oak") > 0; },
+      replay: { title: "Plant a tree", target: ['[data-plant]', ".plot.empty"], enter: null, rescue: null,
+        text: "Pick a wood to plant. Seeds cost coins, and dearer woods pay more. Trees grow in real time, even with the game closed, so keep some planted.",
+        done: function (c, t) { return grew(c, t, "plantedAll") || !n(c, "emptyPlots"); } } },
     { id: "speed", screen: "farm", target: ['[data-act="grownow"]', '[data-act="speedup"]', ".plot.growing"],
       title: "No time to wait",
       text: "Oak takes a while. Here are " + GRANT_DIAMONDS + " diamonds: each one skips two minutes. Tap GROW NOW to finish it.",
-      enter: function (c) { var d = GRANT_DIAMONDS - n(c, "diamonds"); if (d > 0) call(c, "grant", { diamonds: d }); },
+      enter: function (c, t) { var d = GRANT_DIAMONDS - n(c, "diamonds"); if (d > 0) t.give({ diamonds: d }); },
       done: function (c) { return n(c, "grown", "oak") > 0; },
-      rescue: function (c) { if (!n(c, "planted", "oak")) return "plot"; } },
+      rescue: function (c) { if (!n(c, "planted", "oak")) return "plot"; },
+      replay: { title: "Growing", enter: null, rescue: null,
+        text: "A diamond skips two minutes: tap SPEED UP or GROW NOW. Or just wait. It grows on its own, even with the game closed, and this card waits too.",
+        done: function (c) { return n(c, "grownAll") > 0; } } },
     { id: "harvest", screen: "farm", target: ['[data-act="harvest"]', ".plot.mature"],
       title: "Ready to harvest",
       text: "Tap the grown oak, then HARVEST to take it to the forest.",
       done: function (c) { return s(c, "screen") === "harvest"; },
-      rescue: function (c) { if (!n(c, "grown", "oak") && !hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "plot"; } },
+      rescue: function (c) { if (!n(c, "grown", "oak") && !hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "plot"; },
+      replay: { text: "Tap a grown tree, then HARVEST to take it to the forest.", rescue: function (c) { if (!n(c, "grownAll")) return "speed"; } } },
 
     /* ---- the forest ---- */
     { id: "chop", screen: "harvest", target: [],
@@ -153,41 +194,61 @@
       text: "The oak order is on the lathe. Same as before: turn to the line, paint to the strip, finish, then DONE and DELIVER.",
       enter: function (c) { call(c, "takeOrder", "oak"); },
       done: function (c) { return n(c, "delivered") >= 2; },
-      rescue: function (c) { if (!hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "to_farm"; } },
+      rescue: function (c) { if (!hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "to_farm"; },
+      replay: { title: "Fresh from the saw", target: ["#stage"], enter: null, rescue: null, dismiss: true,
+        text: "Your blank is on the lathe. Turn it for an order whose wood it is, or just for fun. That is the whole loop: grow, harvest, turn, paint, finish, deliver.",
+        done: function () { return false; } } },
 
     /* ---- graduation ---- */
     { id: "graduate", unlock: ["shop", "mine"], target: ["#tabShop"],
       title: "You're a woodturner",
       text: "The board fills up with new orders now. Coins buy better tools at Arbor Freight. Tap SHOP.",
       enter: function (c) { call(c, "resumeBoard"); },
-      done: function (c) { return s(c, "screen") === "shop"; } },
+      done: function (c) { return s(c, "screen") === "shop"; },
+      replay: { title: "That's the tour", enter: null, dismiss: true, target: ["#tabShop", "#tabMine"],
+        text: "Coins buy better tools at Arbor Freight (SHOP). The MINE is for diamonds: watch a short ad, crack the vein, 5 diamonds. Replay this any time from Settings.",
+        done: function () { return false; } } },
     { id: "shop", screen: "shop", target: ['[data-buy="light"]'], dismiss: true,
       title: "Arbor Freight",
       text: "A halogen work light is a good first buy. The MINE tab is for diamonds: watch a short ad, crack the vein, 5 diamonds. Everything is open now. Have fun.",
-      done: function () { return false; } }
+      done: function () { return false; },
+      replay: { skip: true } }
   ];
 
-  function topUpOak(c) {
+  function topUpOak(c, t) {
     var need = n(c, "plantPrice", "oak") - n(c, "coins");
-    if (need > 0 && !n(c, "planted", "oak")) call(c, "grant", { coins: need });
+    if (need > 0 && !n(c, "planted", "oak")) t.give({ coins: need });
   }
   /* The first order needs pine. If it all went into rejected pieces, a neighbour drops a log off. */
-  function rescuePine(c) {
+  function rescuePine(c, t) {
     if (n(c, "delivered") >= 1) return;
     // a mounted log stays in the shed until DONE, so none left means none on the lathe either
     if (!hasWood(c, "pine")) {
-      call(c, "grant", { logs: { pine: 1 }, note: "A neighbour dropped off a pine log." });
+      t.give({ logs: { pine: 1 }, note: "A neighbour dropped off a pine log." });
     }
   }
 
   var BY_ID = {};
   STEPS.forEach(function (st, i) { st.index = i; BY_ID[st.id] = st; });
 
+  function count(v) { return typeof v === "number" && isFinite(v) && v > 0 ? v : 0; }
   function normalize(t) {
-    var out = { step: null, done: false };
+    var out = { step: null, done: false, replay: false, base: {}, granted: { coins: 0, diamonds: 0 } };
     if (!t || typeof t !== "object") return out;
     out.done = !!t.done;
+    out.replay = !t.done && !!t.replay;
     if (typeof t.step === "string" && BY_ID[t.step]) out.step = t.step;
+    if (t.base && typeof t.base === "object") BASE_READINGS.forEach(function (k) { if (count(t.base[k])) out.base[k] = t.base[k]; });
+    if (count(t.taps)) out.taps = Math.floor(t.taps);
+    if (t.granted && typeof t.granted === "object") { out.granted.coins = count(t.granted.coins); out.granted.diamonds = count(t.granted.diamonds); }
+    return out;
+  }
+  /* A step as it runs: in a replay its replay fields stand in for the usual ones. */
+  function effective(st, replay) {
+    if (!st || !replay || !st.replay) return st;
+    var out = {};
+    for (var k in st) if (k !== "replay") out[k] = st[k];
+    for (var r in st.replay) out[r] = st.replay[r];
     return out;
   }
 
@@ -203,32 +264,43 @@
     var T = game.tutorial;
     if (!T.done && !T.step) T.step = STEPS[0].id;
 
-    function current() { return T.done ? null : BY_ID[T.step] || null; }
+    function current() { return T.done ? null : effective(BY_ID[T.step], T.replay) || null; }
     function unlocked(tab) {
-      if (T.done || tab === "lathe" || tab === "harvest") return true;
+      if (T.done || T.replay || tab === "lathe" || tab === "harvest") return true;
       var cur = current(), upto = cur ? cur.index : STEPS.length - 1;
       for (var i = 0; i <= upto; i++) if ((STEPS[i].unlock || []).indexOf(tab) >= 0) return true;
       return false;
     }
+    function snapshot() { var b = {}; BASE_READINGS.forEach(function (k) { b[k] = n(ctx, k); }); return b; }
     function go(id) {
-      var st = BY_ID[id];
+      var st = effective(BY_ID[id], T.replay);
       if (!st) { finish(); return; }
       T.step = id;
+      T.base = snapshot();
       if (st.mode) call(ctx, "setMode", st.mode);
       if (st.enter) st.enter(ctx, api);
       onChange(); onStep(st);
     }
     function finish() {
       if (T.done) return;
-      T.done = true; T.step = null;
+      T.done = true; T.step = null; T.replay = false; T.base = {};
       onChange(); onStep(null);
+    }
+    /* Every hand-out goes through here: counted, and never in a replay. */
+    function give(bundle) {
+      if (T.replay || !bundle) return false;
+      if (bundle.coins > 0) T.granted.coins += bundle.coins;
+      if (bundle.diamonds > 0) T.granted.diamonds += bundle.diamonds;
+      call(ctx, "grant", bundle);
+      onChange();
+      return true;
     }
     /* Look at the game and move on as far as the player has got. Call often
        (every second, and after anything the player does). */
     function check() {
       var guard = 0, cur = current();
       while (cur && guard++ < STEPS.length * 2) {
-        if (cur.done(ctx)) { advance(); cur = current(); continue; }
+        if (cur.done(ctx, api)) { advance(); cur = current(); continue; }
         var back = cur.rescue ? cur.rescue(ctx, api) : null;
         if (back && BY_ID[back] && back !== cur.id) { go(back); cur = current(); continue; }
         break;
@@ -238,25 +310,45 @@
     function advance() {
       var cur = current();
       if (!cur) return null;
-      var next = STEPS[cur.index + 1];
-      if (next) go(next.id); else finish();
+      var i = cur.index + 1;
+      while (STEPS[i] && T.replay && STEPS[i].replay && STEPS[i].replay.skip) i++;
+      if (STEPS[i]) go(STEPS[i].id); else finish();
       return current();
     }
     /* GOT IT on a dismiss step. */
     function dismiss() { var cur = current(); if (cur && cur.dismiss) advance(); }
-    /* Leave the flow: everything opens, the starter pack is handed over and the board fills. */
+    /* What skipping would hand over now: the starter pack, less what the flow already gave. */
+    function skipGrant() {
+      if (T.done || T.replay) return { coins: 0, diamonds: 0 };
+      return { coins: Math.max(0, STARTER.coins - T.granted.coins), diamonds: Math.max(0, STARTER.diamonds - T.granted.diamonds) };
+    }
+    /* Leave the flow: everything opens, the rest of the starter pack is handed over and the
+       board fills. Leaving a replay just ends it. */
     function skip() {
       if (T.done) return;
-      call(ctx, "grant", { coins: STARTER.coins, diamonds: STARTER.diamonds });
+      var g = skipGrant();
+      if (g.coins || g.diamonds) give(g);
       finish();
       call(ctx, "resumeBoard");
+    }
+    /* Walk the flow again, for a player who has played. Only once it is over. */
+    function replay() {
+      if (!T.done) return false;
+      T.done = false; T.replay = true;
+      call(ctx, "startReplay");
+      go(STEPS[0].id);
+      return true;
     }
 
     var api = {
       state: T, current: current, unlocked: unlocked, check: check, advance: advance, dismiss: dismiss, skip: skip,
+      replay: replay, give: give, skipGrant: skipGrant, base: function () { return T.base || {}; },
       get done() { return T.done; }, isActive: function () { return !T.done; },
-      // the board waits until graduation, which refills it
-      boardPaused: function () { var c = current(); return !!c && c.index < BY_ID.graduate.index; }
+      isReplay: function () { return !T.done && T.replay; },
+      // the board waits until graduation, which refills it; a replay never holds it up
+      boardPaused: function () { var c = current(); return !!c && !T.replay && c.index < BY_ID.graduate.index; },
+      // while a first run is on, the board is just its two orders (commissions-ui.js)
+      guidedBoard: function () { return !T.done && !T.replay; }
     };
     return api;
   }

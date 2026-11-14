@@ -741,11 +741,41 @@ header .gear-btn { margin-left: 4px; }
 .coach.at-bottom { bottom: max(16px, env(safe-area-inset-bottom)); }
 .coach.at-top { top: 112px; }
 .coach-k { font-size: 10px; letter-spacing: 0.14em; color: var(--amber); display: flex; justify-content: space-between; }
-.coach-k span { color: var(--faint); }
+.coach-k span { color: var(--faint); display: inline-flex; align-items: center; gap: 8px; }
+.coach-min {
+  pointer-events: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 26px; margin: -6px -6px -6px 0; border-radius: 7px; cursor: pointer;
+  background: var(--btn-bg); color: var(--dim); border: 1px solid var(--chrome-line);
+}
+.coach-min:active { transform: scale(0.94); }
+/* the tucked-away card: a glowing button by DONE, or floating on the other screens */
+.coach-pill {
+  border-color: var(--amber) !important; color: var(--amber);
+  animation: coach-glow 1.6s ease-in-out infinite;
+}
+.coach-pill { position: relative; z-index: 6; }
+.coach-pill.docked, .coach-pill.corner { width: 44px; padding: 0; justify-content: center; border-radius: 50%; }
+.coach-pill.docked .cp-word, .coach-pill.corner .cp-word { display: none; }
+.coach-pill .cp-n { display: none; }
+.coach-pill.docked .cp-n, .coach-pill.corner .cp-n {
+  display: block; position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
+  border-radius: 9px; background: var(--amber); color: #1b130b; font-size: 11px; line-height: 18px; text-align: center; font-weight: 700;
+}
+.coach-pill.corner { position: absolute; right: 12px; bottom: 12px; background: var(--chrome-bg); }
+.coach-pill.floating {
+  position: fixed; gap: 8px; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+  background: var(--chrome-bg); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+@keyframes coach-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 163, 61, 0.55), 0 0 10px rgba(232, 163, 61, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(232, 163, 61, 0), 0 0 18px rgba(232, 163, 61, 0.6); }
+}
 .coach-t { margin: 4px 0 4px; font-size: 17px; line-height: 1.2; }
 .coach-p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--dim); }
 .coach-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .coach-row button { pointer-events: auto; }
+.coach.confirm { border-color: var(--amber); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
+.coach.confirm .coach-row .act { flex: 1 1 140px; }
 .coach-skip {
   background: none; border: 0; padding: 6px 2px; color: var(--faint);
   font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer;
@@ -757,7 +787,7 @@ header .gear-btn { margin-left: 4px; }
 }
 @keyframes coach-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes coach-pulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.25); } 50% { box-shadow: 0 0 0 10px rgba(232, 163, 61, 0.08); } }
-@media (prefers-reduced-motion: reduce) { .coach, .coach-ring { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .coach, .coach-ring, .coach-pill { animation: none; transition: none; } }
 </style>
     <style>
 /* Harvest screen: the forest. Shares the lathe's chrome (header, footer,
@@ -962,7 +992,7 @@ header .gear-btn { margin-left: 4px; }
           <div class="finish-card">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#e8a33d" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11h6v10H9z"/><path d="M10 11V8h5V6h-5"/><path d="M5 5l-2-1M5 8H3M5 11l-2 1" opacity="0.8"/></svg>
             <div class="finish-text">
-              <div class="tname">SPRAY BOTTLE</div>
+              <div class="tname" id="finishName">SPRAY BOTTLE</div>
               <div class="tdesc" id="finishDesc">Nudge up to spray. Sweep slowly to build the sheen evenly.</div>
             </div>
             <div class="gloss-meter" aria-label="Sheen on the piece"><span class="gk">SHEEN</span><span class="gbar"><i id="glossFill"></i></span><b id="glossName">Matte</b></div>
@@ -6454,6 +6484,8 @@ header .gear-btn { margin-left: 4px; }
       S.cutBoost = shop.cutBoost();
       S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
       S.sprayGun = shop.spray();
+      var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
+      if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
       setTips(shop.tips());
     }
     L.applyUpgrades = applyUpgrades;
@@ -7314,6 +7346,19 @@ header .gear-btn { margin-left: 4px; }
                to go on (a pine log) or send them back a step (returns an id)
      dismiss   the card has a GOT IT button that ends the step
      mode      the lathe mode the step starts in (an order starts at the chisel)
+     replay    what changes when the flow is replayed (see below): any of the
+               fields above, and skip: true to leave the step out
+
+   done, enter and rescue are called as (ctx, t), t being the tutorial; hand-outs
+   go through t.give(bundle), never ctx.grant, so they can be counted and held back.
+
+   Replay (Settings, REPLAY TUTORIAL, once the flow is done or skipped) walks the
+   same steps for a player who has played. It never takes anything back and never
+   hands anything out: every tab stays open, give() does nothing, the board keeps
+   running as normal and no first board is posted. A returning player may have no
+   pine or no diamonds, so in a replay a step counts doing the thing at all (any
+   order, any wood, waiting instead of diamonds), measured against t.base(), the
+   readings taken when the step began.
 
    ctx is how the flow sees the game, supplied by tutorial-ui.js and faked
    in the tests. Everything is optional; a missing reading counts as 0:
@@ -7321,11 +7366,15 @@ header .gear-btn { margin-left: 4px; }
      pieces(wood) logs(wood) blanks(wood) canDeliver(wood) delivered() activeWood()
      selectedEmpty() planted(wood) grown(wood) harvestPhase()
      coins() diamonds() plantPrice(wood)
+     piecesAll() plantedAll() grownAll() emptyPlots() doneTaps()
      grant({ coins, diamonds, logs: { wood: n } })
-     postFirstBoard(list) resumeBoard() takeOrder(wood) setMode(mode)
+     postFirstBoard(list) resumeBoard() takeOrder(wood) setMode(mode) startReplay()
 
    The model owns the tutorial section of the save:
-     game.tutorial { step, done }
+     game.tutorial { step, done, replay, base, taps, granted: { coins, diamonds } }
+   taps counts DONE presses (tutorial-ui.js), which a replay step can ask for.
+   granted counts what the flow has handed out, so skipping part way through
+   tops the starter pack up instead of paying it twice.
    A save from before this flow existed is marked done on load (save.js).
    ============================================================ */
 (function (root) {
@@ -7352,6 +7401,10 @@ header .gear-btn { margin-left: 4px; }
   /* Can the player still make (or hand over) a piece of this wood? A rejected piece stays in the shed but cannot go. */
   function hasWood(ctx, wood) { return n(ctx, "logs", wood) + n(ctx, "blanks", wood) > 0 || !!s(ctx, "canDeliver", wood); }
 
+  /* For replay steps: has this reading gone up since the step began? */
+  function grew(c, t, name) { return n(c, name) > ((t && t.base()[name]) || 0); }
+  var BASE_READINGS = ["delivered", "piecesAll", "plantedAll", "doneTaps"];
+
   var STEPS = [
     /* ---- the lathe, on a practice piece of real pine ---- */
     { id: "cut", screen: "lathe", unlock: ["lathe"], target: ["#stage"],
@@ -7377,60 +7430,80 @@ header .gear-btn { margin-left: 4px; }
     { id: "keep", screen: "lathe", target: ["#doneBtn"],
       title: "Your first piece",
       text: "Tap DONE to take it off the lathe. It goes in the shed.",
-      done: function (c) { return n(c, "pieces", "pine") >= 1 || n(c, "delivered") >= 1; } },
+      done: function (c) { return n(c, "pieces", "pine") >= 1 || n(c, "delivered") >= 1; },
+      replay: { text: "Tap DONE to take it off the lathe. Real wood goes in the shed as a piece; this practice blank was just for practice.",
+        done: function (c, t) { return grew(c, t, "doneTaps") || grew(c, t, "piecesAll"); } } },
 
     /* ---- the first commission ---- */
     { id: "to_orders", unlock: ["orders"], target: ["#tabOrders"],
       title: "Customers are waiting",
       text: "People pay for turned pieces. Tap ORDERS to see who wants what.",
       enter: function (c) { call(c, "postFirstBoard", FIRST_BOARD); },
-      done: function (c) { return s(c, "screen") === "orders"; } },
+      done: function (c) { return s(c, "screen") === "orders"; },
+      replay: { enter: null } },
     { id: "take", screen: "orders", target: ['[data-wood="pine"] [data-act="take"]', '[data-wood="pine"]'],
       title: "Pick the pine one",
       text: "Each order names a shape, a wood, a paint and a finish. You have pine logs, so take the pine rolling pin.",
-      done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; } },
+      done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; },
+      replay: { title: "Pick an order", target: ['[data-act="take"]', '[data-act="lathe"]', ".order[data-order]"],
+        text: "Each order names a shape, a wood, a paint and a finish. The card says if your shed has that wood. Tap TAKE IT (or PRACTISE IT if you have none).",
+        done: function (c) { return !!s(c, "activeWood") && s(c, "screen") === "lathe"; } } },
     { id: "turn", screen: "lathe", target: ["#profileBar"], mode: "cut",
       title: "Turn to the line",
       text: "The dashed line is the shape they want, on the log and in the strip below it. Cut down to it. SHAPE shows how close you are.",
       done: function (c) { return n(c, "shape") >= SHAPE_GOOD || (s(c, "mode") && s(c, "mode") !== "cut"); },
-      rescue: rescuePine },
+      rescue: rescuePine, replay: { rescue: null } },
     { id: "order_paint", screen: "lathe", target: ["#modePaint", "#specBar"],
       title: "Paint to the order",
       text: "Close enough. Tap PAINT and match the WANTED strip. The colours it needs are marked in the palette. Then FINISH and spray to the sheen it asks for.",
       done: function (c) { return s(c, "mode") === "finish" || n(c, "delivered") >= 1; },
-      rescue: rescuePine },
+      rescue: rescuePine,
+      replay: { rescue: null, done: function (c, t) { return s(c, "mode") === "finish" || grew(c, t, "delivered"); } } },
     { id: "deliver", target: ['[data-act="give"]', '[data-act="deliver"]', "#doneBtn"],
       title: "Deliver it",
       text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay. Kept it instead? DELIVER is on its order in ORDERS.",
       done: function (c) { return n(c, "delivered") >= 1; },
-      rescue: rescuePine },
+      rescue: rescuePine,
+      replay: { rescue: null, text: "When the sheen matches, tap DONE. If it is the order's own wood, DELIVER gets you paid: the closer, the more. Practice pieces can't be delivered.",
+        done: function (c, t) { return grew(c, t, "delivered") || grew(c, t, "doneTaps"); } } },
 
     /* ---- the wood you don't have ---- */
     { id: "to_farm", unlock: ["farm"], target: ["#tabFarm"],
       title: "No oak in the shed",
       text: "The other order wants oak, and you have none. Trees grow on the farm. Tap FARM.",
-      done: function (c) { return s(c, "screen") === "farm" || n(c, "planted", "oak") > 0; } },
+      done: function (c) { return s(c, "screen") === "farm" || n(c, "planted", "oak") > 0; },
+      replay: { title: "Where wood comes from", text: "Every log starts as a tree on the farm. Tap FARM.",
+        done: function (c) { return s(c, "screen") === "farm"; } } },
     { id: "plot", screen: "farm", target: [".plot.empty"],
       title: "Pick a plot",
       text: "Tap an empty plot.",
-      done: function (c) { return !!s(c, "selectedEmpty") || n(c, "planted", "oak") > 0; } },
+      done: function (c) { return !!s(c, "selectedEmpty") || n(c, "planted", "oak") > 0; },
+      replay: { text: "Tap an empty plot. (No room? Every plot is growing already, so on we go.)",
+        done: function (c, t) { return !!s(c, "selectedEmpty") || grew(c, t, "plantedAll") || !n(c, "emptyPlots"); } } },
     { id: "plant", screen: "farm", target: ['[data-plant="oak"]', ".plot.empty"],
       title: "Plant an oak",
       text: "Tap OAK to plant it. Seeds cost coins. Trees grow in real time, even with the game closed, so keep some planted.",
       enter: topUpOak,
-      rescue: function (c) { topUpOak(c); },
-      done: function (c) { return n(c, "planted", "oak") > 0; } },
+      rescue: function (c, t) { topUpOak(c, t); },
+      done: function (c) { return n(c, "planted", "oak") > 0; },
+      replay: { title: "Plant a tree", target: ['[data-plant]', ".plot.empty"], enter: null, rescue: null,
+        text: "Pick a wood to plant. Seeds cost coins, and dearer woods pay more. Trees grow in real time, even with the game closed, so keep some planted.",
+        done: function (c, t) { return grew(c, t, "plantedAll") || !n(c, "emptyPlots"); } } },
     { id: "speed", screen: "farm", target: ['[data-act="grownow"]', '[data-act="speedup"]', ".plot.growing"],
       title: "No time to wait",
       text: "Oak takes a while. Here are " + GRANT_DIAMONDS + " diamonds: each one skips two minutes. Tap GROW NOW to finish it.",
-      enter: function (c) { var d = GRANT_DIAMONDS - n(c, "diamonds"); if (d > 0) call(c, "grant", { diamonds: d }); },
+      enter: function (c, t) { var d = GRANT_DIAMONDS - n(c, "diamonds"); if (d > 0) t.give({ diamonds: d }); },
       done: function (c) { return n(c, "grown", "oak") > 0; },
-      rescue: function (c) { if (!n(c, "planted", "oak")) return "plot"; } },
+      rescue: function (c) { if (!n(c, "planted", "oak")) return "plot"; },
+      replay: { title: "Growing", enter: null, rescue: null,
+        text: "A diamond skips two minutes: tap SPEED UP or GROW NOW. Or just wait. It grows on its own, even with the game closed, and this card waits too.",
+        done: function (c) { return n(c, "grownAll") > 0; } } },
     { id: "harvest", screen: "farm", target: ['[data-act="harvest"]', ".plot.mature"],
       title: "Ready to harvest",
       text: "Tap the grown oak, then HARVEST to take it to the forest.",
       done: function (c) { return s(c, "screen") === "harvest"; },
-      rescue: function (c) { if (!n(c, "grown", "oak") && !hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "plot"; } },
+      rescue: function (c) { if (!n(c, "grown", "oak") && !hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "plot"; },
+      replay: { text: "Tap a grown tree, then HARVEST to take it to the forest.", rescue: function (c) { if (!n(c, "grownAll")) return "speed"; } } },
 
     /* ---- the forest ---- */
     { id: "chop", screen: "harvest", target: [],
@@ -7452,41 +7525,61 @@ header .gear-btn { margin-left: 4px; }
       text: "The oak order is on the lathe. Same as before: turn to the line, paint to the strip, finish, then DONE and DELIVER.",
       enter: function (c) { call(c, "takeOrder", "oak"); },
       done: function (c) { return n(c, "delivered") >= 2; },
-      rescue: function (c) { if (!hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "to_farm"; } },
+      rescue: function (c) { if (!hasWood(c, "oak")) return n(c, "planted", "oak") ? "speed" : "to_farm"; },
+      replay: { title: "Fresh from the saw", target: ["#stage"], enter: null, rescue: null, dismiss: true,
+        text: "Your blank is on the lathe. Turn it for an order whose wood it is, or just for fun. That is the whole loop: grow, harvest, turn, paint, finish, deliver.",
+        done: function () { return false; } } },
 
     /* ---- graduation ---- */
     { id: "graduate", unlock: ["shop", "mine"], target: ["#tabShop"],
       title: "You're a woodturner",
       text: "The board fills up with new orders now. Coins buy better tools at Arbor Freight. Tap SHOP.",
       enter: function (c) { call(c, "resumeBoard"); },
-      done: function (c) { return s(c, "screen") === "shop"; } },
+      done: function (c) { return s(c, "screen") === "shop"; },
+      replay: { title: "That's the tour", enter: null, dismiss: true, target: ["#tabShop", "#tabMine"],
+        text: "Coins buy better tools at Arbor Freight (SHOP). The MINE is for diamonds: watch a short ad, crack the vein, 5 diamonds. Replay this any time from Settings.",
+        done: function () { return false; } } },
     { id: "shop", screen: "shop", target: ['[data-buy="light"]'], dismiss: true,
       title: "Arbor Freight",
       text: "A halogen work light is a good first buy. The MINE tab is for diamonds: watch a short ad, crack the vein, 5 diamonds. Everything is open now. Have fun.",
-      done: function () { return false; } }
+      done: function () { return false; },
+      replay: { skip: true } }
   ];
 
-  function topUpOak(c) {
+  function topUpOak(c, t) {
     var need = n(c, "plantPrice", "oak") - n(c, "coins");
-    if (need > 0 && !n(c, "planted", "oak")) call(c, "grant", { coins: need });
+    if (need > 0 && !n(c, "planted", "oak")) t.give({ coins: need });
   }
   /* The first order needs pine. If it all went into rejected pieces, a neighbour drops a log off. */
-  function rescuePine(c) {
+  function rescuePine(c, t) {
     if (n(c, "delivered") >= 1) return;
     // a mounted log stays in the shed until DONE, so none left means none on the lathe either
     if (!hasWood(c, "pine")) {
-      call(c, "grant", { logs: { pine: 1 }, note: "A neighbour dropped off a pine log." });
+      t.give({ logs: { pine: 1 }, note: "A neighbour dropped off a pine log." });
     }
   }
 
   var BY_ID = {};
   STEPS.forEach(function (st, i) { st.index = i; BY_ID[st.id] = st; });
 
+  function count(v) { return typeof v === "number" && isFinite(v) && v > 0 ? v : 0; }
   function normalize(t) {
-    var out = { step: null, done: false };
+    var out = { step: null, done: false, replay: false, base: {}, granted: { coins: 0, diamonds: 0 } };
     if (!t || typeof t !== "object") return out;
     out.done = !!t.done;
+    out.replay = !t.done && !!t.replay;
     if (typeof t.step === "string" && BY_ID[t.step]) out.step = t.step;
+    if (t.base && typeof t.base === "object") BASE_READINGS.forEach(function (k) { if (count(t.base[k])) out.base[k] = t.base[k]; });
+    if (count(t.taps)) out.taps = Math.floor(t.taps);
+    if (t.granted && typeof t.granted === "object") { out.granted.coins = count(t.granted.coins); out.granted.diamonds = count(t.granted.diamonds); }
+    return out;
+  }
+  /* A step as it runs: in a replay its replay fields stand in for the usual ones. */
+  function effective(st, replay) {
+    if (!st || !replay || !st.replay) return st;
+    var out = {};
+    for (var k in st) if (k !== "replay") out[k] = st[k];
+    for (var r in st.replay) out[r] = st.replay[r];
     return out;
   }
 
@@ -7502,32 +7595,43 @@ header .gear-btn { margin-left: 4px; }
     var T = game.tutorial;
     if (!T.done && !T.step) T.step = STEPS[0].id;
 
-    function current() { return T.done ? null : BY_ID[T.step] || null; }
+    function current() { return T.done ? null : effective(BY_ID[T.step], T.replay) || null; }
     function unlocked(tab) {
-      if (T.done || tab === "lathe" || tab === "harvest") return true;
+      if (T.done || T.replay || tab === "lathe" || tab === "harvest") return true;
       var cur = current(), upto = cur ? cur.index : STEPS.length - 1;
       for (var i = 0; i <= upto; i++) if ((STEPS[i].unlock || []).indexOf(tab) >= 0) return true;
       return false;
     }
+    function snapshot() { var b = {}; BASE_READINGS.forEach(function (k) { b[k] = n(ctx, k); }); return b; }
     function go(id) {
-      var st = BY_ID[id];
+      var st = effective(BY_ID[id], T.replay);
       if (!st) { finish(); return; }
       T.step = id;
+      T.base = snapshot();
       if (st.mode) call(ctx, "setMode", st.mode);
       if (st.enter) st.enter(ctx, api);
       onChange(); onStep(st);
     }
     function finish() {
       if (T.done) return;
-      T.done = true; T.step = null;
+      T.done = true; T.step = null; T.replay = false; T.base = {};
       onChange(); onStep(null);
+    }
+    /* Every hand-out goes through here: counted, and never in a replay. */
+    function give(bundle) {
+      if (T.replay || !bundle) return false;
+      if (bundle.coins > 0) T.granted.coins += bundle.coins;
+      if (bundle.diamonds > 0) T.granted.diamonds += bundle.diamonds;
+      call(ctx, "grant", bundle);
+      onChange();
+      return true;
     }
     /* Look at the game and move on as far as the player has got. Call often
        (every second, and after anything the player does). */
     function check() {
       var guard = 0, cur = current();
       while (cur && guard++ < STEPS.length * 2) {
-        if (cur.done(ctx)) { advance(); cur = current(); continue; }
+        if (cur.done(ctx, api)) { advance(); cur = current(); continue; }
         var back = cur.rescue ? cur.rescue(ctx, api) : null;
         if (back && BY_ID[back] && back !== cur.id) { go(back); cur = current(); continue; }
         break;
@@ -7537,25 +7641,45 @@ header .gear-btn { margin-left: 4px; }
     function advance() {
       var cur = current();
       if (!cur) return null;
-      var next = STEPS[cur.index + 1];
-      if (next) go(next.id); else finish();
+      var i = cur.index + 1;
+      while (STEPS[i] && T.replay && STEPS[i].replay && STEPS[i].replay.skip) i++;
+      if (STEPS[i]) go(STEPS[i].id); else finish();
       return current();
     }
     /* GOT IT on a dismiss step. */
     function dismiss() { var cur = current(); if (cur && cur.dismiss) advance(); }
-    /* Leave the flow: everything opens, the starter pack is handed over and the board fills. */
+    /* What skipping would hand over now: the starter pack, less what the flow already gave. */
+    function skipGrant() {
+      if (T.done || T.replay) return { coins: 0, diamonds: 0 };
+      return { coins: Math.max(0, STARTER.coins - T.granted.coins), diamonds: Math.max(0, STARTER.diamonds - T.granted.diamonds) };
+    }
+    /* Leave the flow: everything opens, the rest of the starter pack is handed over and the
+       board fills. Leaving a replay just ends it. */
     function skip() {
       if (T.done) return;
-      call(ctx, "grant", { coins: STARTER.coins, diamonds: STARTER.diamonds });
+      var g = skipGrant();
+      if (g.coins || g.diamonds) give(g);
       finish();
       call(ctx, "resumeBoard");
+    }
+    /* Walk the flow again, for a player who has played. Only once it is over. */
+    function replay() {
+      if (!T.done) return false;
+      T.done = false; T.replay = true;
+      call(ctx, "startReplay");
+      go(STEPS[0].id);
+      return true;
     }
 
     var api = {
       state: T, current: current, unlocked: unlocked, check: check, advance: advance, dismiss: dismiss, skip: skip,
+      replay: replay, give: give, skipGrant: skipGrant, base: function () { return T.base || {}; },
       get done() { return T.done; }, isActive: function () { return !T.done; },
-      // the board waits until graduation, which refills it
-      boardPaused: function () { var c = current(); return !!c && c.index < BY_ID.graduate.index; }
+      isReplay: function () { return !T.done && T.replay; },
+      // the board waits until graduation, which refills it; a replay never holds it up
+      boardPaused: function () { var c = current(); return !!c && !T.replay && c.index < BY_ID.graduate.index; },
+      // while a first run is on, the board is just its two orders (commissions-ui.js)
+      guidedBoard: function () { return !T.done && !T.replay; }
     };
     return api;
   }
@@ -8662,6 +8786,9 @@ header .gear-btn { margin-left: 4px; }
   function openSettings() {
     armed = false;
     settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' +
+      (G.tutorial && G.tutorial.done ?
+        '<p class="g-note">Walk through the tutorial again. Nothing in your game changes: every tab stays open and nothing is given out a second time.</p>' +
+        '<div class="row"><button type="button" class="act primary" data-act="replay"><span class="an">REPLAY TUTORIAL</span><span class="ad">A guided tour of the game</span></button></div>' : "") +
       '<p class="g-note">Reset to see the game as a new player sees it. This wipes everything on this device: coins, diamonds, trees, the shed, orders and upgrades.</p>' +
       '<div class="row"><button type="button" class="act danger" data-act="reset"><span class="an">RESET PROFILE</span><span class="ad">Start over from nothing</span></button>' +
       '<button type="button" class="act" data-act="close"><span class="an">CLOSE</span><span class="ad">Keep playing</span></button></div></div>';
@@ -8678,6 +8805,11 @@ header .gear-btn { margin-left: 4px; }
     var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
     if (!b) return;
     if (b.getAttribute("data-act") === "close") { closeSettings(); return; }
+    if (b.getAttribute("data-act") === "replay") {
+      closeSettings();
+      if (G.tutorial && G.tutorial.replay() && G.tutorialRefresh) G.tutorialRefresh();
+      return;
+    }
     if (!armed) {
       armed = true;
       b.classList.add("armed");
@@ -9365,7 +9497,7 @@ header .gear-btn { margin-left: 4px; }
     show: function () { shown = true; render(true); },
     hide: function () { shown = false; },
     offer: offer, render: render, toast: toast,
-    guided: !!(G.tutorial && G.tutorial.isActive())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
+    guided: !!(G.tutorial && G.tutorial.guidedBoard())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
   };
   G.OrdersUI = api;
   root.__orders = { board: board, ui: api };
@@ -9776,6 +9908,20 @@ header .gear-btn { margin-left: 4px; }
     diamonds: function () { return state.wallet.balance("diamonds"); },
     plantPrice: function (w) { return farm.plantPrice(w); },
     setMode: function (m) { var S = lathe(); if (S && S.mode !== m) S.setMode(m); },
+    piecesAll: function () { return inv.count("piece"); },
+    plantedAll: function () { return farm.state.plots.filter(Boolean).length; },
+    grownAll: function () { return farm.state.plots.filter(function (p) { return p && farm.isMature(p); }).length; },
+    emptyPlots: function () { return farm.state.plots.filter(function (p) { return !p; }).length; },
+    doneTaps: function () { return tut.state.taps || 0; },
+    /* A replay starts on a free practice blank, so it uses none of the player's wood.
+       An order that was on the lathe goes back on the board, still theirs. */
+    startReplay: function () {
+      var b = board();
+      if (b && b.active()) b.release();
+      if (L.syncOrder) L.syncOrder();
+      if (L.mountBlank) L.mountBlank(null);
+      G.showScreen("lathe");
+    },
     /* Put this wood's order on the lathe, with that wood mounted if the shed has it. */
     takeOrder: function (w) {
       var b = board();
@@ -9802,27 +9948,139 @@ header .gear-btn { margin-left: 4px; }
   ring.setAttribute("aria-hidden", "true");
   document.body.appendChild(ring); document.body.appendChild(card);
 
-  var shownId = null;
+  /* The card can be tucked away when it is in the way (over the log, say). It shrinks
+     into a glowing button: in the lathe's bottom row, by DONE, or floating at the
+     bottom of the other screens. Tapping the button brings the step back. A new step
+     always opens its card again, since it says something new; the ring stays put. */
+  var pill = document.createElement("button");
+  pill.type = "button"; pill.id = "coachPill"; pill.className = "ctl-btn coach-pill"; pill.hidden = true;
+  pill.setAttribute("aria-label", "Show the tutorial step");
+  var minimized = false, doneBtnEl = $("doneBtn");
+  /* Where the button goes. On the lathe it joins the bottom row, just before DONE:
+     a round button, narrow enough for the row's spare room. If it would push a
+     button onto a new line on this screen, it sits in the bottom corner of the stage
+     instead. On every other screen it floats at the bottom middle. Measured when it
+     appears and when the window changes size. */
+  var stageEl = $("stage"), homeFor = "";
+  function rowLines(row) {
+    var tops = {};
+    Array.prototype.forEach.call(row.children, function (e) { var r = e.getBoundingClientRect(); if (r.width > 0) tops[Math.round(r.top / 6)] = 1; });
+    return Object.keys(tops).length;
+  }
+  function pillHome(force) {
+    var onLathe = ctx.screen() === "lathe" && doneBtnEl && visible(doneBtnEl);
+    var want = onLathe ? "lathe" : "float";
+    if (!force && want === homeFor) return;
+    homeFor = want;
+    pill.classList.remove("floating", "docked", "corner");
+    if (!onLathe) {
+      if (pill.parentNode !== document.body) document.body.appendChild(pill);
+      pill.classList.add("floating");
+      return;
+    }
+    var row = doneBtnEl.parentNode, wasHidden = pill.hidden;
+    if (pill.parentNode === row) row.removeChild(pill);
+    var before = rowLines(row);
+    pill.hidden = false;
+    pill.classList.add("docked");
+    row.insertBefore(pill, doneBtnEl);
+    if (rowLines(row) > before) {               // no room in the row: the stage's corner instead
+      row.removeChild(pill);
+      pill.classList.remove("docked");
+      pill.classList.add("corner");
+      stageEl.appendChild(pill);
+    }
+    pill.hidden = wasHidden;
+  }
+  function pillLabel(st) {
+    var word = tut.isReplay() ? "REPLAY" : "TUTORIAL";
+    pill.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>' +
+      '<span class="cp-word">' + word + " " + (st.index + 1) + "/" + T.STEPS.length + "</span>" +
+      '<span class="cp-n" aria-hidden="true">' + (st.index + 1) + "</span>";
+    pill.setAttribute("aria-label", "Show the tutorial, step " + (st.index + 1) + " of " + T.STEPS.length);
+  }
+  /* The card flies into the button (or out of it), so the player sees where it went. */
+  function fly(out, after) {
+    var a = card.getBoundingClientRect(), b = pill.getBoundingClientRect();
+    if (!card.animate || !a.width || !b.width || matchMedia("(prefers-reduced-motion: reduce)").matches) { after(); return; }
+    var dx = (b.left + b.width / 2) - (a.left + a.width / 2), dy = (b.top + b.height / 2) - (a.top + a.height / 2);
+    var away = "translateX(-50%) translate(" + dx + "px," + dy + "px) scale(0.12)", home = "translateX(-50%)";
+    var anim = card.animate(out ? [{ transform: home, opacity: 1 }, { transform: away, opacity: 0.2 }] : [{ transform: away, opacity: 0.2 }, { transform: home, opacity: 1 }],
+      { duration: 280, easing: "cubic-bezier(.3,.7,.4,1)" });
+    if (out) anim.onfinish = after; else after();
+  }
+  function minimize() {
+    var st = tut.current();
+    if (!st || minimized) return;
+    pillLabel(st); pill.hidden = false;
+    pillHome(true);
+    minimized = true;
+    fly(true, function () { card.hidden = true; });
+  }
+  function restore() {
+    if (!minimized) return;
+    minimized = false;
+    pill.hidden = true;
+    card.hidden = false;
+    place(tut.current());
+    fly(false, function () {});
+  }
+  pill.addEventListener("click", function (e) { e.stopPropagation(); restore(); });
+  pill.addEventListener("pointerdown", function (e) { e.stopPropagation(); });   // on the stage, a tap on it is not a cut
+  document.body.appendChild(pill);
+
+  /* Skipping asks first: a tap on "Skip tutorial" turns the card into the question,
+     saying what skipping means, and KEEP LEARNING is the big button. */
+  var shownId = null, confirming = false;
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+  function confirmHtml() {
+    if (tut.isReplay()) {
+      return '<div class="coach-k">REPLAY</div><h2 class="coach-t">Stop the tutorial?</h2>' +
+        '<p class="coach-p">Nothing in your game changes. You can replay it any time from Settings (the gear, top right).</p>' +
+        '<div class="coach-row"><button type="button" class="act primary" data-coach="stay"><span class="an">KEEP GOING</span><span class="ad">Back to the tutorial</span></button>' +
+        '<button type="button" class="act" data-coach="leave"><span class="an">STOP IT</span><span class="ad">Play on your own</span></button></div>';
+    }
+    var g = tut.skipGrant(), gift = [];
+    if (g.coins) gift.push(plural(g.coins, "coin", "coins"));
+    if (g.diamonds) gift.push(plural(g.diamonds, "diamond", "diamonds"));
+    return '<div class="coach-k">SKIP THE TUTORIAL?</div><h2 class="coach-t">Learn it on your own?</h2>' +
+      '<p class="coach-p">Skipping opens every tab now' + (gift.length ? " and gives you " + gift.join(" and ") + " to start with" : "") +
+      ". Nobody will show you where things are, so it suits players who know the game. You can replay the tutorial any time from Settings (the gear, top right)" +
+      (gift.length ? ", but the starting coins and diamonds only come once" : "") + ".</p>" +
+      '<div class="coach-row"><button type="button" class="act primary" data-coach="stay"><span class="an">KEEP LEARNING</span><span class="ad">Back to the tutorial</span></button>' +
+      '<button type="button" class="act" data-coach="leave"><span class="an">SKIP IT</span><span class="ad">Open everything now</span></button></div>';
+  }
   function renderCard(st) {
-    if (!st) { card.hidden = true; card.innerHTML = ""; shownId = null; return; }
-    var first = st.index === 0, n = st.index + 1, of = T.STEPS.length;
+    if (!st) { card.hidden = true; card.innerHTML = ""; shownId = null; confirming = false; return; }
+    if (st.id !== shownId) { confirming = false; if (minimized) { minimized = false; pill.hidden = true; } }
+    shownId = st.id;
+    card.classList.toggle("confirm", confirming);
+    if (confirming) { card.innerHTML = confirmHtml(); return; }
+    var n = st.index + 1, of = T.STEPS.length, rep = tut.isReplay();
     card.innerHTML =
-      '<div class="coach-k">GETTING STARTED <span>' + n + " / " + of + "</span></div>" +
+      '<div class="coach-k">' + (rep ? "REPLAY" : "GETTING STARTED") + " <span>" + n + " / " + of +
+        '<button type="button" class="coach-min" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
       '<h2 class="coach-t">' + esc(st.title) + "</h2>" +
       '<p class="coach-p">' + esc(st.text) + "</p>" +
-      (st.dismiss || first ? '<div class="coach-row">' +
+      '<div class="coach-row">' +
         (st.dismiss ? '<button type="button" class="act primary" data-coach="ok"><span class="an">GOT IT</span><span class="ad">Off you go</span></button>' : "") +
-        (first ? '<button type="button" class="coach-skip" data-coach="skip">Skip tutorial</button>' : "") +
-        "</div>" : "");
-    shownId = st.id;
+        '<button type="button" class="coach-skip" data-coach="skip">' + (rep ? "Stop tutorial" : "Skip tutorial") + "</button>" +
+      "</div>";
   }
   card.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("[data-coach]") : null;
     if (!b) return;
-    if (b.getAttribute("data-coach") === "ok") tut.dismiss();
-    else tut.skip();
+    var what = b.getAttribute("data-coach");
+    if (what === "min") { minimize(); return; }
+    if (what === "ok") tut.dismiss();
+    else if (what === "skip") confirming = true;
+    else if (what === "stay") confirming = false;
+    else if (what === "leave") { confirming = false; tut.skip(); }
+    renderCard(tut.current());
     refresh();
   });
+  // DONE taps, for the replay's steps that only ask the player to press it
+  $("doneBtn").addEventListener("click", function () { if (tut.isActive()) { tut.state.taps = (tut.state.taps || 0) + 1; } }, true);
 
   function visible(el) {
     if (!el || el.hidden) return false;
@@ -9841,7 +10099,8 @@ header .gear-btn { margin-left: 4px; }
   var lastPos = "";
   function place(st) {
     var on = !!st && (!st.screen || st.screen === ctx.screen());
-    card.hidden = !on;
+    card.hidden = !on || minimized;
+    if (minimized) { pillHome(); pill.hidden = !on; }
     if (!on) { ring.hidden = true; return; }
     var el = targetEl(st), vw = root.innerWidth, vh = root.innerHeight;
     var r = el ? el.getBoundingClientRect() : null;
@@ -9865,7 +10124,7 @@ header .gear-btn { margin-left: 4px; }
   var LATHE_STEPS = { cut: 1, to_paint: 1, paint: 1, to_finish: 1, finish: 1, keep: 1 };
   function mountPine() {
     var S = lathe(), st = tut.current();
-    if (!S || !st || !LATHE_STEPS[st.id] || S.stock) return;
+    if (!S || !st || tut.isReplay() || !LATHE_STEPS[st.id] || S.stock) return;
     if (inv.count("log", "pine") && L.mountStock) L.mountStock({ kind: "log", key: "pine" });
   }
 
@@ -9876,8 +10135,8 @@ header .gear-btn { margin-left: 4px; }
     syncTabs();
     if ((st ? st.id : null) !== shownId) renderCard(st);
     place(st);
-    if (!st) { card.hidden = true; ring.hidden = true; }
-    if (G.OrdersUI && G.OrdersUI.guided !== tut.isActive()) { G.OrdersUI.guided = tut.isActive(); if (G.OrdersUI.render) G.OrdersUI.render(true); }
+    if (!st) { card.hidden = true; ring.hidden = true; pill.hidden = true; minimized = false; }
+    if (G.OrdersUI && G.OrdersUI.guided !== tut.guidedBoard()) { G.OrdersUI.guided = tut.guidedBoard(); if (G.OrdersUI.render) G.OrdersUI.render(true); }
   }
   G.tutorialRefresh = refresh;
 
@@ -9889,14 +10148,14 @@ header .gear-btn { margin-left: 4px; }
     var cur = ctx.screen();
     if (cur && !tut.unlocked(cur)) G.showScreen("lathe");
     setInterval(refresh, 400);
-    root.addEventListener("resize", function () { place(tut.current()); });
+    root.addEventListener("resize", function () { if (minimized) pillHome(true); place(tut.current()); });
     document.addEventListener("click", function () { setTimeout(refresh, 0); }, true);
     document.addEventListener("pointerup", function () { setTimeout(refresh, 30); }, true);
   }
   syncTabs();
   start();
 
-  root.__tutorial = { tutorial: tut, ctx: ctx, refresh: refresh, card: card, ring: ring };
+  root.__tutorial = { tutorial: tut, ctx: ctx, refresh: refresh, card: card, ring: ring, pill: pill, minimize: minimize, restore: restore, get minimized() { return minimized; } };
 })(window);
 </script>
   </body>

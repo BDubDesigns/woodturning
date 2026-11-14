@@ -96,7 +96,7 @@ test("resume after skipping at once gives the usual first board, pine first", ()
 /* A fake game for the flow to read: every reading is a plain field. */
 function fakeCtx(over) {
   const c = {
-    v: { screen: "lathe", mode: "cut", removed: 0, coverage: 0, sheenRank: 0, shape: 0, delivered: 0, activeWood: null, selectedEmpty: false, harvestPhase: null, coins: 0, diamonds: 0 },
+    v: { emptyPlots: 2, doneTaps: 0, screen: "lathe", mode: "cut", removed: 0, coverage: 0, sheenRank: 0, shape: 0, delivered: 0, activeWood: null, selectedEmpty: false, harvestPhase: null, coins: 0, diamonds: 0 },
     logs: { pine: 3 }, blanks: {}, pieces: {}, planted: {}, grown: {}, deliverable: {},
     grants: [], boards: 0, resumed: 0, took: []
   };
@@ -105,7 +105,10 @@ function fakeCtx(over) {
     sheenRank: () => c.v.sheenRank, shape: () => c.v.shape, delivered: () => c.v.delivered, activeWood: () => c.v.activeWood,
     selectedEmpty: () => c.v.selectedEmpty, harvestPhase: () => c.v.harvestPhase, coins: () => c.v.coins, diamonds: () => c.v.diamonds,
     logs: (w) => c.logs[w] || 0, blanks: (w) => c.blanks[w] || 0, pieces: (w) => c.pieces[w] || 0,
-    canDeliver: (w) => !!c.deliverable[w], planted: (w) => c.planted[w] || 0, grown: (w) => c.grown[w] || 0,
+    canDeliver: (w) => !!c.deliverable[w],
+    piecesAll: () => Object.values(c.pieces).reduce((a, b) => a + b, 0), plantedAll: () => Object.values(c.planted).reduce((a, b) => a + b, 0),
+    grownAll: () => Object.values(c.grown).reduce((a, b) => a + b, 0), emptyPlots: () => c.v.emptyPlots, doneTaps: () => c.v.doneTaps,
+    startReplay: () => { c.replays = (c.replays || 0) + 1; }, planted: (w) => c.planted[w] || 0, grown: (w) => c.grown[w] || 0,
     plantPrice: (w) => R.WOODS[w].plantPrice,
     grant: (g) => { c.grants.push(g); if (g.coins) c.v.coins += g.coins; if (g.diamonds) c.v.diamonds += g.diamonds; if (g.logs) for (const w in g.logs) c.logs[w] = (c.logs[w] || 0) + g.logs[w]; },
     setMode: (m) => { c.v.mode = m; },
@@ -255,4 +258,109 @@ test("a played game never sees the flow", () => {
   assert.equal(t.current(), null);
   assert.equal(t.boardPaused(), false);
   assert.equal(t.unlocked("mine"), true);
+});
+
+// ---------- skipping part way, and replaying ----------
+test("skipping part way tops up the starter pack instead of paying it twice", () => {
+  const { c, t, game } = flow();
+  game.tutorial.step = "plant";
+  c.planted.oak = 1; t.check();                        // into the speed-up step: 5 diamonds handed over
+  assert.equal(id(t), "speed");
+  assert.equal(game.tutorial.granted.diamonds, T.GRANT_DIAMONDS);
+  assert.deepEqual(t.skipGrant(), { coins: T.STARTER.coins, diamonds: T.STARTER.diamonds - T.GRANT_DIAMONDS });
+  const before = c.v.diamonds;
+  t.skip();
+  assert.equal(c.v.diamonds - before, T.STARTER.diamonds - T.GRANT_DIAMONDS, "no second lot of diamonds");
+  assert.equal(game.tutorial.granted.diamonds, T.STARTER.diamonds);
+});
+
+test("replay is only offered once the flow is over", () => {
+  const { t } = flow();
+  assert.equal(t.replay(), false, "not while the first run is on");
+  t.skip();
+  assert.equal(t.replay(), true);
+  assert.equal(t.replay(), false, "not twice at once");
+});
+
+function replayed(over) {
+  const r = flow(over);
+  r.t.skip();
+  r.c.grants.length = 0; r.c.resumed = 0; r.c.boards = 0;
+  r.t.replay();
+  return r;
+}
+
+test("a replay opens nothing new and locks nothing: every tab stays open, the board keeps running", () => {
+  const { t, c } = replayed();
+  assert.equal(c.replays, 1, "the page is told, to clear the lathe for it");
+  assert.equal(id(t), "cut");
+  assert.equal(t.isReplay(), true);
+  for (const tab of T.TABS) assert.equal(t.unlocked(tab), true, tab);
+  assert.equal(t.boardPaused(), false);
+  assert.equal(t.guidedBoard(), false, "the board keeps its usual buttons");
+});
+
+test("a replay hands nothing out, start to finish, and a skip during it pays nothing", () => {
+  const { c, t, game } = replayed({ coins: 7, diamonds: 0 });
+  const wallet = () => [c.v.coins, c.v.diamonds];
+  const w0 = wallet(), logs0 = c.logs.pine;
+  const at = (want) => { t.check(); assert.equal(id(t), want); };
+  c.v.removed = 1; c.v.mode = "paint"; c.v.coverage = 1; at("to_finish");
+  c.v.mode = "finish"; c.v.sheenRank = 2; at("keep");
+  c.v.doneTaps++; at("to_orders");
+  assert.equal(c.boards, 0, "no first board is posted");
+  c.v.screen = "orders"; at("take");
+  c.v.activeWood = "walnut"; c.v.screen = "lathe"; c.v.mode = "cut"; at("turn");   // any order will do
+  c.logs.pine = 0; t.check();
+  assert.equal(c.logs.pine, 0, "no free pine log in a replay");
+  c.v.mode = "finish"; at("deliver");
+  c.v.doneTaps++; at("to_farm");                     // DONE on a practice piece is enough
+  c.v.screen = "farm"; at("plot");
+  c.v.selectedEmpty = true; at("plant");
+  c.planted.pine = 1; at("speed");                   // any wood
+  assert.deepEqual(wallet(), w0, "no coins for the seed and no diamonds to speed it up");
+  c.grown.pine = 1; at("harvest");
+  c.v.screen = "harvest"; c.v.harvestPhase = "saw"; t.check();
+  c.v.screen = "lathe"; at("oak_order");
+  assert.equal(t.current().dismiss, true, "the blank card is just to read");
+  t.dismiss(); at("graduate");
+  assert.equal(c.resumed, 0);
+  t.dismiss();
+  assert.equal(t.done, true, "the shop card is left out of a replay");
+  assert.deepEqual(wallet(), w0);
+  assert.equal(c.grants.length, 0);
+  assert.equal(c.logs.pine, 0);
+  assert.equal(game.tutorial.replay, false);
+  // and a skip part way through a second replay pays nothing either
+  t.replay(); t.skip();
+  assert.equal(c.grants.length, 0);
+  assert.equal(t.done, true);
+});
+
+test("a replay waits for a tree to grow on its own when there are no diamonds", () => {
+  const { c, t, game } = replayed();
+  game.tutorial.step = "speed"; game.tutorial.base = {};
+  c.planted.oak = 1; t.check();
+  assert.equal(id(t), "speed");
+  c.grown.oak = 1; t.check();
+  assert.equal(id(t), "harvest");
+});
+
+test("a full farm in a replay moves past planting", () => {
+  const { c, t, game } = replayed({ emptyPlots: 0 });
+  game.tutorial.step = "plot";
+  t.check();
+  assert.equal(id(t), "speed");
+});
+
+test("a replay in progress survives a reload, still a replay", () => {
+  const { t, game } = replayed();
+  const back = T.createTutorial(JSON.parse(JSON.stringify(game)), { ctx: fakeCtx().ctx });
+  assert.equal(back.isReplay(), true);
+  assert.equal(back.unlocked("mine"), true);
+  assert.equal(T.normalize({ done: true, replay: true }).replay, false, "a finished flow is never a replay");
+});
+
+test("every replay override's copy has no em dash", () => {
+  T.STEPS.forEach((s) => { if (s.replay) assert.ok(!/\u2014/.test((s.replay.title || "") + (s.replay.text || "")), s.id); });
 });
