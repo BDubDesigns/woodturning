@@ -358,8 +358,23 @@ const painted = await page.evaluate((i) => ({ coat: window.__lathe.coat.coat[i],
 check(await page.locator("#tipSand").isVisible(), "the sandpaper is on the rack from the start");
 await page.click("#tipSand");
 check(await page.evaluate(() => window.__lathe.tip) === "sand" && /SMOOTH HERE/.test(await page.locator("#statDepth").locator("xpath=..").textContent()), "picking it switches the stat to SMOOTH HERE");
-await carve(0.5, { push: 30, hold: 1500 });
+// the first moments of sanding rough wood throw plenty of fine dust
+{
+  const info = await page.evaluate(() => { const S = window.__lathe, v = S.views.current, lay = v.layout(), rect = document.getElementById("stage").getBoundingClientRect(); return { x: rect.left + lay.left + 0.5 * (lay.right - lay.left), y: Math.min(rect.bottom - 30, rect.top + lay.cy + lay.rPx + 70) }; });
+  await page.mouse.move(info.x, info.y); await page.mouse.down();
+  for (let i = 1; i <= 12; i++) { await page.mouse.move(info.x, info.y - 30 * i / 12); await tick(0.025); }
+  // frame by frame: on the test clock, particles only age when a frame is drawn
+  const frames = (n) => page.evaluate((n) => { for (let i = 0; i < n; i++) window.__lathe.advance(1 / 60); }, n);
+  await frames(50);
+  var dustRough = await page.evaluate(() => window.__lathe.views.current.dustCount());
+  await frames(150);
+  var dustSmooth = await page.evaluate(() => { const v = window.__lathe.views.current; return v.dustCount(); });
+  await page.mouse.up(); await tick(0.06);
+}
+if (shots) await page.screenshot({ path: `${shots}/lathe-sanded-2d.png` });
 const sanded = await page.evaluate((i) => ({ rough: window.__lathe.work.rough[i], r: Array.from(window.__lathe.work.radius), coat: window.__lathe.coat.coat[i], gloss: window.__lathe.coat.gloss[i], smooth: window.__lathe.smoothHere() }), mid);
+check(dustRough > 4, `sanding rough wood throws dust (${dustRough} motes)`);
+check(dustSmooth < dustRough, `and the dust thins as it gets smooth (${dustRough} -> ${dustSmooth})`);
 check(sanded.rough < afterCut.rough - 0.1 && sanded.rough >= 0.35 - 1e-6, `sanding smooths it to 80 grit's floor: rough ${afterCut.rough.toFixed(2)} -> ${sanded.rough.toFixed(2)}`);
 check(sanded.r.every((v, i) => v <= afterCut.r[i] + 1e-6), "and never builds wood up");
 const took = Math.max(...sanded.r.map((v, i) => afterCut.r[i] - v)) * 40;

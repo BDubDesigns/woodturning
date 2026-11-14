@@ -100,6 +100,22 @@ mine, monetization, distribution, and the one-month bet.
   0.22), 240 grit (300, 0.12) and 320 grit (1000, 0.05). Smoothness is 6% of
   the grade: a mean roughness of 0.6 scores nothing, 0.08 scores it all.
   Model in `cutting.js` (`rough`, `sand`, `smoothness`) and `paint.js` (`wear`).
+  How it looks: sanded wood turns a more even, lighter tan, with the dark grain
+  streaks faded but not gone (in 3D the bump map flattens there too). A fine,
+  pale dust flies off the pad along the spin, as much as pressure times how
+  far the spot still is from the grit's best, so it thins out as the spot gets
+  smooth: that's the cue to move on. A soft hiss follows pressure and RPM. The
+  pad is a folded sheet over a cork block, held under the work.
+
+- The tool row: each tool on the rack is a compact button (icon and name). As
+  many slots fit as the footer allows (4 on a 360 px phone). With more tools
+  than slots, the last slot is MORE, which opens a bottom drawer listing every
+  tool as a full card with its description; tools you don't own are greyed with
+  their price, and tapping one opens its line at Arbor Freight. Picking from the
+  drawer puts that tool in the row in place of the least recently used one. The
+  drawer closes on a pick, a tap outside, or a swipe down. A newly bought tool
+  goes in the row and glows NEW the first time the row shows it. The row's order
+  is kept in the save (`toolRow`).
 
 - Blueprints: the board only rolls orders for pieces whose blueprint you own.
   The rolling pin comes free; the baseball bat is 100 coins, the walking stick

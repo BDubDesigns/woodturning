@@ -105,8 +105,8 @@
     if (G.OrdersUI) G.OrdersUI.render(true);
     return r;
   }
-  function flash(k) {
-    var card = bodyEl.querySelector('[data-bp-card="' + k + '"]');
+  function flash(k, sel) {
+    var card = bodyEl.querySelector(sel || '[data-bp-card="' + k + '"]');
     if (!card) return null;
     card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
     setTimeout(function () { card.classList.remove("flash"); }, 1600);
@@ -116,6 +116,13 @@
   function focusBlueprint(k) {
     render(true);
     var card = flash(k);
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  /* Show the store on one line (the lathe's tool drawer lands here). */
+  function focusLine(k) {
+    render(true);
+    var card = flash(k, '.af-line[data-line="' + k + '"]');
     if (card && card.scrollIntoView) card.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
@@ -145,7 +152,7 @@
   });
   setInterval(function () { if (shown) render(false); }, 1000);
 
-  var api = { show: function () { shown = true; render(true); }, hide: function () { shown = false; }, render: render, toast: toast, focusBlueprint: focusBlueprint, buyBlueprint: buyBlueprint };
+  var api = { show: function () { shown = true; render(true); }, hide: function () { shown = false; }, render: render, toast: toast, focusBlueprint: focusBlueprint, focusLine: focusLine, buyBlueprint: buyBlueprint };
   G.ShopUI = api;
   root.__shop = { shop: shop, ui: api };
   if (G.startScreen === "shop") api.show();

@@ -4,6 +4,10 @@
    silhouetted from the live profile, the chisel, flying chips.
    Every webview can paint it, so it is both the fallback when
    WebGL will not composite and a first-class view of its own.
+
+   Sanded slices (the cutting model's rough) are tinted a lighter,
+   even tan over the grain, and the sandpaper throws a fine pale dust
+   that thins as the wood gets smooth, as in the 3D view.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -50,6 +54,39 @@
           rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 18,
           life: 0.9 + Math.random() * 0.6, s: 2 + Math.random() * 3.4
         });
+      }
+    }
+
+    /* ---- sanding: an even, lighter tan over the grain where the wood is smooth ---- */
+    var sandGrad = null, sandKey = "";
+    function drawSanded(Lp, cy, rPx, len) {
+      var rough = work.rough, coat = S.coat, n = SEG, step = len / (n - 1);
+      var key = cy.toFixed(1) + ":" + rPx.toFixed(1);
+      if (key !== sandKey) {
+        sandKey = key;
+        sandGrad = g.createLinearGradient(0, cy - rPx, 0, cy + rPx);
+        sandGrad.addColorStop(0, "#94683a"); sandGrad.addColorStop(0.3, "#d4a76c");
+        sandGrad.addColorStop(0.46, "#f2d3a2"); sandGrad.addColorStop(0.62, "#d9b27c");
+        sandGrad.addColorStop(0.85, "#a27445"); sandGrad.addColorStop(1, "#77532c");
+      }
+      // smoothness quantised so a run is one rectangle; paint on top hides it
+      function lvl(i) { return Math.round((1 - rough[i]) * (1 - (coat ? Math.min(1, coat.coat[i]) : 0)) * 12); }
+      g.fillStyle = sandGrad;
+      eachRun(n, function (a, b) { return lvl(a) === lvl(b); }, function (a, b) {
+        var q = lvl(a);
+        if (q <= 0) return;
+        g.globalAlpha = Math.min(1, 0.7 * q / 12);
+        g.fillRect(Lp.left + (a - 0.5) * step, cy - rPx - 1, (b - a + 1) * step + 0.5, rPx * 2 + 2);
+      });
+      g.globalAlpha = 1;
+    }
+    /* sanding dust: fine and pale, flung off along the spin (down and out at the pad) */
+    function onSand(t, pr, rough, dt) {
+      var tp = tipXY(), n = Math.floor(pr * rough * dt * 260 + Math.random());
+      for (var i = 0; i < n; i++) {
+        if (drops.length > 320) drops.shift();
+        drops.push({ x: tp.x + (Math.random() - 0.5) * 24, y: tp.y - 2, vx: (Math.random() - 0.5) * 70, vy: 40 + Math.random() * 110,
+                     g: 40, life: 0.6 + Math.random() * 0.6, fade: 1.6, s: 0.7 + Math.random() * 1.1, mist: true, col: "rgba(246,230,196,A)", sand: true });
       }
     }
 
@@ -155,11 +192,23 @@
       g.beginPath(); g.moveTo(bx + dx * rPx * 0.22, by + dy * rPx * 0.22); g.lineTo(hx, hy); g.stroke();
       g.strokeStyle = "#e8eef2"; g.lineWidth = 2.4;
       var tip = L.TIPS[S.tip] || L.TIPS.gouge, z = tip.size || 1;
+      if (tip.look === "sand") return;
       if (tip.look === "gouge") {
         g.beginPath(); g.arc(tipX - dx * 2, tipY - dy * 2, 4.4 * z, 0, Math.PI * 2); g.stroke();
       } else {
         g.beginPath(); g.moveTo(tipX - 5 * z, tipY + 3 * z); g.lineTo(tipX + 5 * z, tipY - 4 * z); g.stroke();
       }
+    }
+
+    /* the sanding pad: a cork block wrapped in paper, pressed up under the work */
+    function drawPad(tipX, tipY, rPx) {
+      var w = Math.max(28, rPx * 0.9), h = Math.max(8, rPx * 0.26);
+      g.fillStyle = "#9c6b3c"; g.fillRect(tipX - w / 2, tipY + 3, w, h);
+      g.fillStyle = "#c79a5c"; g.fillRect(tipX - w / 2 - 2, tipY, w + 4, 4);
+      g.fillStyle = "rgba(60,36,16,0.55)";
+      for (var i = 0; i < 9; i++) g.fillRect(tipX - w / 2 + (i * 7.3) % w, tipY + 1 + (i % 2), 1.2, 1.2);
+      g.fillStyle = "#d9a27c";
+      for (var f = 0; f < 3; f++) { g.beginPath(); g.ellipse(tipX - w * 0.28 + f * w * 0.28, tipY + 3 + h + 4, w * 0.11, 5, 0, 0, Math.PI * 2); g.fill(); }
     }
 
     function drawBrush(tipX, tipY, dx, dy, rPx) {
@@ -325,6 +374,7 @@
         g.beginPath(); g.ellipse(kx, ky, 7, 3.4, 0.2, 0, Math.PI * 2); g.stroke();
         g.beginPath(); g.ellipse(kx, ky, 3.6, 1.7, 0.2, 0, Math.PI * 2); g.stroke();
       }
+      drawSanded(Lp, cy, rPx, len);   // over the grain, so sanded wood reads even (the streaks fade, not vanish)
       drawSheen(Lp, cy, rPx, len);
       g.restore();
       g.strokeStyle = "rgba(40,24,10,0.55)"; g.lineWidth = 1.2; g.stroke();
@@ -377,6 +427,7 @@
       g.lineCap = "round";
       if (S.mode === "paint") drawBrush(tipX, tipY, dx, dy, rPx);
       else if (S.mode === "finish") drawBottle(tipX, tipY, dx, dy, rPx);
+      else if ((L.TIPS[S.tip] || {}).look === "sand") drawPad(tipX, tipY, rPx);
       else drawChisel(tipX, tipY, dx, dy, rPx);
 
       if (S.mode === "finish") drawLamp(Lp, cy, rPx, len);
@@ -411,6 +462,8 @@
       onCut: onCut,
       onPaint: onPaint,
       onSpray: onSpray,
+      onSand: onSand,
+      dustCount: function () { var k = 0; for (var i = 0; i < drops.length; i++) if (drops[i].sand) k++; return k; },
       frame: frame,
       sliceToScreenX: function (i) { var Lp = lay || layout(); return Lp.left + (i / (SEG - 1)) * Lp.len; }
     };

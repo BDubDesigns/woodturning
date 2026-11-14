@@ -107,6 +107,49 @@ check(await page.locator('#toolsCut [data-tip="parting"]').isVisible(), "a parti
 await page.locator('#toolsCut [data-tip="parting"]').click();
 check(await page.evaluate(() => window.__lathe.tip) === "parting", "and can be picked");
 
+console.log("\nTHE TOOL ROW");
+const row = () => page.evaluate(() => ({ row: window.__lathe.row.slice(), more: !document.getElementById("tipMore").hidden, tip: window.__lathe.tip, cols: getComputedStyle(document.getElementById("toolsCut")).gridTemplateColumns.split(" ").length }));
+let r0 = await row();
+check(r0.cols === 4 && r0.row.length === 4 && !r0.more, `four tools fit four slots: no MORE (${r0.row.join(", ")})`);
+check(!(await page.locator("#toolsCut .tdesc").count()), "the row is icon and name only");
+const h = await page.locator("#tipGouge").boundingBox();
+check(h.height <= 56, `and the buttons are compact (${h.height.toFixed(0)} px tall)`);
+await page.evaluate(() => window.Game.showScreen("shop"));
+await page.click('[data-buy="chisels"]');      // the detail gouge: five tools, four slots
+await page.evaluate(() => window.Game.showScreen("lathe"));
+await tick(0.2);
+r0 = await row();
+check(r0.more && r0.row.length === 3, `five tools: three in the row and MORE (${r0.row.join(", ")})`);
+check(r0.row.includes("detail") && await page.locator("#tipDetail.is-new").count() === 1, "the new detail gouge goes in the row, glowing NEW");
+const hidden = ["gouge", "skew", "sand", "parting", "detail"].find((k) => !r0.row.includes(k) && k !== r0.tip);
+await page.click("#tipMore");
+check(await page.locator("#toolDrawer").isVisible(), "MORE opens the drawer");
+check(await page.locator("#toolDrawer .td-card").count() === 6 && await page.locator("#toolDrawer .td-card small").count() === 6, "every tool is in it as a full card, with its description");
+check(await page.locator('#toolDrawer .td-card.locked').count() === 1 && /2500 coins/.test(await page.locator("#toolDrawer .td-card.locked").textContent()), "the roughing gouge, not bought yet, is greyed with its price");
+if (shots) await page.screenshot({ path: `${shots}/tool-drawer.png` });
+await page.click(`#toolDrawer [data-pick="${hidden}"]`);
+await tick(0.1);
+r0 = await row();
+check(r0.tip === hidden && r0.row.includes(hidden) && r0.row.length === 3 && r0.more, `picking the ${hidden} from the drawer selects it and puts it in the row`);
+check(await page.locator("#toolDrawer").isHidden(), "and closes the drawer");
+await page.click("#tipMore");
+await page.mouse.click(200, 60);                // a tap outside the sheet
+check(await page.locator("#toolDrawer").isHidden(), "a tap outside closes it");
+await page.click("#tipMore");
+{
+  const sb = await page.locator("#toolSheet").boundingBox();
+  await page.mouse.move(sb.x + sb.width / 2, sb.y + 20); await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(sb.x + sb.width / 2, sb.y + 20 + i * 20);
+  await page.mouse.up();
+}
+check(await page.locator("#toolDrawer").isHidden(), "and so does a swipe down");
+await page.click("#tipMore");
+await page.click("#toolDrawer .td-card.locked");
+await tick(0.1);
+check(await page.evaluate(() => window.Game.currentScreen()) === "shop", "tapping a tool you don't own opens its line in the store");
+await page.evaluate(() => window.Game.showScreen("lathe"));
+await page.evaluate(() => { window.__farm.persist(); });
+
 // the same short pass, before and after a motor upgrade: more wood comes off after
 async function pass() {
   await page.evaluate(() => window.Lathe.mountBlank(null));
