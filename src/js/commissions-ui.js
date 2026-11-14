@@ -60,12 +60,18 @@
   }
 
   /* ---------------- what the shed has for an order ---------------- */
+  /* Pieces in the shed that could go to this order. While the new-player flow
+     runs, only one turned for it: the practice piece is not offered. */
+  function fits(o) {
+    var list = board.candidates(o.id);
+    return api.guided ? list.filter(function (it) { return it.order === o.id; }) : list;
+  }
   function stockFor(o) {
     var inv = state.inventory;
     return {
       blanks: inv.list("blank", function (it) { return it.wood === o.wood; }).length,
       logs: inv.count("log", o.wood),
-      pieces: board.candidates(o.id).length
+      pieces: fits(o).length
     };
   }
   function haveLine(o, st) {
@@ -89,7 +95,7 @@
   /* ---------------- the board ---------------- */
   function signature() {
     var B = board.state;
-    return JSON.stringify([B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces]; }), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
+    return JSON.stringify([api.guided, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces]; }), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
   }
   function render(force) {
     if (!shown) return;
@@ -100,7 +106,7 @@
     var B = board.state, h = "";
     B.orders.forEach(function (o) {
       var st = stockFor(o), on = B.active === o.id, name = pieceName(o);
-      h += '<article class="order' + (on ? " on" : "") + '" data-order="' + o.id + '">';
+      h += '<article class="order' + (on ? " on" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '">';
       h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + o.reward + "</b></div></div>";
       h += '<h3 class="o-name">' + esc(name) + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
       h += shapeSvg(o);
@@ -113,16 +119,17 @@
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
+        // while the new-player flow runs, the board is just its two orders: no practising, declining or rushing
         if (st.blanks || st.logs) {
           h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
-          h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
-        } else h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
-        h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
+          if (!api.guided) h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
+        } else if (!api.guided) h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
+        if (!api.guided) h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
       if (st.pieces) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
       h += "</div></article>";
     });
-    for (var k = B.orders.length; k < C.CFG.BOARD_SIZE; k++) {
+    for (var k = B.orders.length; k < C.CFG.BOARD_SIZE && !api.guided; k++) {
       var dia = state.wallet.balance("diamonds"), cost = C.CFG.RUSH_DIAMONDS;
       h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p>" +
         '<div class="row">' + act("GET ONE NOW", cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + dia + ".", dia >= cost ? "" : "short", "rush") + "</div></article>";
@@ -217,7 +224,7 @@
   }
   /* DELIVER on the board: pick which piece from the shed. */
   function choose(o) {
-    var list = board.candidates(o.id);
+    var list = fits(o);
     if (!list.length) { toast("No turned " + woodName(o.wood).toLowerCase() + " piece in the shed."); return; }
     var h = '<div class="grade-card"><h2 id="gradeTitle">Deliver ' + article(pieceName(o)) + " " + esc(pieceName(o).toLowerCase()) + "</h2><p class=\"g-note\">Pick the piece to hand to " + esc(o.client) + ".</p><div class=\"g-list\">";
     list.slice().reverse().forEach(function (it) {
@@ -257,7 +264,8 @@
   var api = {
     show: function () { shown = true; render(true); },
     hide: function () { shown = false; },
-    offer: offer, render: render, toast: toast
+    offer: offer, render: render, toast: toast,
+    guided: !!(G.tutorial && G.tutorial.isActive())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
   };
   G.OrdersUI = api;
   root.__orders = { board: board, ui: api };

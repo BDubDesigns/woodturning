@@ -86,6 +86,8 @@
     return i >= 0 && farm.isMature(farm.plotAt(i));
   }
   function showScreen(name) {
+    // a screen the new-player flow has not opened yet: stay on the lathe
+    if (G.tutorial && !G.tutorial.unlocked(name)) name = "lathe";
     if (name === "harvest" && !harvestReady()) name = "farm";
     if (current === name) return;
     current = name;
@@ -136,6 +138,7 @@
     try { history.replaceState(null, "", name === "lathe" ? location.pathname + location.search : "#" + name); } catch (e) {}
   }
   G.showScreen = showScreen;
+  G.currentScreen = function () { return current; };
   tabs.farm.addEventListener("click", function () { showScreen("farm"); });
   tabs.lathe.addEventListener("click", function () { showScreen("lathe"); });
   tabs.mine.addEventListener("click", function () { showScreen("mine"); });
@@ -448,6 +451,8 @@
     resumeBoard: function () { if (G.commissions) G.commissions.resume(); }
   };
   var tutorial = G.Tutorial.createTutorial(game, { ctx: tutorialCtx, onChange: persist });
+  // ?tutorial=off skips it (the browser tests use it, so they keep testing what they test)
+  if (/[?&]tutorial=off\b/.test(location.search)) tutorial.skip();
   G.tutorial = tutorial; G.tutorialCtx = tutorialCtx;
   root.__farm.tutorial = tutorial;
   /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js.
@@ -459,9 +464,6 @@
   var shop = G.Shop.createShop(game, { state: state, onChange: persist });
   G.shop = shop;
   root.__farm.shop = shop;
-
-  // the guided flow's coach is not built yet: a new player skips straight to the starter pack
-  if (!tutorial.done) tutorial.skip();
 
   var startScreen = /#farm\b/.test(location.hash) ? "farm" : /#harvest\b/.test(location.hash) ? "harvest" : /#mine\b/.test(location.hash) ? "mine" : /#orders\b/.test(location.hash) ? "orders" : /#shop\b/.test(location.hash) ? "shop" : "lathe";
   G.startScreen = startScreen;

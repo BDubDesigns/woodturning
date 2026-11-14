@@ -24,7 +24,7 @@ const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-await page.goto("file://" + page_ + "?testclock");
+await page.goto("file://" + page_ + "?tutorial=off&testclock");
 await page.waitForFunction(() => window.__lathe && window.__lathe.views && window.__lathe.views.current);
 const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);   // the lathe runs on its test clock (?testclock)
 await tick(0.4);

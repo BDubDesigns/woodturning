@@ -22,7 +22,7 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 860 } });
 const page = await ctx.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-await page.goto(`file://${file}?view=2d&testclock#shop`);
+await page.goto(`file://${file}?tutorial=off&view=2d&testclock#shop`);
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);   // the lathe runs on its test clock (?testclock)
 await tick(0.3);
@@ -104,7 +104,7 @@ await tick(0.2);
 const fresh = await page.evaluate(() => ({ coins: window.__farm.state.wallet.balance("coins"), light: window.__shop.shop.level("light"), motor: window.__shop.shop.level("motor"), tips: window.__lathe.tips, done: window.__orders.board.state.done }));
 check(fresh.coins === 250 && fresh.light === 0 && fresh.motor === 0 && fresh.tips.length === 2, `the second tap starts over as a new player (${JSON.stringify(fresh)})`);
 await page.evaluate(() => { window.__farm.state.wallet.earn("coins", 77); window.__farm.persist(); });
-await page.goto(`file://${file}?view=2d&testclock&reset`);
+await page.goto(`file://${file}?tutorial=off&view=2d&testclock&reset`);
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 check(await page.evaluate(() => window.__farm.state.wallet.balance("coins")) === 250, "?reset on the URL starts over too");
 check(!/reset/.test(await page.evaluate(() => location.search)), "and drops itself from the URL, so a reload does not wipe again");

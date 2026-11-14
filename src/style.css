@@ -708,3 +708,35 @@ header .gear-btn { margin-left: 4px; }
 #orderNote[hidden] { display: none; }
 /* the practice-only banner sits at the top of the stage; the lathe's toasts drop below it */
 #stage.has-note #ltoast { top: 78px; }
+
+/* ---------------- the new-player coach (tutorial-ui.js) ----------------
+   The card lets every tap through but its own buttons, and sits on the
+   other half of the screen from the control the ring is on. */
+.coach {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  width: min(420px, calc(100vw - 32px)); box-sizing: border-box;
+  padding: 12px 14px 12px; border-radius: 12px;
+  background: var(--chrome-bg); color: var(--ink);
+  border: 1px solid var(--amber-deep); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  pointer-events: none; animation: coach-in 0.25s ease-out;
+}
+.coach.at-bottom { bottom: max(16px, env(safe-area-inset-bottom)); }
+.coach.at-top { top: 112px; }
+.coach-k { font-size: 10px; letter-spacing: 0.14em; color: var(--amber); display: flex; justify-content: space-between; }
+.coach-k span { color: var(--faint); }
+.coach-t { margin: 4px 0 4px; font-size: 17px; line-height: 1.2; }
+.coach-p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--dim); }
+.coach-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.coach-row button { pointer-events: auto; }
+.coach-skip {
+  background: none; border: 0; padding: 6px 2px; color: var(--faint);
+  font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer;
+}
+.coach-ring {
+  position: fixed; z-index: 59; pointer-events: none; border-radius: 10px;
+  border: 3px solid var(--amber); box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.25);
+  animation: coach-pulse 1.4s ease-in-out infinite;
+}
+@keyframes coach-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes coach-pulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.25); } 50% { box-shadow: 0 0 0 10px rgba(232, 163, 61, 0.08); } }
+@media (prefers-reduced-motion: reduce) { .coach, .coach-ring { animation: none; transition: none; } }

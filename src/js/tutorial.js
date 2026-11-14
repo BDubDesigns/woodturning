@@ -14,6 +14,7 @@
      rescue(ctx, t) runs on every check; may hand out what the player needs
                to go on (a pine log) or send them back a step (returns an id)
      dismiss   the card has a GOT IT button that ends the step
+     mode      the lathe mode the step starts in (an order starts at the chisel)
 
    ctx is how the flow sees the game, supplied by tutorial-ui.js and faked
    in the tests. Everything is optional; a missing reading counts as 0:
@@ -22,7 +23,7 @@
      selectedEmpty() planted(wood) grown(wood) harvestPhase()
      coins() diamonds() plantPrice(wood)
      grant({ coins, diamonds, logs: { wood: n } })
-     postFirstBoard(list) resumeBoard() takeOrder(wood)
+     postFirstBoard(list) resumeBoard() takeOrder(wood) setMode(mode)
 
    The model owns the tutorial section of the save:
      game.tutorial { step, done }
@@ -89,7 +90,7 @@
       title: "Pick the pine one",
       text: "Each order names a shape, a wood, a paint and a finish. You have pine logs, so take the pine rolling pin.",
       done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; } },
-    { id: "turn", screen: "lathe", target: ["#profileBar"],
+    { id: "turn", screen: "lathe", target: ["#profileBar"], mode: "cut",
       title: "Turn to the line",
       text: "The dashed line is the shape they want, on the log and in the strip below it. Cut down to it. SHAPE shows how close you are.",
       done: function (c) { return n(c, "shape") >= SHAPE_GOOD || (s(c, "mode") && s(c, "mode") !== "cut"); },
@@ -99,9 +100,9 @@
       text: "Close enough. Tap PAINT and match the WANTED strip. The colours it needs are marked in the palette. Then FINISH and spray to the sheen it asks for.",
       done: function (c) { return s(c, "mode") === "finish" || n(c, "delivered") >= 1; },
       rescue: rescuePine },
-    { id: "deliver", screen: "lathe", target: ['[data-act="give"]', "#doneBtn"],
+    { id: "deliver", target: ['[data-act="give"]', '[data-act="deliver"]', "#doneBtn"],
       title: "Deliver it",
-      text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay.",
+      text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay. Kept it instead? DELIVER is on its order in ORDERS.",
       done: function (c) { return n(c, "delivered") >= 1; },
       rescue: rescuePine },
 
@@ -147,7 +148,7 @@
       done: function (c) { return s(c, "screen") === "lathe"; } },
 
     /* ---- the oak order ---- */
-    { id: "oak_order", screen: "lathe", target: ['[data-act="give"]', "#profileBar"],
+    { id: "oak_order", target: ['[data-act="give"]', '[data-act="deliver"]', "#profileBar"], mode: "cut",
       title: "Your own oak",
       text: "The oak order is on the lathe. Same as before: turn to the line, paint to the strip, finish, then DONE and DELIVER.",
       enter: function (c) { call(c, "takeOrder", "oak"); },
@@ -213,6 +214,7 @@
       var st = BY_ID[id];
       if (!st) { finish(); return; }
       T.step = id;
+      if (st.mode) call(ctx, "setMode", st.mode);
       if (st.enter) st.enter(ctx, api);
       onChange(); onStep(st);
     }
@@ -253,7 +255,8 @@
     var api = {
       state: T, current: current, unlocked: unlocked, check: check, advance: advance, dismiss: dismiss, skip: skip,
       get done() { return T.done; }, isActive: function () { return !T.done; },
-      boardPaused: function () { return !T.done; }
+      // the board waits until graduation, which refills it
+      boardPaused: function () { var c = current(); return !!c && c.index < BY_ID.graduate.index; }
     };
     return api;
   }
