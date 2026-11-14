@@ -58,6 +58,7 @@
       spinAngle: 0,
       cutIntensity: 0,
       hapticCut: 0,                     // the cutting vibration level, eased (haptics.js)
+      hapticSand: -1,                   // the sanding vibration level (roughness under the pad), eased; -1 = not sanding
       shake: 0,
       catchCooldown: 0,
       everCut: false,
@@ -951,7 +952,7 @@
     };
     /* How hard the lathe is working, 0..1, from the same inputs that set the cut rate:
        a hard press at the top RPM is 1. Drives the vibration. */
-    var DRIVE_MAX = L.pressureFactor(1) * L.rpmFactor(C.RPM_MAX), HAPTIC_EASE = 14;
+    var DRIVE_MAX = L.pressureFactor(1) * L.rpmFactor(C.RPM_MAX), HAPTIC_EASE = 14, SAND_EASE = 6;
     function drive(pr) { return Math.min(1, L.pressureFactor(pr) * L.rpmFactor(S.rpm) / DRIVE_MAX); }
     /* One tick of the lathe: spin, pressure, cutting, paint and spray, the tool, sound, stats. */
     function step(dt) {
@@ -962,7 +963,7 @@
         S.flow = Math.max(0, S.flow - dt * 3.2);
         if (S.coat.syncWork(S.work)) { drawProfile(); updateSpecInfo(); }   // wood cut away takes its paint
 
-        var p = S.pointer, pr = S.pressure.update(dt), hapCut = 0, hapSand = 0;
+        var p = S.pointer, pr = S.pressure.update(dt), hapCut = 0, hapSand = 0, hapSanding = false;
         simMs += dt * 1000;
         if (p.active) {
           S.lastT = p.t;
@@ -974,9 +975,14 @@
               S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
               S.sandLevel = Math.max(S.sandLevel, pr * (0.35 + 0.65 * Math.min(1, S.rpm / 1800)) * (0.35 + 0.65 * roughHere));
               // the dust is the cue: it thins out as the spot nears the best this grit can do
-              var dustAmt = Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor));
+              var gritFloor = (S.grit && S.grit.floor) || L.GRIT_80.floor, dustAmt = Math.max(0, roughHere - 0.9 * gritFloor);
               if (view.onSand) view.onSand(p.t, pr, dustAmt, dt);
-              hapSand = drive(pr) * dustAmt / Math.max(0.05, 1 - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor));   // fades like the dust; haptics.js caps it
+              // vibration follows how rough the spot still is, on the dust's scale: 1 rough, 0 as smooth as
+              // this grit goes. Pressure only switches it on, so the same spot always feels the same. Eased,
+              // so neighbouring slices don't make it jitter.
+              var roughRel = Math.min(1, dustAmt / Math.max(0.05, 1 - 0.9 * gritFloor));
+              S.hapticSand = S.hapticSand < 0 ? roughRel : S.hapticSand + (roughRel - S.hapticSand) * Math.min(1, dt * SAND_EASE);
+              hapSand = S.hapticSand; hapSanding = true;
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
             }
             S.coat.rebase(S.work);
@@ -999,7 +1005,8 @@
             if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }
         }
-        if (hapSand > 0) Hap.sand(hapSand); else { if (!hapCut) S.hapticCut = 0; Hap.cut(hapCut); }   // no wood off this frame: nothing
+        if (hapSanding) Hap.sand(hapSand);
+        else { S.hapticSand = -1; if (!hapCut) S.hapticCut = 0; Hap.cut(hapCut); }   // no wood off this frame: nothing
         var tool = S.tool;
         if (p.active) { tool.mode = "contact"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0; }
         else if (p.hover) { tool.mode = "hover"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0.12; }

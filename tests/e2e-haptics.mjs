@@ -24,8 +24,8 @@ async function open(ctx, { vibrate = true, reset = true } = {}) {
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   await page.addInitScript((vib) => {
-    window.__vib = [];
-    if (vib) Navigator.prototype.vibrate = function (p) { window.__vib.push(Array.isArray(p) ? p.slice() : p); return true; };
+    window.__vib = []; window.__vibT = [];   // each call, and when it came (on the lathe's clock)
+    if (vib) Navigator.prototype.vibrate = function (p) { window.__vib.push(Array.isArray(p) ? p.slice() : p); window.__vibT.push(window.Game.Haptics.clock()); return true; };
     else delete Navigator.prototype.vibrate;
   }, vibrate);
   await page.goto(`file://${file}?tutorial=off&view=2d&testclock` + (reset ? "&reset" : ""));
@@ -34,7 +34,20 @@ async function open(ctx, { vibrate = true, reset = true } = {}) {
   return page;
 }
 const calls = (page) => page.evaluate(() => window.__vib.slice());
-const clear = (page) => page.evaluate(() => { window.__vib.length = 0; });
+const clear = (page) => page.evaluate(() => { window.__vib.length = 0; window.__vibT.length = 0; });
+/* The pulses that really played: each call cancels whatever was left of the one before. */
+const played = (page) => page.evaluate(() => {
+  const out = [], v = window.__vib, ts = window.__vibT;
+  for (let i = 0; i < v.length; i++) {
+    const p = v[i], until = i + 1 < v.length ? ts[i + 1] : Infinity;
+    if (!Array.isArray(p)) continue;
+    let x = ts[i];
+    for (let k = 0; k < p.length; k++) { if (k % 2 === 0 && p[k] > 0 && x < until) out.push({ t: x, ms: p[k] }); x += p[k]; }
+  }
+  return out;
+});
+/* Pulses a second, from the mean spacing of the pulses that played. */
+const beat = (ps) => ps.length < 2 ? 0 : 1000 * (ps.length - 1) / (ps[ps.length - 1].t - ps[0].t);
 const tick = (page, s) => page.evaluate((s) => window.__lathe.advance(s), s);
 const setRpm = (page, rpm) => page.evaluate((rpm) => { const el = document.getElementById("rpm"); el.value = rpm; el.dispatchEvent(new Event("input")); }, rpm);
 const pulses = (p) => Array.isArray(p) ? p.filter((v, i) => i % 2 === 0 && v > 0).length : 0;
@@ -72,7 +85,9 @@ await setRpm(page, 400);
 await stroke(page, { t: 0.25, push: 10, ms: 1500, lift: false });
 const light = await calls(page);
 r0 = r1; r1 = await page.evaluate(() => window.__lathe.work.removedFraction());
-check(r1 > r0 && light.some((p) => pulses(p) > 0), `a light cut at 400 RPM vibrates (${light.length} calls, ${(density(light)).toFixed(1)} pulses/s)`);
+const lightBeat = beat(await played(page));
+check(r1 > r0 && light.some((p) => pulses(p) > 0), `a light cut at 400 RPM vibrates (${light.length} calls)`);
+check(lightBeat > 0 && lightBeat < 5, `and slowly: ${lightBeat.toFixed(1)} pulses a second`);
 check(light.length < 60, `patterns are sent a window at a time, not every frame (${light.length} calls over 1.8 s)`);
 await page.mouse.up();
 c = await calls(page);
@@ -106,19 +121,31 @@ console.log("\nSANDING AND PAINT");
 await page.click("#tipSand");
 await clear(page);
 await setRpm(page, 2400);
-await page.evaluate(() => { window.__lathe.work.rough.fill(1); window.__lathe.work.version++; });
-await stroke(page, { t: 0.5, push: 40, ms: 1000, lift: false });
-const sand = await calls(page);
-await page.mouse.up();
-const sandPats = sand.filter((p) => pulses(p) > 0);
-check(sandPats.length > 0, "sanding rough wood vibrates");
-check(sandPats.every((p) => p[p[0] === 0 ? 2 : 0] === 8) && density(sand, 1.3) < density(hard), `lighter: finer pulses, and sparser than a hard cut (${density(sand, 1.3).toFixed(1)} pulses/s)`);
-await page.evaluate(() => { window.__lathe.work.rough.fill(0); window.__lathe.work.version++; });
-await clear(page);
-await stroke(page, { t: 0.5, push: 40, ms: 800, lift: false });
-c = await calls(page);
-await page.mouse.up();
-check(c.filter((p) => pulses(p) > 0).length === 0, "sanding a spot already as smooth as the grit goes: nothing");
+/* Sand one spot held rough (or smooth) for a second, at an RPM and a push. */
+async function sandAt(rough, rpm, push) {
+  await setRpm(page, rpm);
+  await page.evaluate((r) => { window.__lathe.work.rough.fill(r); window.__lathe.work.version++; }, rough);
+  await clear(page);
+  const b = await page.locator("#stage").boundingBox(), x = b.x + b.width * 0.5, y = b.y + b.height * 0.82;
+  await page.mouse.move(x, y); await page.mouse.down();
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(x, y - (push * i) / 10); await tick(page, 0.03); }
+  for (let i = 0; i < 20; i++) {   // the pad sands the spot down as it goes: hold it where it was, so the feel can be read
+    await page.evaluate((r) => { window.__lathe.work.rough.fill(r); window.__lathe.work.version++; }, rough);
+    await tick(page, 0.05);
+  }
+  await page.mouse.up();
+  const ps = (await played(page)).filter((q) => q.t > 0);
+  return { ps, beat: beat(ps.slice(1)), longest: Math.max(0, ...ps.map((q) => q.ms)) };
+}
+const rough = await sandAt(1, 2400, 40), smooth = await sandAt(0, 2400, 40);
+check(rough.ps.length > 5, `sanding rough wood vibrates fast (${rough.beat.toFixed(1)} pulses a second)`);
+check(smooth.ps.length >= 1 && smooth.beat < 2.5, `a spot as smooth as the grit goes still ticks, super slowly (${smooth.ps.length} pulses, ${smooth.beat.toFixed(1)} a second)`);
+check(rough.beat > 5 * Math.max(smooth.beat, 0.5), "rough and smooth feel very different");
+check(rough.longest <= 10 && rough.longest < 14, `sanding pulses are finer than cutting (${rough.longest} ms at most)`);
+const roughSlow = await sandAt(1, 400, 12);
+check(Math.abs(roughSlow.beat - rough.beat) < 0.25 * rough.beat, `the same rough spot feels the same at 400 RPM with a light push (${roughSlow.beat.toFixed(1)} vs ${rough.beat.toFixed(1)} a second)`);
+const mid = await sandAt(0.5, 1100, 30);
+check(mid.beat > smooth.beat && mid.beat < rough.beat, `half sanded is in between (${mid.beat.toFixed(1)} a second)`);
 await page.click("#modePaint");
 await clear(page);
 await stroke(page, { t: 0.4, push: 40, ms: 800 });
