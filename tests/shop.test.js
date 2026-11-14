@@ -101,3 +101,64 @@ test("what was bought survives a save round trip", () => {
   assert.equal(s2.level("light"), 1);
   assert.deepEqual(s2.tips(), ["gouge", "skew", "parting"]);
 });
+
+// ---------- brushes and finishing ----------
+const P = require("../src/js/paint.js");
+/* One slow sweep across the middle of the piece with a tool, like a player's pass. */
+function sweep(kind, tool, secs = 1.2) {
+  const c = new P.Coating(), steps = Math.round(secs * 60);
+  for (let k = 0; k < steps; k++) {
+    const t = 0.3 + 0.4 * (k / steps);
+    if (kind === "spray") c.spray(t, 0.8, 1 / 60, tool); else c.brush(t, 0.8, kind, "cobalt", 1 / 60, tool);
+  }
+  return c;
+}
+function spread(arr, a, b) {   // how uneven a stretch is: max minus min
+  let lo = 1, hi = 0;
+  for (let i = a; i < b; i++) { lo = Math.min(lo, arr[i]); hi = Math.max(hi, arr[i]); }
+  return hi - lo;
+}
+
+test("the stock brush and spray bottle behave exactly as before the store sold better ones", () => {
+  const shop = setup().shop;
+  const a = sweep("brush", null), b = sweep("brush", shop.brush());
+  assert.deepEqual(Array.from(a.coat), Array.from(b.coat));
+  const s1 = sweep("spray", null), s2 = sweep("spray", shop.spray());
+  assert.deepEqual(Array.from(s1.gloss), Array.from(s2.gloss));
+});
+
+test("every brush and sprayer rung does more than the last", () => {
+  const B = Shop.LINES.brushes.tiers, F = Shop.LINES.finish.tiers;
+  for (let i = 1; i < B.length; i++) {
+    assert.ok(sweep("brush", B[i].brush, 0.25).coverage() > sweep("brush", B[i - 1].brush, 0.25).coverage(), B[i].name + " paints faster");
+    assert.ok(sweep("liner", B[i].brush, 0.25).coverage() > sweep("liner", B[i - 1].brush, 0.25).coverage(), B[i].name + " loads the liner more");
+  }
+  for (let i = 1; i < F.length; i++) assert.ok(sweep("spray", F[i].spray, 0.4).avgGloss() > sweep("spray", F[i - 1].spray, 0.4).avgGloss(), F[i].name + " builds sheen faster");
+});
+
+test("the wide pad brush covers a wider band; the liner stays a thin line", () => {
+  const top = Shop.LINES.brushes.tiers.at(-1).brush;
+  const width = (c) => Array.from(c.coat).filter((v) => v > 0.05).length;
+  const one = (kind, tool) => { const c = new P.Coating(); c.brush(0.5, 1, kind, "ink", 0.05, tool); return c; };
+  assert.ok(width(one("brush", top)) > width(one("brush", null)) * 1.2, "wider brush band");
+  assert.equal(width(one("liner", top)), width(one("liner", null)), "the liner keeps its width");
+});
+
+test("a better sprayer's mist has a flat core: one pass lays an even band, not a blotch", () => {
+  const F = Shop.LINES.finish.tiers;
+  // one short burst in one place: how much of the misted band came out near the peak sheen
+  const core = (gun) => {
+    const c = new P.Coating();
+    c.spray(0.5, 1, 0.1, gun);
+    const g = Array.from(c.gloss), peak = Math.max(...g), wet = g.filter((v) => v > 0.02 * peak).length;
+    return g.filter((v) => v >= 0.9 * peak).length / wet;
+  };
+  for (let i = 1; i < F.length; i++) assert.ok(core(F[i].spray) > core(F[i - 1].spray), `${F[i].name} is more even than ${F[i - 1].name} (${core(F[i].spray).toFixed(2)} vs ${core(F[i - 1].spray).toFixed(2)})`);
+});
+
+test("a save from before brushes and finishing were sold starts them at the stock tier", () => {
+  const s = Shop.normalizeShop({ owned: { light: 2, motor: 1, chisels: 3 }, spent: 999 });
+  assert.equal(s.owned.brushes, 0);
+  assert.equal(s.owned.finish, 0);
+  assert.equal(s.owned.light, 2);
+});

@@ -90,9 +90,14 @@
     var s = (u - 0.55) / 0.45;
     return 1 - s * s * (3 - 2 * s);
   }
-  function sprayKernel(d) {
-    if (d >= SPRAY_HALF_WIDTH) return 0;
-    var c = Math.cos((d / SPRAY_HALF_WIDTH) * Math.PI * 0.5);
+  /* The mist: soft all the way out for the stock bottle. A better gun (even > 0)
+     holds a flat core across part of its width, so a sweep lays an even sheen. */
+  function sprayKernel(d, hw, even) {
+    hw = hw || SPRAY_HALF_WIDTH;
+    if (d >= hw) return 0;
+    var u = d / hw, core = 0.6 * (even || 0);
+    if (u <= core) return 1;
+    var c = Math.cos(((u - core) / (1 - core)) * Math.PI * 0.5);
     return c * c;
   }
 
@@ -117,20 +122,24 @@
 
   /* One timestep of painting. t = axial position 0..1, pressure 0..1,
      colorKey a PALETTE key. Returns the amount of paint laid (sum over slices
-     of the share of each slice the new paint covers this step). */
-  Coating.prototype.brush = function (t, pressure, brushKey, colorKey, dt) {
+     of the share of each slice the new paint covers this step).
+     tool (optional, the workshop's brushes from the store): { flow, width },
+     multipliers on how fast paint goes on and on the wide brush's width. */
+  Coating.prototype.brush = function (t, pressure, brushKey, colorKey, dt, tool) {
     var c = this.cfg, n = c.SEG, spec = BRUSHES[brushKey], paint = PALETTE[colorKey];
     if (!spec || !paint) return 0;
+    var flowX = tool && tool.flow > 0 ? tool.flow : 1;
+    var widthX = brushKey === "brush" && tool && tool.width > 0 ? tool.width : 1;
     var p = Math.min(1, Math.max(0, pressure));
     if (p < 0.02) return 0;
     var xc = Math.min(1, Math.max(0, t)) * (n - 1);
-    var hwS = spec.halfWidth / this.dx;
+    var hwS = spec.halfWidth * widthX / this.dx;
     var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
     var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
-    var rate = c.BRUSH_FLOW * spec.flow * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * Math.pow(p, c.FLOW_EXP));
+    var rate = c.BRUSH_FLOW * spec.flow * flowX * (c.FLOW_FLOOR + (1 - c.FLOW_FLOOR) * Math.pow(p, c.FLOW_EXP));
     var laid = 0, N = paint.rgb;
     for (var i = lo; i <= hi; i++) {
-      var w = kernel(brushKey, Math.abs(i - xc) * this.dx);
+      var w = kernel(brushKey, Math.abs(i - xc) * this.dx / widthX);
       if (w <= 0) continue;
       var a = Math.min(1, rate * w * dt);          // how much of the new paint lands this step
       if (a < 1e-6) continue;
@@ -147,19 +156,23 @@
     return laid;
   };
 
-  /* One timestep of spraying finish. Returns the gloss added. */
-  Coating.prototype.spray = function (t, pressure, dt) {
+  /* One timestep of spraying finish. Returns the gloss added.
+     gun (optional, the workshop's sprayer from the store): { rate, width, even },
+     multipliers on how fast and how wide the mist builds sheen, and how flat
+     its core is (0 soft all over .. 1 a wide even core). */
+  Coating.prototype.spray = function (t, pressure, dt, gun) {
     var c = this.cfg, n = c.SEG;
     var p = Math.min(1, Math.max(0, pressure));
     if (p < 0.02) return 0;
+    var hw = SPRAY_HALF_WIDTH * (gun && gun.width > 0 ? gun.width : 1), even = gun && gun.even > 0 ? gun.even : 0;
     var xc = Math.min(1, Math.max(0, t)) * (n - 1);
-    var hwS = SPRAY_HALF_WIDTH / this.dx;
+    var hwS = hw / this.dx;
     var lo = Math.max(c.END_MARGIN, Math.floor(xc - hwS));
     var hi = Math.min(n - 1 - c.END_MARGIN, Math.ceil(xc + hwS));
-    var rate = c.SPRAY_RATE * (c.SPRAY_FLOOR + (1 - c.SPRAY_FLOOR) * p);
+    var rate = c.SPRAY_RATE * (gun && gun.rate > 0 ? gun.rate : 1) * (c.SPRAY_FLOOR + (1 - c.SPRAY_FLOOR) * p);
     var added = 0;
     for (var i = lo; i <= hi; i++) {
-      var w = sprayKernel(Math.abs(i - xc) * this.dx);
+      var w = sprayKernel(Math.abs(i - xc) * this.dx, hw, even);
       if (w <= 0) continue;
       var old = this.gloss[i], ng = old + (1 - old) * Math.min(1, rate * w * dt);
       if (ng - old < 1e-6) continue;

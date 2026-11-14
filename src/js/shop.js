@@ -14,9 +14,11 @@
              weak on purpose (about a third of the top one), and every rung is
              about 1.5x the last, so the motor is a real reason to save up.
      chisels the chisel tips on the rack (cutting.js TIPS)
+     brushes brush { flow, width }: paint goes on faster, and the wide brush is wider (paint.js brush)
+     finish  spray { rate, width, even }: sheen builds faster, wider and more evenly (paint.js spray)
 
    The model owns the shop section of the save:
-     game.shop { owned: { light: 0, motor: 0, chisels: 0 }, spent }
+     game.shop { owned: { light: 0, motor: 0, chisels: 0, brushes: 0, finish: 0 }, spent }
    Coins go through the shared wallet (state.js).
    ============================================================ */
 (function (root) {
@@ -52,9 +54,27 @@
         { name: "Detail gouge", price: 700, blurb: "A small rounded gouge for tight beads and coves.", tips: ["detail"] },
         { name: "Roughing gouge", price: 2500, blurb: "A big wide gouge that takes a log round in a few passes.", tips: ["roughing"] }
       ]
+    },
+    brushes: {
+      name: "Brushes", blurb: "Better bristles hold more paint. A coat goes on in fewer passes.",
+      tiers: [
+        { name: "Hardware store brush", price: 0, blurb: "Stiff, a bit bald in the middle. It came in a bag of three.", brush: { flow: 1, width: 1 } },
+        { name: "Sash brush", price: 160, blurb: "Angled and soft. Paint goes on about half again as fast.", brush: { flow: 1.5, width: 1 } },
+        { name: "Wide pad brush", price: 600, blurb: "A broad soft pad. Faster still, and it covers a wider band each pass.", brush: { flow: 2, width: 1.35 } },
+        { name: "Sable artist's set", price: 2400, blurb: "The good stuff. A solid coat in one slow sweep, and a liner that loads fully.", brush: { flow: 2.6, width: 1.35 } }
+      ]
+    },
+    finish: {
+      name: "Finishing", blurb: "How the sheen goes on. Better sprayers build it faster and more evenly.",
+      tiers: [
+        { name: "Spray bottle", price: 0, blurb: "A plant mister with lacquer in it. It works, slowly, and in blotches.", spray: { rate: 1, width: 1, even: 0 } },
+        { name: "Trigger sprayer", price: 180, blurb: "A proper trigger and a wider fan. Sheen builds half again as fast.", spray: { rate: 1.5, width: 1.15, even: 0.25 } },
+        { name: "HVLP spray gun", price: 700, blurb: "A fine, even mist. Twice as fast, and a sweep lays an even coat.", spray: { rate: 2, width: 1.3, even: 0.6 } },
+        { name: "Spray booth", price: 2800, blurb: "A booth, a gun and an extractor fan. Even sheen end to end in one pass.", spray: { rate: 2.8, width: 1.45, even: 1 } }
+      ]
     }
   };
-  var LINE_ORDER = ["light", "motor", "chisels"];
+  var LINE_ORDER = ["light", "motor", "chisels", "brushes", "finish"];
 
   function defaultShop() {
     var owned = {};
@@ -105,6 +125,9 @@
     /* ---- what the upgrades do, for the lathe ---- */
     function lightLevel() { return current("light").level; }
     function cutBoost() { return current("motor").boost; }
+    /* The paint brushes and the finish sprayer the workshop owns, for paint.js. */
+    function brush() { return current("brushes").brush; }
+    function spray() { return current("finish").spray; }
     /* Every chisel tip on the rack: each chisels tier owned adds its tips. */
     function tips() {
       var out = [], t = LINES.chisels.tiers;
@@ -114,7 +137,7 @@
 
     return {
       state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
-      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips
+      lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray
     };
   }
 

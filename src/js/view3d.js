@@ -599,7 +599,7 @@
     brushG.add(tuft);
     function showBrush() {
       var wide = S.paintTool === "brush";
-      tuft.scale.set(wide ? 1.9 : 0.5, wide ? 1 : 1.25, wide ? 0.55 : 0.5);
+      tuft.scale.set(wide ? 1.9 * (S.brushTool ? S.brushTool.width : 1) : 0.5, wide ? 1 : 1.25, wide ? 0.55 : 0.5);
       tuft.position.y = wide ? 0.17 : 0.21;
       tuftMat.color.set(L.Paint.PALETTE[S.color].hex);
     }
