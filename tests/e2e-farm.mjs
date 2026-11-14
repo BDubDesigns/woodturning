@@ -175,7 +175,7 @@ const lay = await page.evaluate(() => { const l = window.__lathe.views.current.l
 check(lay > 100, `lathe resized to the stage after returning (${Math.round(lay)}px wide)`);
 
 // ---- the shed's log goes on the lathe; DONE turns it into a piece
-check((await page.textContent("#stockLabel")) === "PRACTICE", "the lathe starts on a practice blank");
+check((await page.textContent("#stockLabel")) === "PICK WOOD" && await page.evaluate(() => window.__lathe.empty), "the lathe starts empty: nothing is loaded on its own");
 await page.click("#stockBtn");
 check(await page.locator("#stockMenu").isVisible(), "STOCK opens the shed's list");
 check((await page.textContent("#stockMenu")).includes("Pine log"), "the pine log from the farm is offered");
@@ -191,7 +191,7 @@ await page.waitForTimeout(900); await page.mouse.up();
 await page.click("#doneBtn");
 const turned = await page.evaluate(() => { const inv = __farm.state.inventory; return { logs: inv.count("log", "pine"), pieces: inv.list("piece").map((p) => ({ wood: p.wood, from: p.from })), label: document.getElementById("stockLabel").textContent }; });
 check(turned.logs === 0 && turned.pieces.length === 1 && turned.pieces[0].wood === "pine" && turned.pieces[0].from === "log", "DONE: the log left the shed and a pine piece went in");
-check(turned.label === "PRACTICE", "after DONE the lathe is back on a practice blank");
+check(turned.label === "PICK WOOD", "after DONE the lathe is empty, asking what to turn next");
 check((await saved()).inventory.items.filter((i) => i.kind === "piece").length === 1, "the piece is saved");
 await page.click("#tabFarm");
 check(await page.locator("#farmScreen").isVisible(), "FARM tab shows the farm again");

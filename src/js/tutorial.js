@@ -14,6 +14,7 @@
      rescue(ctx, t) runs on every check; may hand out what the player needs
                to go on (a pine log) or send them back a step (returns an id)
      dismiss   the card has a GOT IT button that ends the step
+     showMin   the card's own hide button glows (the first card, so players find it)
      hint(ctx) an extra line for the card right now, or nothing (past satin: how to undo)
      mode      the lathe mode the step starts in (an order starts at the chisel)
      replay    what changes when the flow is replayed (see below): any of the
@@ -83,7 +84,8 @@
     /* ---- the lathe, on a practice piece of real pine ---- */
     { id: "cut", screen: "lathe", unlock: ["lathe"], target: ["#stage"],
       title: "Your lathe",
-      text: "A pine log is spinning. Touch below it, then nudge your finger up to push the chisel in. Slow and steady cuts deep. Take off a little wood.",
+      text: "A pine log is spinning. Touch below it, then nudge your finger up to push the chisel in. Slow and steady cuts deep. Take off a little wood. If this card is in the way, tap the glowing button at its top right to tuck it away.",
+      showMin: true,
       done: function (c) { return n(c, "removed") >= CUT_FRACTION; } },
     { id: "to_paint", screen: "lathe", target: ["#modePaint"],
       title: "Nice cut",

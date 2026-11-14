@@ -216,7 +216,7 @@
     shownHint = hint;
     card.innerHTML =
       '<div class="coach-k">' + (rep ? "REPLAY" : "GETTING STARTED") + " <span>" + n + " / " + of +
-        '<button type="button" class="coach-min" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
+        '<button type="button" class="coach-min' + (st.showMin ? " glow" : "") + '" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
       '<h2 class="coach-t">' + esc(st.title) + "</h2>" +
       '<p class="coach-p">' + esc(st.text) + "</p>" +
       (hint ? '<p class="coach-p coach-hint">' + esc(hint) + "</p>" : "") +

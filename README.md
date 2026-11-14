@@ -173,6 +173,12 @@ Harvest, all with a finger or mouse:
 
 The lathe:
 
+- Nothing is ever loaded on its own. The lathe starts empty, and DONE takes the
+  piece off and leaves it empty: it shows the shed (logs, blanks, the free
+  practice blank, and a way to the farm) and asks what to turn.
+- In PAINT and FINISH the spec strip shows where the brush or the spray is, the
+  same marker the profile strip shows while cutting, as wide as the tool.
+- The grade panel after DONE stays up until DELIVER or KEEP IT.
 - UNDO (the round arrow by DONE) asks first, then takes off only the layer of
   the mode you are in and what lies on it: on FINISH the sheen; on PAINT the
   paint and the sheen; on CUT it starts the piece over on the same wood (fresh

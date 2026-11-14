@@ -51,6 +51,7 @@ check(w.coins === 0 && w.dia === 0, "a new player starts with no coins or diamon
 check(w.logs === 3 && w.stock && w.stock.kind === "log" && w.stock.key === "pine", "three pine logs in the shed, and one is on the lathe");
 check(await step() === "cut", "the coach starts at the first cut");
 check(/Your lathe/.test(await coach()) && /Skip tutorial/.test(await coach()), "the first card welcomes the player and offers a way out");
+check(/tuck it away/.test(await coach()) && await page.evaluate(() => document.querySelector("#coach .coach-min").classList.contains("glow")), "and points out its own glowing hide button");
 check(await page.evaluate(() => window.__orders.board.state.orders.length) === 0, "no orders yet");
 await page.goto(url + "#shop");
 await page.waitForFunction(() => window.__tutorial && window.__lathe);
@@ -120,6 +121,9 @@ await page.click("#doneBtn");
 await tick(0.2);
 w = await page.evaluate(() => ({ pieces: window.__farm.state.inventory.count("piece"), logs: window.__farm.state.inventory.count("log", "pine") }));
 check(w.pieces === 1 && w.logs === 2, "DONE keeps the practice piece; two pine logs left");
+w = await page.evaluate(() => ({ empty: window.__lathe.empty, stock: window.__lathe.stock, mode: window.__lathe.mode, pick: !document.getElementById("lathePick").hidden, text: document.getElementById("lathePick").textContent }));
+check(w.empty && w.stock === null && w.mode === "cut" && w.pick, "after DONE the lathe is empty, back at the chisel, and asks what to turn");
+check(/NOTHING ON THE LATHE/.test(w.text) && /Pine log/.test(w.text) && /Practice blank/.test(w.text), "with the shed's logs and the practice blank to pick from");
 
 console.log("\nFIRST COMMISSION");
 check(await step() === "to_orders", "then ORDERS");
@@ -163,6 +167,9 @@ check(await step() === "deliver", "FINISH: on to deliver");
 await page.click("#doneBtn");
 await tick(0.3);
 check(await ringOn('[data-act="give"]'), "the grade dialog is up and the ring is on DELIVER");
+await page.mouse.click(5, 5);   // a tap outside the panel
+await page.keyboard.press("Tab");
+check(!(await page.locator("#gradeOverlay").isHidden()), "a tap outside the grade panel does not close it: DELIVER or KEEP IT");
 await page.click('#gradeOverlay [data-act="give"]');
 await tick(0.3);
 w = await page.evaluate(() => ({ done: window.__orders.board.state.done, coins: window.__farm.state.wallet.balance("coins") }));

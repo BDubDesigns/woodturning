@@ -57,6 +57,16 @@ await page.click('[data-buy="chisels"]');
 await tick(0.2);
 await page.click("#tabLathe");
 await tick(0.4);
+const empty = await page.evaluate(() => ({ empty: window.__lathe.empty, pick: !document.getElementById("lathePick").hidden, done: document.getElementById("doneBtn").getAttribute("aria-disabled") }));
+check(empty.empty && empty.pick && empty.done === "true" && (await page.locator("#stockLabel").textContent()) === "PICK WOOD", "the lathe starts empty and asks what to turn: nothing is loaded on its own");
+{
+  const box = await page.locator("#stage").boundingBox();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.9); await page.mouse.down(); await tick(0.3); await page.mouse.up();
+  check(await page.evaluate(() => window.__lathe.work.removedFraction()) === 0, "and a touch on the empty lathe cuts nothing");
+}
+await page.click('#lathePick [data-stock="practice"]');
+await tick(0.1);
+check(await page.evaluate(() => !window.__lathe.empty && document.getElementById("lathePick").hidden), "picking the practice blank mounts it");
 check(await page.locator('#toolsCut [data-tip="parting"]').isVisible(), "a parting tool is on the rack");
 await page.locator('#toolsCut [data-tip="parting"]').click();
 check(await page.evaluate(() => window.__lathe.tip) === "parting", "and can be picked");
