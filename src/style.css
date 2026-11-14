@@ -499,8 +499,23 @@ footer {
   transition: opacity 0.25s ease, transform 0.25s ease; z-index: 6;
 }
 #ltoast.on { opacity: 1; transform: translate(-50%, 0); }
+/* an empty lathe: the shed, asking what to turn */
+.lathe-pick {
+  position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
+  padding: 14px; background: rgba(14, 10, 7, 0.86);
+}
+.lathe-pick[hidden] { display: none !important; }
+.lathe-pick .lp-card {
+  width: min(380px, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box;
+  background: rgba(20, 15, 11, 0.97); color: #f3e7d3; border: 1px solid rgba(232, 163, 61, 0.6);
+  border-radius: 12px; padding: 14px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+.lathe-pick h2 { margin: 0 0 4px; font-size: 15px; letter-spacing: 0.12em; color: var(--amber); }
+.lathe-pick p { margin: 0 0 10px; font-size: 13.5px; color: #cdbb9b; }
+.lathe-pick .row { margin-top: 10px; display: flex; }
+.lathe-pick .row .act { flex: 1; }
 #stockMenu {
-  position: absolute; right: 12px; bottom: 12px; z-index: 7;
+  position: absolute; right: 12px; bottom: 12px; z-index: 9;   /* above the empty lathe's picker too */
   width: min(340px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto;
   background: rgba(20, 15, 11, 0.96); color: #f3e7d3;
   border: 1px solid rgba(232, 163, 61, 0.5); border-radius: 10px;
@@ -508,17 +523,17 @@ footer {
 }
 #stockMenu h2 { margin: 0 0 4px; font: 700 15px "Barlow Condensed", sans-serif; letter-spacing: 0.14em; color: var(--amber); }
 #stockMenu p { margin: 0 0 10px; font-size: 13px; color: #cbbba2; line-height: 1.35; }
-#stockMenu .stock-list { display: flex; flex-direction: column; gap: 6px; }
-#stockMenu .stock-opt {
+#stockMenu .stock-list, .lathe-pick .stock-list { display: flex; flex-direction: column; gap: 6px; }
+#stockMenu .stock-opt, .lathe-pick .stock-opt {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; text-align: left;
   padding: 7px 11px; border-radius: 8px; border: 1px solid rgba(150, 125, 85, 0.45);
   background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit;
 }
-#stockMenu .stock-opt[aria-pressed="true"] { border-color: var(--amber); }
-#stockMenu .stock-opt i { flex: 0 0 auto; width: 22px; height: 12px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset; }
-#stockMenu .stock-opt b { font-weight: 700; font-size: 14px; }
-#stockMenu .stock-opt small { display: block; font-size: 12px; color: #b9a98f; }
-#stockMenu .stock-opt .n { margin-left: auto; font: 600 17px "Barlow Condensed", sans-serif; }
+#stockMenu .stock-opt[aria-pressed="true"], .lathe-pick .stock-opt[aria-pressed="true"] { border-color: var(--amber); }
+#stockMenu .stock-opt i, .lathe-pick .stock-opt i { flex: 0 0 auto; width: 22px; height: 12px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset; }
+#stockMenu .stock-opt b, .lathe-pick .stock-opt b { font-weight: 700; font-size: 14px; }
+#stockMenu .stock-opt small, .lathe-pick .stock-opt small { display: block; font-size: 12px; color: #b9a98f; }
+#stockMenu .stock-opt .n, .lathe-pick .stock-opt .n { margin-left: auto; font: 600 17px "Barlow Condensed", sans-serif; }
 /* phones: sound and new log shrink to their icons so the lathe keeps its height */
 @media (max-width: 460px) {
   .ctl-btn.icon-sm { font-size: 0; gap: 0; padding: 8px 12px; }
@@ -735,6 +750,7 @@ header .gear-btn { margin-left: 4px; }
   background: var(--btn-bg); color: var(--dim); border: 1px solid var(--chrome-line);
 }
 .coach-min:active { transform: scale(0.94); }
+.coach-min.glow { color: var(--amber); border-color: var(--amber); animation: coach-glow 1.6s ease-in-out infinite; }
 /* the tucked-away card: a glowing button by DONE, or floating on the other screens */
 .coach-pill {
   border-color: var(--amber) !important; color: var(--amber);

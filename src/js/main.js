@@ -90,6 +90,7 @@
       p.t = Math.min(1, Math.max(0, (p.x - lay.left) / (span || 1)));
     }
     stage.addEventListener("pointerdown", function (e) {
+      if (S.empty) return;   // nothing on the lathe: the picker asks what to turn
       if (S.pointer.active) return;
       audio.init();
       var p = S.pointer;
@@ -208,6 +209,8 @@
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
     function mount(blank, stock) {
+      S.empty = false;
+      if (pickEl) pickEl.hidden = true;
       if (blank) S.work.load(blank); else S.work.reset();
       setStock(stock || null);
       S.lastT = -1; S.everCut = false;
@@ -253,7 +256,7 @@
       drawProfile(); drawSpec(); updateSpecInfo();
       return true;
     }
-    undoBtn.addEventListener("click", function () { closeStock(); openUndo(); });
+    undoBtn.addEventListener("click", function () { closeStock(); if (S.empty) { toast("Nothing on the lathe to undo."); return; } openUndo(); });
     undoEl.addEventListener("click", function (ev) {
       if (ev.target === undoEl) { closeUndo(); return; }
       var b = ev.target.closest ? ev.target.closest("[data-undo]") : null;
@@ -287,7 +290,7 @@
         if (st.kind === "log") S.wood = st.key;
         else { var it = inv.get(st.id); S.wood = it ? it.wood : null; if (!it) S.stock = null; }
       } else S.stock = null;
-      stockLabel.textContent = stockName(S.stock).toUpperCase();
+      stockLabel.textContent = S.empty ? "PICK WOOD" : stockName(S.stock).toUpperCase();
       doneBtn.setAttribute("aria-disabled", S.stock ? "false" : "true");
       if (typeof updateOrderNote === "function") updateOrderNote();
     }
@@ -312,11 +315,11 @@
       return !!c && !!st && c.kind === st.kind && (st.kind === "log" ? c.key === st.key : c.id === st.id);
     }
     function closeStock() { stockMenu.hidden = true; stockBtn.setAttribute("aria-expanded", "false"); }
-    function openStock() {
+    /* The shed's logs and blanks as buttons, with the free practice blank first. */
+    function stockListHtml() {
       var inv = shared() && shared().inventory, h = "";
-      h += "<h2>WHAT TO TURN</h2><p>Pick a log or a blank from the shed. It stays in the shed until you press DONE. Switching starts over on the new wood.</p>";
       h += '<div class="stock-list">';
-      h += '<button type="button" class="stock-opt" data-stock="practice" aria-pressed="' + (S.stock ? "false" : "true") + '"><i style="background:#c99a5e"></i><span><b>Practice blank</b><small>Free, but nothing you turn on it is kept</small></span></button>';
+      h += '<button type="button" class="stock-opt" data-stock="practice" aria-pressed="' + (!S.empty && !S.stock ? "true" : "false") + '"><i style="background:#c99a5e"></i><span><b>Practice blank</b><small>Free, but nothing you turn on it is kept</small></span></button>';
       if (inv) {
         inv.list("blank").forEach(function (it) {
           var st = { kind: "blank", id: it.id }, w = R.WOODS[it.wood];
@@ -326,15 +329,17 @@
           var st = { kind: "log", key: s.key }, w = R.WOODS[s.key];
           h += '<button type="button" class="stock-opt" data-stock="log" data-key="' + s.key + '" aria-pressed="' + isMounted(st) + '"><i style="background:' + w.trunk + '"></i><span><b>' + w.name + ' log</b><small>A round log, straight from the shed</small></span><span class="n">' + s.count + "</span></button>";
         });
-        if (!inv.count("blank") && !inv.count("log")) h += "<p>The shed is empty. Grow a tree on the farm, then chop or harvest it.</p>";
+        if (!inv.count("blank") && !inv.count("log")) h += "<p>The shed is empty. Grow a tree on the farm, then harvest it.</p>";
       }
-      h += "</div>";
-      stockMenu.innerHTML = h;
+      return h + "</div>";
+    }
+    function openStock() {
+      stockMenu.innerHTML = "<h2>WHAT TO TURN</h2><p>Pick a log or a blank from the shed. It stays in the shed until you press DONE. Switching starts over on the new wood.</p>" + stockListHtml();
       stockMenu.hidden = false;
       stockBtn.setAttribute("aria-expanded", "true");
     }
     stockBtn.addEventListener("click", function () { if (stockMenu.hidden) openStock(); else closeStock(); });
-    stockMenu.addEventListener("click", function (ev) {
+    function pickFrom(ev) {
       var b = ev.target.closest ? ev.target.closest("[data-stock]") : null;
       if (!b) return;
       var kind = b.getAttribute("data-stock");
@@ -343,7 +348,41 @@
       var st = kind === "log" ? { kind: "log", key: b.getAttribute("data-key") } : { kind: "blank", id: parseInt(b.getAttribute("data-id"), 10) };
       if (isMounted(st)) return;
       if (mountStock(st)) toast(stockName(S.stock) + " on the lathe.");
+    }
+    stockMenu.addEventListener("click", pickFrom);
+
+    /* ---------------- an empty lathe ----------------
+       Nothing is ever loaded on its own: after DONE, and whenever the lathe has
+       nothing on it, it shows the shed and asks what to turn. */
+    var pickEl = document.createElement("div");
+    pickEl.id = "lathePick"; pickEl.className = "lathe-pick"; pickEl.hidden = true;
+    stage.appendChild(pickEl);
+    S.empty = false;
+    function renderPick() {
+      if (!S.empty) return;
+      var o = S.order, farmOpen = !G.tutorial || G.tutorial.unlocked("farm");
+      pickEl.innerHTML = '<div class="lp-card"><h2>NOTHING ON THE LATHE</h2><p>Pick what to turn from the shed. It stays in the shed until you press DONE.' +
+        (o ? " " + o.client + "'s order needs " + woodName(o.wood).toLowerCase() + "." : "") + "</p>" + stockListHtml() +
+        (farmOpen ? '<div class="row"><button type="button" class="act" data-go="farm"><span class="an">TO THE FARM</span><span class="ad">Grow and harvest more wood</span></button></div>' : "") + "</div>";
+      pickEl.hidden = false;
+    }
+    /* Take everything off: the lathe waits, empty, for the next piece of wood. */
+    function clearLathe() {
+      S.empty = true;
+      S.work.reset(); S.coat.reset();
+      setStock(null);
+      S.pointer.active = false; S.pointer.id = null; S.pressure.up();
+      if (S.mode !== "cut") setMode("cut");
+      drawProfile(); drawSpec(); updateSpecInfo();
+      renderPick();
+    }
+    pickEl.addEventListener("click", function (ev) {
+      var go = ev.target.closest ? ev.target.closest("[data-go]") : null;
+      if (go) { if (G.showScreen) G.showScreen(go.getAttribute("data-go")); return; }
+      pickFrom(ev);
     });
+    pickEl.addEventListener("pointerdown", function (e) { e.stopPropagation(); });   // a tap on it is not a cut
+    L.clearLathe = clearLathe; L.renderPick = renderPick;
     // the menu sits on the stage: a tap on it is not a cut, and a tap anywhere else closes it
     stockMenu.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
     stage.addEventListener("pointerdown", function (e) { if (!stockMenu.contains(e.target)) closeStock(); }, true);
@@ -372,7 +411,7 @@
         removed: Math.round(S.work.removedFraction() * 1000) / 1000
       });
       var order = S.order;
-      mount(null);
+      clearLathe();
       if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
       else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
       else toast(woodName(wood) + " piece added to the shed.");
@@ -480,6 +519,7 @@
       if (o) setSpec(o.spec); else setSpec(P.generateSpec());
       shapeShown = -1; updateShape();
       drawProfile();
+      renderPick();
     }
     L.syncOrder = syncOrder;
     /* Taking an order from the board: put the right wood on the lathe if the
@@ -534,8 +574,10 @@
       var w = specCanvas.clientWidth, h = specCanvas.clientHeight;
       if (!w) return;
       // only repaint when the coat, the spec or the width changed: a canvas redraw is not free
-      if (specDrawn.version === S.coat.version && specDrawn.spec === S.spec && specDrawn.w === w) return;
-      specDrawn.version = S.coat.version; specDrawn.spec = S.spec; specDrawn.w = w;
+      // where the brush or spray is: the same marker the profile strip shows while cutting
+      var tk = S.tool && S.tool.mode !== "rest" && !S.empty ? (S.tool.mode === "contact" ? "c" : "h") + Math.round(S.tool.t * 400) + S.mode + S.paintTool : "";
+      if (specDrawn.version === S.coat.version && specDrawn.spec === S.spec && specDrawn.w === w && specDrawn.tk === tk) return;
+      specDrawn.version = S.coat.version; specDrawn.spec = S.spec; specDrawn.w = w; specDrawn.tk = tk;
       var dpr = Math.min(root.devicePixelRatio || 1, 2);
       if (specCanvas.width !== Math.round(w * dpr)) { specCanvas.width = Math.round(w * dpr); specCanvas.height = Math.round(h * dpr); }
       var g = specCtx, n = C.SEG, half = Math.floor(h / 2), i, j;
@@ -571,6 +613,16 @@
       g.strokeStyle = "rgba(20,14,8,0.8)"; g.lineWidth = 1;
       g.beginPath(); g.moveTo(0, half + 0.5); g.lineTo(w, half + 0.5); g.stroke();
       g.strokeStyle = "rgba(150,125,85,0.6)"; g.strokeRect(0.5, 0.5, w - 1, h - 1);
+      if (tk) {
+        // the band the brush or the mist covers, and a line at its middle
+        var hw = S.mode === "finish" ? P.SPRAY_HALF_WIDTH * (S.sprayGun && S.sprayGun.width > 0 ? S.sprayGun.width : 1)
+          : P.BRUSHES[S.paintTool].halfWidth * (S.paintTool === "brush" && S.brushTool && S.brushTool.width > 0 ? S.brushTool.width : 1);
+        var mx = S.tool.t * w, bw = hw / P.CFG.LOG_LEN * w, on = S.tool.mode === "contact";
+        g.fillStyle = on ? "rgba(232,163,61,0.22)" : "rgba(232,163,61,0.12)";
+        g.fillRect(mx - bw, 0, bw * 2, h);
+        g.strokeStyle = "#e8a33d"; g.lineWidth = on ? 2 : 1;
+        g.beginPath(); g.moveTo(mx, 1); g.lineTo(mx, h - 1); g.stroke();
+      }
     }
     var lastMatch = null, infoSeen = { version: -1, spec: null };
     function updateSpecInfo() {
@@ -736,6 +788,7 @@
     setSpec(P.generateSpec());
     syncOrder();
     applyUpgrades();
+    clearLathe();      // nothing is loaded on its own: the player picks what to turn
     S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };

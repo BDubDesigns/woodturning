@@ -192,8 +192,13 @@
 
   /* ---------------- handing a piece over ---------------- */
   function closeOverlay() { overlay.hidden = true; overlay.innerHTML = ""; }
-  overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeOverlay(); });
-  root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.hidden) closeOverlay(); });
+  // a tap outside does nothing: the piece waits on DELIVER or KEEP IT, so it is never left in limbo.
+  // Escape on a keyboard means KEEP IT, said plainly by the button it presses.
+  root.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || overlay.hidden) return;
+    var keep = overlay.querySelector('[data-act="keep"]');
+    if (keep) keep.click(); else closeOverlay();
+  });
   function bar(label, v) {
     var pct = Math.round(v * 100);
     return '<div class="g-row"><span class="gk">' + label + '</span><span class="gbar"><i style="width:' + pct + '%"></i></span><b>' + pct + "%</b></div>";

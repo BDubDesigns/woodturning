@@ -517,8 +517,23 @@ footer {
   transition: opacity 0.25s ease, transform 0.25s ease; z-index: 6;
 }
 #ltoast.on { opacity: 1; transform: translate(-50%, 0); }
+/* an empty lathe: the shed, asking what to turn */
+.lathe-pick {
+  position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
+  padding: 14px; background: rgba(14, 10, 7, 0.86);
+}
+.lathe-pick[hidden] { display: none !important; }
+.lathe-pick .lp-card {
+  width: min(380px, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box;
+  background: rgba(20, 15, 11, 0.97); color: #f3e7d3; border: 1px solid rgba(232, 163, 61, 0.6);
+  border-radius: 12px; padding: 14px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+.lathe-pick h2 { margin: 0 0 4px; font-size: 15px; letter-spacing: 0.12em; color: var(--amber); }
+.lathe-pick p { margin: 0 0 10px; font-size: 13.5px; color: #cdbb9b; }
+.lathe-pick .row { margin-top: 10px; display: flex; }
+.lathe-pick .row .act { flex: 1; }
 #stockMenu {
-  position: absolute; right: 12px; bottom: 12px; z-index: 7;
+  position: absolute; right: 12px; bottom: 12px; z-index: 9;   /* above the empty lathe's picker too */
   width: min(340px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto;
   background: rgba(20, 15, 11, 0.96); color: #f3e7d3;
   border: 1px solid rgba(232, 163, 61, 0.5); border-radius: 10px;
@@ -526,17 +541,17 @@ footer {
 }
 #stockMenu h2 { margin: 0 0 4px; font: 700 15px "Barlow Condensed", sans-serif; letter-spacing: 0.14em; color: var(--amber); }
 #stockMenu p { margin: 0 0 10px; font-size: 13px; color: #cbbba2; line-height: 1.35; }
-#stockMenu .stock-list { display: flex; flex-direction: column; gap: 6px; }
-#stockMenu .stock-opt {
+#stockMenu .stock-list, .lathe-pick .stock-list { display: flex; flex-direction: column; gap: 6px; }
+#stockMenu .stock-opt, .lathe-pick .stock-opt {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; text-align: left;
   padding: 7px 11px; border-radius: 8px; border: 1px solid rgba(150, 125, 85, 0.45);
   background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit;
 }
-#stockMenu .stock-opt[aria-pressed="true"] { border-color: var(--amber); }
-#stockMenu .stock-opt i { flex: 0 0 auto; width: 22px; height: 12px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset; }
-#stockMenu .stock-opt b { font-weight: 700; font-size: 14px; }
-#stockMenu .stock-opt small { display: block; font-size: 12px; color: #b9a98f; }
-#stockMenu .stock-opt .n { margin-left: auto; font: 600 17px "Barlow Condensed", sans-serif; }
+#stockMenu .stock-opt[aria-pressed="true"], .lathe-pick .stock-opt[aria-pressed="true"] { border-color: var(--amber); }
+#stockMenu .stock-opt i, .lathe-pick .stock-opt i { flex: 0 0 auto; width: 22px; height: 12px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset; }
+#stockMenu .stock-opt b, .lathe-pick .stock-opt b { font-weight: 700; font-size: 14px; }
+#stockMenu .stock-opt small, .lathe-pick .stock-opt small { display: block; font-size: 12px; color: #b9a98f; }
+#stockMenu .stock-opt .n, .lathe-pick .stock-opt .n { margin-left: auto; font: 600 17px "Barlow Condensed", sans-serif; }
 /* phones: sound and new log shrink to their icons so the lathe keeps its height */
 @media (max-width: 460px) {
   .ctl-btn.icon-sm { font-size: 0; gap: 0; padding: 8px 12px; }
@@ -753,6 +768,7 @@ header .gear-btn { margin-left: 4px; }
   background: var(--btn-bg); color: var(--dim); border: 1px solid var(--chrome-line);
 }
 .coach-min:active { transform: scale(0.94); }
+.coach-min.glow { color: var(--amber); border-color: var(--amber); animation: coach-glow 1.6s ease-in-out infinite; }
 /* the tucked-away card: a glowing button by DONE, or floating on the other screens */
 .coach-pill {
   border-color: var(--amber) !important; color: var(--amber);
@@ -6401,6 +6417,7 @@ header .gear-btn { margin-left: 4px; }
       p.t = Math.min(1, Math.max(0, (p.x - lay.left) / (span || 1)));
     }
     stage.addEventListener("pointerdown", function (e) {
+      if (S.empty) return;   // nothing on the lathe: the picker asks what to turn
       if (S.pointer.active) return;
       audio.init();
       var p = S.pointer;
@@ -6519,6 +6536,8 @@ header .gear-btn { margin-left: 4px; }
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
     function mount(blank, stock) {
+      S.empty = false;
+      if (pickEl) pickEl.hidden = true;
       if (blank) S.work.load(blank); else S.work.reset();
       setStock(stock || null);
       S.lastT = -1; S.everCut = false;
@@ -6564,7 +6583,7 @@ header .gear-btn { margin-left: 4px; }
       drawProfile(); drawSpec(); updateSpecInfo();
       return true;
     }
-    undoBtn.addEventListener("click", function () { closeStock(); openUndo(); });
+    undoBtn.addEventListener("click", function () { closeStock(); if (S.empty) { toast("Nothing on the lathe to undo."); return; } openUndo(); });
     undoEl.addEventListener("click", function (ev) {
       if (ev.target === undoEl) { closeUndo(); return; }
       var b = ev.target.closest ? ev.target.closest("[data-undo]") : null;
@@ -6598,7 +6617,7 @@ header .gear-btn { margin-left: 4px; }
         if (st.kind === "log") S.wood = st.key;
         else { var it = inv.get(st.id); S.wood = it ? it.wood : null; if (!it) S.stock = null; }
       } else S.stock = null;
-      stockLabel.textContent = stockName(S.stock).toUpperCase();
+      stockLabel.textContent = S.empty ? "PICK WOOD" : stockName(S.stock).toUpperCase();
       doneBtn.setAttribute("aria-disabled", S.stock ? "false" : "true");
       if (typeof updateOrderNote === "function") updateOrderNote();
     }
@@ -6623,11 +6642,11 @@ header .gear-btn { margin-left: 4px; }
       return !!c && !!st && c.kind === st.kind && (st.kind === "log" ? c.key === st.key : c.id === st.id);
     }
     function closeStock() { stockMenu.hidden = true; stockBtn.setAttribute("aria-expanded", "false"); }
-    function openStock() {
+    /* The shed's logs and blanks as buttons, with the free practice blank first. */
+    function stockListHtml() {
       var inv = shared() && shared().inventory, h = "";
-      h += "<h2>WHAT TO TURN</h2><p>Pick a log or a blank from the shed. It stays in the shed until you press DONE. Switching starts over on the new wood.</p>";
       h += '<div class="stock-list">';
-      h += '<button type="button" class="stock-opt" data-stock="practice" aria-pressed="' + (S.stock ? "false" : "true") + '"><i style="background:#c99a5e"></i><span><b>Practice blank</b><small>Free, but nothing you turn on it is kept</small></span></button>';
+      h += '<button type="button" class="stock-opt" data-stock="practice" aria-pressed="' + (!S.empty && !S.stock ? "true" : "false") + '"><i style="background:#c99a5e"></i><span><b>Practice blank</b><small>Free, but nothing you turn on it is kept</small></span></button>';
       if (inv) {
         inv.list("blank").forEach(function (it) {
           var st = { kind: "blank", id: it.id }, w = R.WOODS[it.wood];
@@ -6637,15 +6656,17 @@ header .gear-btn { margin-left: 4px; }
           var st = { kind: "log", key: s.key }, w = R.WOODS[s.key];
           h += '<button type="button" class="stock-opt" data-stock="log" data-key="' + s.key + '" aria-pressed="' + isMounted(st) + '"><i style="background:' + w.trunk + '"></i><span><b>' + w.name + ' log</b><small>A round log, straight from the shed</small></span><span class="n">' + s.count + "</span></button>";
         });
-        if (!inv.count("blank") && !inv.count("log")) h += "<p>The shed is empty. Grow a tree on the farm, then chop or harvest it.</p>";
+        if (!inv.count("blank") && !inv.count("log")) h += "<p>The shed is empty. Grow a tree on the farm, then harvest it.</p>";
       }
-      h += "</div>";
-      stockMenu.innerHTML = h;
+      return h + "</div>";
+    }
+    function openStock() {
+      stockMenu.innerHTML = "<h2>WHAT TO TURN</h2><p>Pick a log or a blank from the shed. It stays in the shed until you press DONE. Switching starts over on the new wood.</p>" + stockListHtml();
       stockMenu.hidden = false;
       stockBtn.setAttribute("aria-expanded", "true");
     }
     stockBtn.addEventListener("click", function () { if (stockMenu.hidden) openStock(); else closeStock(); });
-    stockMenu.addEventListener("click", function (ev) {
+    function pickFrom(ev) {
       var b = ev.target.closest ? ev.target.closest("[data-stock]") : null;
       if (!b) return;
       var kind = b.getAttribute("data-stock");
@@ -6654,7 +6675,41 @@ header .gear-btn { margin-left: 4px; }
       var st = kind === "log" ? { kind: "log", key: b.getAttribute("data-key") } : { kind: "blank", id: parseInt(b.getAttribute("data-id"), 10) };
       if (isMounted(st)) return;
       if (mountStock(st)) toast(stockName(S.stock) + " on the lathe.");
+    }
+    stockMenu.addEventListener("click", pickFrom);
+
+    /* ---------------- an empty lathe ----------------
+       Nothing is ever loaded on its own: after DONE, and whenever the lathe has
+       nothing on it, it shows the shed and asks what to turn. */
+    var pickEl = document.createElement("div");
+    pickEl.id = "lathePick"; pickEl.className = "lathe-pick"; pickEl.hidden = true;
+    stage.appendChild(pickEl);
+    S.empty = false;
+    function renderPick() {
+      if (!S.empty) return;
+      var o = S.order, farmOpen = !G.tutorial || G.tutorial.unlocked("farm");
+      pickEl.innerHTML = '<div class="lp-card"><h2>NOTHING ON THE LATHE</h2><p>Pick what to turn from the shed. It stays in the shed until you press DONE.' +
+        (o ? " " + o.client + "'s order needs " + woodName(o.wood).toLowerCase() + "." : "") + "</p>" + stockListHtml() +
+        (farmOpen ? '<div class="row"><button type="button" class="act" data-go="farm"><span class="an">TO THE FARM</span><span class="ad">Grow and harvest more wood</span></button></div>' : "") + "</div>";
+      pickEl.hidden = false;
+    }
+    /* Take everything off: the lathe waits, empty, for the next piece of wood. */
+    function clearLathe() {
+      S.empty = true;
+      S.work.reset(); S.coat.reset();
+      setStock(null);
+      S.pointer.active = false; S.pointer.id = null; S.pressure.up();
+      if (S.mode !== "cut") setMode("cut");
+      drawProfile(); drawSpec(); updateSpecInfo();
+      renderPick();
+    }
+    pickEl.addEventListener("click", function (ev) {
+      var go = ev.target.closest ? ev.target.closest("[data-go]") : null;
+      if (go) { if (G.showScreen) G.showScreen(go.getAttribute("data-go")); return; }
+      pickFrom(ev);
     });
+    pickEl.addEventListener("pointerdown", function (e) { e.stopPropagation(); });   // a tap on it is not a cut
+    L.clearLathe = clearLathe; L.renderPick = renderPick;
     // the menu sits on the stage: a tap on it is not a cut, and a tap anywhere else closes it
     stockMenu.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
     stage.addEventListener("pointerdown", function (e) { if (!stockMenu.contains(e.target)) closeStock(); }, true);
@@ -6683,7 +6738,7 @@ header .gear-btn { margin-left: 4px; }
         removed: Math.round(S.work.removedFraction() * 1000) / 1000
       });
       var order = S.order;
-      mount(null);
+      clearLathe();
       if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
       else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
       else toast(woodName(wood) + " piece added to the shed.");
@@ -6791,6 +6846,7 @@ header .gear-btn { margin-left: 4px; }
       if (o) setSpec(o.spec); else setSpec(P.generateSpec());
       shapeShown = -1; updateShape();
       drawProfile();
+      renderPick();
     }
     L.syncOrder = syncOrder;
     /* Taking an order from the board: put the right wood on the lathe if the
@@ -6845,8 +6901,10 @@ header .gear-btn { margin-left: 4px; }
       var w = specCanvas.clientWidth, h = specCanvas.clientHeight;
       if (!w) return;
       // only repaint when the coat, the spec or the width changed: a canvas redraw is not free
-      if (specDrawn.version === S.coat.version && specDrawn.spec === S.spec && specDrawn.w === w) return;
-      specDrawn.version = S.coat.version; specDrawn.spec = S.spec; specDrawn.w = w;
+      // where the brush or spray is: the same marker the profile strip shows while cutting
+      var tk = S.tool && S.tool.mode !== "rest" && !S.empty ? (S.tool.mode === "contact" ? "c" : "h") + Math.round(S.tool.t * 400) + S.mode + S.paintTool : "";
+      if (specDrawn.version === S.coat.version && specDrawn.spec === S.spec && specDrawn.w === w && specDrawn.tk === tk) return;
+      specDrawn.version = S.coat.version; specDrawn.spec = S.spec; specDrawn.w = w; specDrawn.tk = tk;
       var dpr = Math.min(root.devicePixelRatio || 1, 2);
       if (specCanvas.width !== Math.round(w * dpr)) { specCanvas.width = Math.round(w * dpr); specCanvas.height = Math.round(h * dpr); }
       var g = specCtx, n = C.SEG, half = Math.floor(h / 2), i, j;
@@ -6882,6 +6940,16 @@ header .gear-btn { margin-left: 4px; }
       g.strokeStyle = "rgba(20,14,8,0.8)"; g.lineWidth = 1;
       g.beginPath(); g.moveTo(0, half + 0.5); g.lineTo(w, half + 0.5); g.stroke();
       g.strokeStyle = "rgba(150,125,85,0.6)"; g.strokeRect(0.5, 0.5, w - 1, h - 1);
+      if (tk) {
+        // the band the brush or the mist covers, and a line at its middle
+        var hw = S.mode === "finish" ? P.SPRAY_HALF_WIDTH * (S.sprayGun && S.sprayGun.width > 0 ? S.sprayGun.width : 1)
+          : P.BRUSHES[S.paintTool].halfWidth * (S.paintTool === "brush" && S.brushTool && S.brushTool.width > 0 ? S.brushTool.width : 1);
+        var mx = S.tool.t * w, bw = hw / P.CFG.LOG_LEN * w, on = S.tool.mode === "contact";
+        g.fillStyle = on ? "rgba(232,163,61,0.22)" : "rgba(232,163,61,0.12)";
+        g.fillRect(mx - bw, 0, bw * 2, h);
+        g.strokeStyle = "#e8a33d"; g.lineWidth = on ? 2 : 1;
+        g.beginPath(); g.moveTo(mx, 1); g.lineTo(mx, h - 1); g.stroke();
+      }
     }
     var lastMatch = null, infoSeen = { version: -1, spec: null };
     function updateSpecInfo() {
@@ -7047,6 +7115,7 @@ header .gear-btn { margin-left: 4px; }
     setSpec(P.generateSpec());
     syncOrder();
     applyUpgrades();
+    clearLathe();      // nothing is loaded on its own: the player picks what to turn
     S.syncOrder = syncOrder; S.takeOrder = takeOrder; S.practiseOrder = practiseOrder; S.setTip = setTip; S.applyUpgrades = applyUpgrades;
     S.setSpec = setSpec; S.setMode = setMode; S.setColor = setColor; S.setBrush = setBrush;
     S.match = function () { return P.matchSpec(S.spec, S.coat); };
@@ -7408,6 +7477,7 @@ header .gear-btn { margin-left: 4px; }
      rescue(ctx, t) runs on every check; may hand out what the player needs
                to go on (a pine log) or send them back a step (returns an id)
      dismiss   the card has a GOT IT button that ends the step
+     showMin   the card's own hide button glows (the first card, so players find it)
      hint(ctx) an extra line for the card right now, or nothing (past satin: how to undo)
      mode      the lathe mode the step starts in (an order starts at the chisel)
      replay    what changes when the flow is replayed (see below): any of the
@@ -7477,7 +7547,8 @@ header .gear-btn { margin-left: 4px; }
     /* ---- the lathe, on a practice piece of real pine ---- */
     { id: "cut", screen: "lathe", unlock: ["lathe"], target: ["#stage"],
       title: "Your lathe",
-      text: "A pine log is spinning. Touch below it, then nudge your finger up to push the chisel in. Slow and steady cuts deep. Take off a little wood.",
+      text: "A pine log is spinning. Touch below it, then nudge your finger up to push the chisel in. Slow and steady cuts deep. Take off a little wood. If this card is in the way, tap the glowing button at its top right to tuck it away.",
+      showMin: true,
       done: function (c) { return n(c, "removed") >= CUT_FRACTION; } },
     { id: "to_paint", screen: "lathe", target: ["#modePaint"],
       title: "Nice cut",
@@ -8955,6 +9026,7 @@ header .gear-btn { margin-left: 4px; }
       subEl.textContent = "PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING";
       statsEl.style.display = "";
       if (L.syncOrder) L.syncOrder();            // the board may have a new order on the lathe
+      if (L.renderPick) L.renderPick();          // and the shed may have new wood for an empty lathe
       root.dispatchEvent(new Event("resize"));   // the lathe views size themselves to the stage
     }
     try { history.replaceState(null, "", name === "lathe" ? location.pathname + location.search : "#" + name); } catch (e) {}
@@ -9493,8 +9565,13 @@ header .gear-btn { margin-left: 4px; }
 
   /* ---------------- handing a piece over ---------------- */
   function closeOverlay() { overlay.hidden = true; overlay.innerHTML = ""; }
-  overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeOverlay(); });
-  root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.hidden) closeOverlay(); });
+  // a tap outside does nothing: the piece waits on DELIVER or KEEP IT, so it is never left in limbo.
+  // Escape on a keyboard means KEEP IT, said plainly by the button it presses.
+  root.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || overlay.hidden) return;
+    var keep = overlay.querySelector('[data-act="keep"]');
+    if (keep) keep.click(); else closeOverlay();
+  });
   function bar(label, v) {
     var pct = Math.round(v * 100);
     return '<div class="g-row"><span class="gk">' + label + '</span><span class="gbar"><i style="width:' + pct + '%"></i></span><b>' + pct + "%</b></div>";
@@ -10130,7 +10207,7 @@ header .gear-btn { margin-left: 4px; }
     shownHint = hint;
     card.innerHTML =
       '<div class="coach-k">' + (rep ? "REPLAY" : "GETTING STARTED") + " <span>" + n + " / " + of +
-        '<button type="button" class="coach-min" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
+        '<button type="button" class="coach-min' + (st.showMin ? " glow" : "") + '" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
       '<h2 class="coach-t">' + esc(st.title) + "</h2>" +
       '<p class="coach-p">' + esc(st.text) + "</p>" +
       (hint ? '<p class="coach-p coach-hint">' + esc(hint) + "</p>" : "") +

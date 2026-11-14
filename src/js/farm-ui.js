@@ -141,6 +141,7 @@
       subEl.textContent = "PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING";
       statsEl.style.display = "";
       if (L.syncOrder) L.syncOrder();            // the board may have a new order on the lathe
+      if (L.renderPick) L.renderPick();          // and the shed may have new wood for an empty lathe
       root.dispatchEvent(new Event("resize"));   // the lathe views size themselves to the stage
     }
     try { history.replaceState(null, "", name === "lathe" ? location.pathname + location.search : "#" + name); } catch (e) {}

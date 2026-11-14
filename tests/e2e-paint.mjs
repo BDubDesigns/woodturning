@@ -233,6 +233,27 @@ for (const kind of ["3d", "2d"]) {
   m = await model();
   check(m.coat.every((v) => v === 0) && m.gloss.every((v) => v === 0), "a fresh practice blank is bare");
 
+  /* ---------- where the brush and the spray are: a marker on the spec strip ---------- */
+  if (kind === "2d") {
+    const markerAt = (t) => page.evaluate((t) => {
+      const c = document.getElementById("specCanvas"), g = c.getContext("2d"), x = Math.round(t * c.width), px = g.getImageData(x, 1, 1, 1).data;
+      return px[0] > 200 && px[1] > 130 && px[1] < 190 && px[2] < 110;   // the amber line
+    }, t);
+    for (const mode of ["paint", "finish"]) {
+      await page.evaluate(() => window.Lathe.mountBlank(null));
+      await page.click(mode === "paint" ? "#modePaint" : "#modeFinish");
+      await tick(0.2);
+      const info = await page.evaluate(() => { const S = window.__lathe, l = S.views.current.layout(), r = document.getElementById("stage").getBoundingClientRect();
+        return { x: r.left + l.left + 0.3 * (l.right - l.left), y: Math.min(r.bottom - 30, r.top + l.cy + l.rPx + 70) }; });
+      await page.mouse.move(info.x, info.y); await page.mouse.down();
+      for (let i = 1; i <= 8; i++) { await page.mouse.move(info.x, info.y - 4 * i); await tick(0.03); }
+      await tick(0.2);
+      const on = await markerAt(0.3), off = await markerAt(0.8);
+      await page.mouse.up(); await tick(0.2);
+      check(on && !off, `${mode === "paint" ? "painting" : "spraying"} shows where on the piece, on the spec strip`);
+    }
+  }
+
   /* ---------- UNDO: asks first, and takes off only its own layer ---------- */
   if (kind === "2d") {
     const layers = () => page.evaluate(() => { const S = window.__lathe; return { r: Array.from(S.work.radius), coat: Array.from(S.coat.coat), gloss: S.coat.avgGloss(), stock: JSON.stringify(S.stock) }; });
