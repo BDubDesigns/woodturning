@@ -187,6 +187,37 @@
     place(tut.current());
     fly(false, function () {});
   }
+  /* While a finger is on a play area (the lathe, the forest), the card fades out of the
+     way: players read the card first and then touch, so nothing they still need is
+     hidden. It comes back a little after the last finger lifts, so it does not flicker
+     between strokes. The ring stays. Taps on buttons, and the skip or stop question,
+     never fade it. Capture phase, so it runs before the stage's own handlers and does
+     not depend on them. */
+  var FADE_BACK_MS = 450;
+  var touching = {}, touchCount = 0, backTimer = 0;
+  function fadeOut() {
+    clearTimeout(backTimer); backTimer = 0;
+    if (!card.hidden && !confirming) card.classList.add("touching");
+  }
+  function fadeBack() {
+    clearTimeout(backTimer);
+    backTimer = setTimeout(function () { backTimer = 0; if (!touchCount) card.classList.remove("touching"); }, FADE_BACK_MS);
+  }
+  function onStageDown(e) {
+    var t = e.target;
+    if (t && t.closest && t.closest("button, a, input, select, textarea, label, [role=dialog], .coach-pill")) return;
+    if (!touching[e.pointerId]) { touching[e.pointerId] = 1; touchCount++; }
+    fadeOut();
+  }
+  function onPointerEnd(e) {
+    if (!touching[e.pointerId]) return;
+    delete touching[e.pointerId]; touchCount--;
+    if (!touchCount) fadeBack();
+  }
+  ["stage", "hstage"].forEach(function (id) { var el = $(id); if (el) el.addEventListener("pointerdown", onStageDown, true); });
+  document.addEventListener("pointerup", onPointerEnd, true);
+  document.addEventListener("pointercancel", onPointerEnd, true);
+
   pill.addEventListener("click", function (e) { e.stopPropagation(); restore(); });
   pill.addEventListener("pointerdown", function (e) { e.stopPropagation(); });   // on the stage, a tap on it is not a cut
   document.body.appendChild(pill);
@@ -217,7 +248,7 @@
     if (st.id !== shownId) { confirming = false; if (minimized) { minimized = false; pill.hidden = true; } }
     shownId = st.id;
     card.classList.toggle("confirm", confirming);
-    if (confirming) { card.innerHTML = confirmHtml(); return; }
+    if (confirming) { card.classList.remove("touching"); card.innerHTML = confirmHtml(); return; }
     var n = st.index + 1, of = T.STEPS.length, rep = tut.isReplay(), hint = st.hint ? st.hint(ctx) : null;
     shownHint = hint;
     card.innerHTML =
