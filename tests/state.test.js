@@ -182,3 +182,11 @@ test("save: sections this build does not know are kept for the build that does",
   st.setItem(S.KEY, JSON.stringify({ v: S.VERSION, wallet: { coins: 1, diamonds: 1 }, commissions: { open: [1] } }));
   assert.deepEqual(S.load(st).commissions, { open: [1] });
 });
+
+test("a turned piece keeps its roughness in the shed, so the grade can read how smooth it is", () => {
+  const S2 = require("../src/js/state.js");
+  const g = { wallet: {}, inventory: null };
+  const st = S2.createState(g);
+  const it = st.inventory.add("piece", { wood: "pine", profile: [1, 2], rough: [0.3, 0.4] });
+  assert.deepEqual(st.inventory.get(it.id).rough, [0.3, 0.4]);
+});

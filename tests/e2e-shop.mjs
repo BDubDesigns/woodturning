@@ -175,7 +175,7 @@ await Promise.all([page.waitForNavigation(), page.locator('#settingsOverlay [dat
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 await tick(0.2);
 const fresh = await page.evaluate(() => ({ coins: window.__farm.state.wallet.balance("coins"), light: window.__shop.shop.level("light"), motor: window.__shop.shop.level("motor"), tips: window.__lathe.tips, done: window.__orders.board.state.done }));
-check(fresh.coins === 250 && fresh.light === 0 && fresh.motor === 0 && fresh.tips.length === 2, `the second tap starts over as a new player (${JSON.stringify(fresh)})`);
+check(fresh.coins === 250 && fresh.light === 0 && fresh.motor === 0 && fresh.tips.length === 3, `the second tap starts over as a new player (${JSON.stringify(fresh)})`);
 await page.evaluate(() => { window.__farm.state.wallet.earn("coins", 77); window.__farm.persist(); });
 await page.goto(`file://${file}?tutorial=off&view=2d&testclock&reset`);
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
