@@ -626,13 +626,43 @@ footer {
 .g-pick .n { display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; }
 #profileBar .plabel b { display: block; color: var(--amber); font-size: 11px; letter-spacing: 0.08em; margin-top: 4px; }
 
-/* more than two chisels on the rack: a compact row, names only */
-.tip-group.many { display: grid; gap: 8px; }
-.tip-group.many .tip-btn { min-width: 0; min-height: 46px; padding: 6px 10px; gap: 8px; }
-.tip-group.many .tdesc { display: none; }
-.tip-group.many .tip-btn .tname { font-size: 15px; }
-.tip-group.many .tip-btn svg { width: 26px; height: 24px; }
+/* the tool rack: compact buttons, icon over name, as many as fit; MORE opens the drawer */
+.tip-group.tool-row { display: grid; gap: 8px; min-width: 0; flex: 1 1 100%; }
+.tool-btn { min-width: 0; min-height: 50px; padding: 5px 4px 6px; flex-direction: column; justify-content: center; gap: 2px; text-align: center; }
+.tool-btn svg { width: 28px; height: 24px; }
+.tool-btn .tname { font-size: 13.5px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tool-more { border-style: dashed; }
+.tool-more[aria-expanded="true"] { background: var(--btn-bg-on); border-color: var(--amber); border-style: solid; }
+.tool-btn.is-new { animation: tool-new 1.1s ease-in-out 4; border-color: #f2c230; }
+.tool-btn.is-new::after {
+  content: "NEW"; position: absolute; top: -7px; right: -4px; padding: 1px 5px; border-radius: 4px;
+  background: #f2c230; color: #1b1405; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: 0.1em;
+}
+.tool-btn { position: relative; }
+@keyframes tool-new { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 194, 48, 0); } 50% { box-shadow: 0 0 0 4px rgba(242, 194, 48, 0.45), 0 0 16px rgba(242, 194, 48, 0.45); } }
 .tip-btn[hidden] { display: none; }
+.tool-drawer { position: fixed; inset: 0; z-index: 40; background: rgba(8, 6, 4, 0.55); display: flex; align-items: flex-end; justify-content: center; }
+.tool-drawer[hidden] { display: none !important; }
+.td-sheet {
+  width: 100%; max-width: 680px; max-height: 78vh; overflow-y: auto; touch-action: pan-y;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0;
+  background: linear-gradient(0deg, var(--chrome-bg2), var(--chrome-bg)); border-top: 1px solid var(--amber);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5); animation: td-up 0.18s ease-out; transition: transform 0.12s;
+}
+@keyframes td-up { from { transform: translateY(40px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.td-grab { width: 44px; height: 5px; border-radius: 3px; background: var(--chrome-line); margin: 2px auto 8px; }
+.td-sheet h2 { margin: 0 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.2em; color: var(--amber); }
+.td-list { display: flex; flex-direction: column; gap: 8px; }
+.td-card {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px; text-align: left; width: 100%;
+  background: var(--btn-bg); color: var(--ink); border: 1px solid var(--chrome-line); border-radius: 9px;
+}
+.td-card b { display: block; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.08em; }
+.td-card small { display: block; font-size: 12px; color: var(--dim); line-height: 1.3; margin-top: 2px; }
+.td-card em { display: block; font-style: normal; font-size: 12px; color: #f2c230; margin-top: 3px; }
+.td-card[aria-pressed="true"] { background: var(--btn-bg-on); border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber) inset; }
+.td-card[aria-pressed="true"] b { color: var(--amber); }
+.td-card.locked { opacity: 0.55; filter: grayscale(0.6); border-style: dashed; }
 
 /* ---------- Arbor Freight, the tool store ---------- */
 #shopScreen { overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #22302a 0%, #18201c 50%, #0e1210 100%); }
@@ -693,7 +723,7 @@ footer {
 .af-line .act.bp-buy.primary .an { color: #cfe2ff; }
 .af-line .act.bp-buy.owned { opacity: 1; border-style: dashed; }
 .af-line .act.bp-buy.owned .an { color: var(--ok); }
-.bp-card.flash { animation: bp-flash 1.5s ease-out; }
+.bp-card.flash, .af-line.flash { animation: bp-flash 1.5s ease-out; }
 @keyframes bp-flash { 0% { box-shadow: 0 0 0 3px rgba(156, 195, 255, 0.9); background: rgba(111, 164, 240, 0.18); } 100% { box-shadow: 0 0 0 3px rgba(156, 195, 255, 0); background: transparent; } }
 .order.locked .o-shape { filter: grayscale(0.7) brightness(0.8); }
 .o-lock { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; line-height: 1.4; color: #cfe2ff; background: rgba(29, 74, 138, 0.35); border: 1px solid #3d6aa8; }

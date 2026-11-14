@@ -89,14 +89,14 @@
     // (before RATE_SCALE, RPM and pressure; see removalRate)
     // shape: "round" is a rounded trough (cos^2), "flat" a flat bottom (to `flat` of the half
     // width) with rounded shoulders. look/size: how the views draw the tip. finish: the
-    // roughness a cut leaves behind. The gouge, skew and sandpaper are on the rack from the
+    // roughness a cut leaves behind. short: the label on the compact tool row. The gouge, skew and sandpaper are on the rack from the
     // start; the rest are sold at Arbor Freight (shop.js). kind "abrasive" sands, not cuts.
-    gouge:    { halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    finish: 0.55, desc: "Wide, rounded scoop · roughing & curves" },
-    skew:     { halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, finish: 0.35, desc: "Narrow, angled flat · crisp grooves & beads" },
-    sand:     { halfWidth: 0.35, rate: 0,    name: "Sandpaper",      shape: "round", look: "sand", size: 1, kind: "abrasive", desc: "Smooths the surface · fades the chisel marks" },
-    parting:  { halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, finish: 0.6, desc: "Thin and deep · handles & shoulders" },
-    detail:   { halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, finish: 0.45, desc: "Small and round · tight beads & coves" },
-    roughing: { halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, finish: 0.75, desc: "Big and wide · takes a log round fast" }
+    gouge:    { short: "GOUGE", halfWidth: 0.5,  rate: 0.16, name: "Gouge",          shape: "round", look: "gouge", size: 1,    finish: 0.55, desc: "Wide, rounded scoop · roughing & curves" },
+    skew:     { short: "SKEW", halfWidth: 0.19, rate: 0.22, name: "Skew",           shape: "flat", flat: 0.45, look: "skew", size: 1, finish: 0.35, desc: "Narrow, angled flat · crisp grooves & beads" },
+    sand:     { short: "SANDPAPER", halfWidth: 0.35, rate: 0,    name: "Sandpaper",      shape: "round", look: "sand", size: 1, kind: "abrasive", desc: "Smooths the surface · fades the chisel marks" },
+    parting:  { short: "PARTING", halfWidth: 0.075, rate: 0.3, name: "Parting tool",   shape: "flat", flat: 0.6, look: "skew", size: 0.45, finish: 0.6, desc: "Thin and deep · handles & shoulders" },
+    detail:   { short: "DETAIL", halfWidth: 0.28, rate: 0.2,  name: "Detail gouge",   shape: "round", look: "gouge", size: 0.6, finish: 0.45, desc: "Small and round · tight beads & coves" },
+    roughing: { short: "ROUGHING", halfWidth: 0.78, rate: 0.24, name: "Roughing gouge", shape: "round", look: "gouge", size: 1.5, finish: 0.75, desc: "Big and wide · takes a log round fast" }
   };
   var TIP_ORDER = ["gouge", "skew", "sand", "parting", "detail", "roughing"];
 

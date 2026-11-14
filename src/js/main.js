@@ -53,6 +53,7 @@
       stock: null,                      // what is mounted: null (practice), { kind: "log", key: wood } or { kind: "blank", id }
       wood: null,                       // the wood of the stock, null for practice
       flow: 0,                          // brush / spray activity 0..1, drives the sound
+      sandLevel: 0,                     // sanding activity 0..1, drives the hiss
       rpm: 1100,
       spinAngle: 0,
       cutIntensity: 0,
@@ -150,44 +151,212 @@
     var rpmSlider = document.getElementById("rpm"), rpmVal = document.getElementById("rpmVal");
     S.rpm = parseInt(rpmSlider.value, 10);
     rpmSlider.addEventListener("input", function () { S.rpm = parseInt(rpmSlider.value, 10); rpmVal.textContent = S.rpm + " RPM"; });
-    /* The chisel rack: one button per tip the workshop owns. Gouge and skew are in
-       the page; tips bought at Arbor Freight (shop.js) get a button here. */
+    /* ---------------- the tool rack ----------------
+       One compact button (icon and name) per tool the workshop owns: the chisel tips
+       and the sandpaper (cutting.js TIPS; more are sold at Arbor Freight, shop.js).
+       As many slots as fit across the footer (4 on a 360 px phone). With more tools
+       than slots, the last slot is MORE, which opens a bottom drawer: every tool as a
+       full card with its description, the unowned ones greyed with their price (a tap
+       opens that line in the store). Picking one there puts it in the row in place of
+       the least recently used one. A newly bought tool goes in the row and glows NEW
+       the first time the row shows it. The row's order and what has been seen live in
+       the save (game.toolRow), so they survive a reload. */
     var tipGroup = document.getElementById("toolsCut");
     var TIP_ICON = {
+      gouge: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M4 4 h26 v10 c0 7 -6 12 -13 12 c-7 0 -13 -5 -13 -12 z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M9 9 v5 c0 4.4 3.6 8 8 8 c4.4 0 8 -3.6 8 -8 v-5" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/></svg>',
+      skew: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M6 22 L28 6 v16 L6 26 z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/><path d="M10 22.6 L28 10" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/></svg>',
       parting: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M15 3h4v18l-2 6-2-6z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/></svg>',
       detail: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M10 6h14v6c0 4-3 7-7 7s-7-3-7-7z" fill="none" stroke="#e8a33d" stroke-width="2.2"/></svg>',
       roughing: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M2 3h30v9c0 8-7 15-15 15S2 20 2 12z" fill="none" stroke="#e8a33d" stroke-width="2.4"/><path d="M8 7v5c0 5 4 9 9 9s9-4 9-9V7" fill="none" stroke="#e8a33d" stroke-width="1.4" opacity="0.55"/></svg>',
       sand: '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><path d="M4 9h26l-3 14H7z" fill="none" stroke="#e8a33d" stroke-width="2.2" stroke-linejoin="round"/><path d="M4 9c4-4 22-4 26 0" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.6"/><g fill="#e8a33d" opacity="0.7"><circle cx="11" cy="14" r="1"/><circle cx="16" cy="17" r="1"/><circle cx="21" cy="13" r="1"/><circle cx="24" cy="18" r="1"/><circle cx="13" cy="19" r="1"/><circle cx="19" cy="20" r="1"/></g></svg>'
     };
+    var MORE_ICON = '<svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><rect x="5" y="6" width="9" height="8" rx="2" fill="none" stroke="#e8a33d" stroke-width="2"/><rect x="20" y="6" width="9" height="8" rx="2" fill="none" stroke="#e8a33d" stroke-width="2"/><rect x="5" y="17" width="9" height="8" rx="2" fill="none" stroke="#e8a33d" stroke-width="2"/><path d="M24.5 17v8M20.5 21h8" stroke="#e8a33d" stroke-width="2" stroke-linecap="round"/></svg>';
+    var SLOT_PX = 80;                         // a compact button and its gap; 4 fit across a 360 px phone
     S.tips = ["gouge", "skew", "sand"];
+    S.row = [];                               // the tools shown in the row, in slot order
+    var rowSlots = 0, rowState = null;
+    function tipId(k) { return "tip" + k.charAt(0).toUpperCase() + k.slice(1); }
+    /* The row's memory, in the save: { order: [...], used: { key: n }, seen: [...] }. */
+    function toolRowState() {
+      if (rowState) return rowState;
+      var game = root.__farm && root.__farm.game;
+      var st = game && game.toolRow && typeof game.toolRow === "object" ? game.toolRow : null;
+      if (!st || !Array.isArray(st.order) || !Array.isArray(st.seen) || !st.used || typeof st.used !== "object") st = { order: [], used: {}, seen: null };
+      if (game) { game.toolRow = st; rowState = st; }
+      return st;
+    }
     function tipButtons() { return Array.prototype.slice.call(tipGroup.querySelectorAll("[data-tip]")); }
     function sanding() { return S.mode === "cut" && !!L.TIPS[S.tip] && L.TIPS[S.tip].kind === "abrasive"; }
     function setTip(t) {
       if (S.tips.indexOf(t) < 0) return;
       S.tip = t;
+      var st = toolRowState();
+      st.used[t] = 1 + Object.keys(st.used).reduce(function (m, k) { return Math.max(m, st.used[k] || 0); }, 0);   // least recently used = lowest
       S.pressure.catches = S.mode === "cut" && !sanding();   // sandpaper doesn't catch
       if (typeof syncDepthLabel === "function") syncDepthLabel();
+      if (S.row.length && S.row.indexOf(t) < 0) { placeInRow(t); renderRow(); }
       tipButtons().forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tip") === t ? "true" : "false"); });
+      renderDrawer();
+    }
+    /* How many slots fit across the footer. */
+    function slotsFit() {
+      var host = tipGroup.parentNode, w = (host && host.clientWidth) || 360;
+      var cs = host && root.getComputedStyle ? root.getComputedStyle(host) : null;
+      if (cs) w -= (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      return Math.max(3, Math.min(7, Math.floor((w + 8) / SLOT_PX)));
+    }
+    function overflowing() { return S.tips.length > rowSlots; }
+    /* Put a tool in the row, in place of the least recently used one (never the one in hand). */
+    function placeInRow(k) {
+      if (S.row.indexOf(k) >= 0) return;
+      var cap = overflowing() ? rowSlots - 1 : rowSlots;
+      if (S.row.length < cap) { S.row.push(k); return; }
+      var st = toolRowState(), worst = -1, wi = -1;
+      S.row.forEach(function (r, i) {
+        if (r === S.tip && r !== k) return;
+        var u = st.used[r] || 0;
+        if (wi < 0 || u < worst) { worst = u; wi = i; }
+      });
+      if (wi >= 0) S.row[wi] = k;
+    }
+    function makeBtn(k) {
+      var tp = L.TIPS[k], b = document.createElement("button");
+      b.className = "tip-btn tool-btn"; b.type = "button"; b.id = tipId(k);
+      b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
+      b.setAttribute("aria-label", tp.name); b.title = tp.name + ": " + tp.desc;
+      b.innerHTML = (TIP_ICON[k] || "") + '<span class="tname">' + (tp.short || tp.name.toUpperCase()) + "</span>";
+      return b;
+    }
+    var moreBtn = document.createElement("button");
+    moreBtn.className = "tip-btn tool-btn tool-more"; moreBtn.type = "button"; moreBtn.id = "tipMore";
+    moreBtn.setAttribute("aria-haspopup", "dialog"); moreBtn.setAttribute("aria-expanded", "false");
+    moreBtn.innerHTML = MORE_ICON + '<span class="tname">MORE</span>';
+    function renderRow() {
+      var st = toolRowState(), have = {};
+      tipButtons().forEach(function (b) { have[b.getAttribute("data-tip")] = b; });
+      // lay the row out in slot order, then MORE; owned tools not in the row live in the drawer
+      S.row.forEach(function (k) { var b = have[k] || makeBtn(k); b.hidden = false; tipGroup.appendChild(b); });
+      Object.keys(have).forEach(function (k) { if (S.row.indexOf(k) < 0) have[k].hidden = true; });
+      moreBtn.hidden = !overflowing();
+      tipGroup.appendChild(moreBtn);
+      tipGroup.style.gridTemplateColumns = "repeat(" + rowSlots + ", minmax(0, 1fr))";
+      // NEW: the first time the row shows a tool the workshop didn't start with
+      // (only while the row is on screen: bought in the store, it glows when the lathe comes back)
+      var unseenInDrawer = false, onScreen = !!tipGroup.offsetParent && !L.hidden;
+      S.tips.forEach(function (k) {
+        if (st.seen.indexOf(k) >= 0) return;
+        if (S.row.indexOf(k) >= 0 && onScreen) {
+          st.seen.push(k);
+          var b = tipGroup.querySelector('[data-tip="' + k + '"]');
+          if (b) { b.classList.add("is-new"); setTimeout(function () { b.classList.remove("is-new"); }, 4200); }
+        } else if (S.row.indexOf(k) < 0) unseenInDrawer = true;
+      });
+      moreBtn.classList.toggle("is-new", unseenInDrawer && !moreBtn.hidden);
+      st.order = S.row.slice();
     }
     function setTips(list) {
+      var st = toolRowState(), before = S.tips;
       S.tips = L.TIP_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
-      S.tips.forEach(function (k) {
-        if (tipGroup.querySelector('[data-tip="' + k + '"]')) return;
-        var tp = L.TIPS[k], b = document.createElement("button");
-        b.className = "tip-btn"; b.type = "button"; b.id = "tip" + k.charAt(0).toUpperCase() + k.slice(1);
-        b.setAttribute("data-tip", k); b.setAttribute("aria-pressed", "false");
-        b.innerHTML = (TIP_ICON[k] || "") + '<span><span class="tname">' + tp.name.toUpperCase() + '</span><div class="tdesc">' + tp.desc + "</div></span>";
-        tipGroup.appendChild(b);
-      });
-      tipButtons().forEach(function (b) { b.hidden = S.tips.indexOf(b.getAttribute("data-tip")) < 0; });
-      tipGroup.classList.toggle("many", S.tips.length > 2);
-      tipGroup.style.gridTemplateColumns = S.tips.length > 2 ? "repeat(" + (S.tips.length > 4 ? 3 : 2) + ", 1fr)" : "";
-      if (S.tips.indexOf(S.tip) < 0) setTip("gouge"); else setTip(S.tip);
+      if (!st.seen) st.seen = S.tips.slice();                 // what the workshop starts with is not NEW
+      rowSlots = slotsFit();
+      var cap = overflowing() ? rowSlots - 1 : rowSlots;
+      // keep the saved order, drop what isn't owned, fill up in rack order
+      if (S.tips.indexOf(S.tip) < 0) S.tip = "gouge";
+      S.row = (S.row.length ? S.row : st.order).filter(function (k) { return S.tips.indexOf(k) >= 0; });
+      // too many for the slots: the least recently used go to the drawer (never the tool in hand)
+      while (S.row.length > cap) {
+        var lru = -1;
+        S.row.forEach(function (k, i) { if (k !== S.tip && (lru < 0 || (st.used[k] || 0) < (st.used[S.row[lru]] || 0))) lru = i; });
+        S.row.splice(lru, 1);
+      }
+      if (S.row.indexOf(S.tip) < 0) placeInRow(S.tip);
+      // a tool bought just now goes straight into the row
+      S.tips.forEach(function (k) { if (before.indexOf(k) < 0 && st.seen.indexOf(k) < 0 && S.row.indexOf(k) < 0) placeInRow(k); });
+      S.tips.forEach(function (k) { if (S.row.length < cap && S.row.indexOf(k) < 0) S.row.push(k); });
+      renderRow();
+      setTip(S.tip);
     }
-    tipGroup.addEventListener("click", function (e) {
-      var b = e.target.closest ? e.target.closest("[data-tip]") : null;
-      if (b) { audio.init(); setTip(b.getAttribute("data-tip")); }
+    root.addEventListener("resize", function () {
+      if (!tipGroup.offsetParent) return;
+      var n = slotsFit();
+      if (n !== rowSlots) setTips(S.tips); else renderRow();   // the lathe came back into view: show what is NEW
     });
+    tipGroup.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-tip], #tipMore") : null;
+      if (!b) return;
+      audio.init();
+      if (b === moreBtn) { if (drawer.hidden) openDrawer(); else closeDrawer(); return; }
+      setTip(b.getAttribute("data-tip"));
+    });
+
+    /* ---------------- the drawer: every tool, as a full card ---------------- */
+    var drawer = document.createElement("div");
+    drawer.id = "toolDrawer"; drawer.className = "tool-drawer"; drawer.hidden = true;
+    drawer.setAttribute("role", "dialog"); drawer.setAttribute("aria-label", "All tools");
+    drawer.innerHTML = '<div class="td-sheet" id="toolSheet"><div class="td-grab" aria-hidden="true"></div><h2>TOOLS</h2><div class="td-list" id="toolList"></div></div>';
+    (document.getElementById("latheScreen") || document.body).appendChild(drawer);
+    var sheet = drawer.querySelector(".td-sheet"), listEl = drawer.querySelector(".td-list");
+    /* The tip sold in a shop line tier, with its price, for the tools not on the rack. */
+    function forSale(k) {
+      var Sh = G.Shop;
+      if (!Sh) return null;
+      for (var li = 0; li < Sh.LINE_ORDER.length; li++) {
+        var ln = Sh.LINES[Sh.LINE_ORDER[li]];
+        for (var ti = 0; ti < ln.tiers.length; ti++) if ((ln.tiers[ti].tips || []).indexOf(k) >= 0) return { line: Sh.LINE_ORDER[li], price: ln.tiers[ti].price, tier: ln.tiers[ti].name };
+      }
+      return null;
+    }
+    function renderDrawer() {
+      if (drawer.hidden) return;
+      var h = "";
+      L.TIP_ORDER.forEach(function (k) {
+        var tp = L.TIPS[k], own = S.tips.indexOf(k) >= 0;
+        if (own) {
+          h += '<button type="button" class="td-card" data-pick="' + k + '" aria-pressed="' + (S.tip === k) + '">' + (TIP_ICON[k] || "") +
+            '<span><b>' + tp.name.toUpperCase() + "</b><small>" + tp.desc + "</small></span></button>";
+        } else {
+          var sale = forSale(k);
+          h += '<button type="button" class="td-card locked" data-shop="' + (sale ? sale.line : "") + '">' + (TIP_ICON[k] || "") +
+            '<span><b>' + tp.name.toUpperCase() + "</b><small>" + tp.desc + "</small><em>" + (sale ? "Arbor Freight · " + sale.price + " coins" : "Not for sale yet") + "</em></span></button>";
+        }
+      });
+      listEl.innerHTML = h;
+    }
+    function openDrawer() {
+      drawer.hidden = false; moreBtn.setAttribute("aria-expanded", "true");
+      sheet.style.transform = "";
+      renderDrawer();
+    }
+    function closeDrawer() { drawer.hidden = true; moreBtn.setAttribute("aria-expanded", "false"); sheet.style.transform = ""; }
+    drawer.addEventListener("click", function (e) {
+      if (e.target === drawer) { closeDrawer(); return; }        // a tap outside the sheet
+      var pick = e.target.closest ? e.target.closest("[data-pick]") : null;
+      if (pick) { var k = pick.getAttribute("data-pick"); placeInRow(k); renderRow(); setTip(k); closeDrawer(); return; }
+      var shopBtn = e.target.closest ? e.target.closest("[data-shop]") : null;
+      if (shopBtn) {
+        closeDrawer();
+        var line = shopBtn.getAttribute("data-shop");
+        if (G.showScreen) G.showScreen("shop");
+        if (line && G.ShopUI && G.ShopUI.focusLine) G.ShopUI.focusLine(line);
+      }
+    });
+    // swipe the sheet down to close it
+    var swipe = null;
+    sheet.addEventListener("pointerdown", function (e) { swipe = { y: e.clientY, id: e.pointerId, dy: 0 }; });
+    sheet.addEventListener("pointermove", function (e) {
+      if (!swipe || e.pointerId !== swipe.id) return;
+      swipe.dy = Math.max(0, e.clientY - swipe.y);
+      if (swipe.dy > 6) sheet.style.transform = "translateY(" + swipe.dy + "px)";
+    });
+    function endSwipe(e) {
+      if (!swipe || (e && e.pointerId !== swipe.id)) return;
+      var far = swipe.dy > 60; swipe = null;
+      if (far) closeDrawer(); else sheet.style.transform = "";
+    }
+    sheet.addEventListener("pointerup", endSwipe);
+    sheet.addEventListener("pointercancel", endSwipe);
+    root.addEventListener("keydown", function (e) { if (e.key === "Escape" && !drawer.hidden) closeDrawer(); });
+    S.openDrawer = openDrawer; S.closeDrawer = closeDrawer;
     root.addEventListener("keydown", function (e) {
       if (e.key === "1") setTip("gouge");        // 3, 4 and 5 switch modes, so only the first two tips have keys
       if (e.key === "2") setTip("skew");
@@ -789,8 +958,9 @@
             if (pr > 0.02) {
               // paint and finish under the pad wear away; the hair of wood sanding takes is not a cut through the coat
               S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
-              S.cutIntensity = Math.max(S.cutIntensity, 0.22 * pr * (0.3 + roughHere));
-              if (view.onSand) view.onSand(p.t, pr, roughHere, dt);
+              S.sandLevel = Math.max(S.sandLevel, pr * (0.35 + 0.65 * Math.min(1, S.rpm / 1800)) * (0.35 + 0.65 * roughHere));
+              // the dust is the cue: it thins out as the spot nears the best this grit can do
+              if (view.onSand) view.onSand(p.t, pr, Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor)), dt);
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
             }
             S.coat.rebase(S.work);
@@ -815,6 +985,8 @@
         else tool.mode = "rest";
 
         audio.update(S.mode === "cut" ? S.cutIntensity : S.flow, p.active ? 1 : 0, S.rpm);
+        audio.sand(S.sandLevel, S.rpm);
+        S.sandLevel = Math.max(0, S.sandLevel - dt * 4);
         updateStats(dt);
         updateMeter();
     }

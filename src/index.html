@@ -120,22 +120,8 @@
             FINISH
           </button>
         </div>
-        <div class="tip-group" id="toolsCut" role="group" aria-label="Chisel tip">
-          <button class="tip-btn" id="tipGouge" data-tip="gouge" aria-pressed="true">
-            <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
-              <path d="M4 4 h26 v10 c0 7 -6 12 -13 12 c-7 0 -13 -5 -13 -12 z" fill="none" stroke="#e8a33d" stroke-width="2.4"/>
-              <path d="M9 9 v5 c0 4.4 3.6 8 8 8 c4.4 0 8 -3.6 8 -8 v-5" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/>
-            </svg>
-            <span><span class="tname">GOUGE</span><div class="tdesc">Wide, rounded scoop · roughing &amp; curves</div></span>
-          </button>
-          <button class="tip-btn" id="tipSkew" data-tip="skew" aria-pressed="false">
-            <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
-              <path d="M6 22 L28 6 v16 L6 26 z" fill="none" stroke="#e8a33d" stroke-width="2.4" stroke-linejoin="round"/>
-              <path d="M10 22.6 L28 10" fill="none" stroke="#e8a33d" stroke-width="1.6" opacity="0.55"/>
-            </svg>
-            <span><span class="tname">SKEW</span><div class="tdesc">Narrow, angled flat · crisp grooves &amp; beads</div></span>
-          </button>
-        </div>
+        <!-- the tool rack: compact buttons built by main.js (setTips), with MORE opening the drawer when they overflow -->
+        <div class="tip-group tool-row" id="toolsCut" role="group" aria-label="Lathe tools"></div>
         <div class="paint-tools" id="toolsPaint" hidden>
           <div class="tip-group" role="group" aria-label="Applicator">
             <button class="tip-btn" id="brushWide" aria-pressed="true">

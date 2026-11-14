@@ -8,6 +8,16 @@
    LatheGeometry runs along its local +Y, and spinGroup turns local
    +Y onto world +X (rotation.z = -PI/2). The Nov 12 prototype used
    +PI/2, which put slice 0 on the right and mirrored every cut.
+
+   Sanding: the wood texture is redrawn per slice from the cutting
+   model's rough. Each slice's bare-wood row gets a flat, even tan laid
+   over it at alpha 0.65 x (1 - rough), so sanded wood comes out a more
+   uniform tan with the dark grain streaks faded but not gone, and the
+   bump map (its own composited canvas) loses its grain there too.
+   A second, finer dust (sandDust) flies off the pad tangentially, in the
+   direction of spin; it spawns with pressure x roughness under the pad,
+   so it thins out as the spot gets smooth. The pad is its own tool
+   (look "sand"), a folded sheet over a cork block, held under the work.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -450,15 +460,58 @@
     envTex.mapping = THREE.EquirectangularReflectionMapping;
     envTex.colorSpace = THREE.SRGBColorSpace;
 
-    var woodMat = new THREE.MeshStandardMaterial({ map: paintTex, roughness: 1, roughnessMap: roughTex, metalness: 0.0, bumpMap: woodTex, bumpScale: 0.6, envMap: envTex, envMapIntensity: 0 });
-    var paintSeen = -1, roughSeen = -1, paintFrame = 0;
+    /* The bump map is its own canvas too: the wood's grain, flattened where it is sanded. */
+    var bumpCanvas = document.createElement("canvas"); bumpCanvas.width = PAINT_W; bumpCanvas.height = PAINT_H;
+    var bg2 = bumpCanvas.getContext("2d");
+    bg2.drawImage(woodCanvas, 0, 0);
+    var bumpTex = new THREE.CanvasTexture(bumpCanvas);
+    bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+    var SANDED_TAN = "rgb(203,160,104)", SANDED_BUMP = "rgb(176,128,72)", SAND_ALPHA = 0.65, BUMP_FLAT = 0.9;
+    var sandQ = new Uint8Array(SEG), sandWorkSeen = -1, SAND_LEVELS = 24;
+    /* Has the sanding changed enough to redraw? Quantised, so a cut's tiny drift doesn't repaint. */
+    function sandChanged() {
+      if (work.version === sandWorkSeen) return false;
+      sandWorkSeen = work.version;
+      var ch = false, rough = work.rough;
+      for (var j = 0; j < SEG; j++) {
+        var q = Math.round((1 - rough[j]) * SAND_LEVELS);
+        if (q !== sandQ[j]) { sandQ[j] = q; ch = true; }
+      }
+      return ch;
+    }
+    /* Lay a flat colour over each run of slices sanded alike, at alpha k x smoothness. */
+    function sandOverlay(cx, color, k) {
+      var step = PAINT_H / (SEG - 1), j = 0;
+      cx.fillStyle = color;
+      while (j < SEG) {
+        var q = sandQ[j], e = j;
+        while (e + 1 < SEG && sandQ[e + 1] === q) e++;
+        if (q > 0) {
+          var y1 = Math.max(0, PAINT_H - (e + 0.5) * step), y2 = Math.min(PAINT_H, PAINT_H - (j - 0.5) * step);
+          cx.globalAlpha = Math.min(1, k * q / SAND_LEVELS);
+          cx.fillRect(0, y1, PAINT_W, y2 - y1 + 0.6);
+        }
+        j = e + 1;
+      }
+      cx.globalAlpha = 1;
+    }
+    var woodMat = new THREE.MeshStandardMaterial({ map: paintTex, roughness: 1, roughnessMap: roughTex, metalness: 0.0, bumpMap: bumpTex, bumpScale: 0.6, envMap: envTex, envMapIntensity: 0 });
+    var paintSeen = -1, roughSeen = -1, paintFrame = 0, sandDirty = false;
     function cssRgb(c) { return "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")"; }
     function syncPaint(force) {
-      if (!force && coat.version === paintSeen) return;
-      if (!force && (++paintFrame % 2)) return;            // repaint at most every other frame while painting
+      if (sandChanged()) sandDirty = true;
+      if (!force && coat.version === paintSeen && !sandDirty) return;
+      if (!force && (++paintFrame % 2)) return;            // repaint at most every other frame while painting or sanding
       paintSeen = coat.version;
+      if (sandDirty || force) {
+        bg2.globalAlpha = 1; bg2.drawImage(woodCanvas, 0, 0);
+        sandOverlay(bg2, SANDED_BUMP, BUMP_FLAT);
+        bumpTex.needsUpdate = true;
+      }
+      sandDirty = false;
       pg.globalCompositeOperation = "source-over"; pg.globalAlpha = 1;
       pg.drawImage(woodCanvas, 0, 0);
+      sandOverlay(pg, SANDED_TAN, SAND_ALPHA);
       var step = PAINT_H / (SEG - 1), tmp = [0, 0, 0];
       for (var j = 0; j < SEG; j++) {
         var a = coat.coat[j];
@@ -568,6 +621,36 @@
     skewSteel.position.y = -0.1; skewSteel.rotation.z = 0.5;
     skewTip.add(skewSteel);
     chisel.add(skewTip);
+    /* The sanding pad: a sheet of paper folded over a cork block, held under the work.
+       Same convention as the chisel: origin where it touches, the hand up local +Y. */
+    var sandG = new THREE.Group();
+    sandG.scale.setScalar(1.22);
+    sandG.visible = false;
+    scene.add(sandG);
+    var paperTex = (function () {
+      var c = document.createElement("canvas"); c.width = c.height = 64;
+      var g = c.getContext("2d");
+      g.fillStyle = "#b8894f"; g.fillRect(0, 0, 64, 64);
+      for (var i = 0; i < 380; i++) { g.fillStyle = Math.random() < 0.5 ? "rgba(60,36,16,0.55)" : "rgba(240,214,170,0.5)"; g.fillRect(Math.random() * 64, Math.random() * 64, 1.2, 1.2); }
+      var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2);
+      return t;
+    })();
+    var paperMat = new THREE.MeshStandardMaterial({ map: paperTex, roughness: 0.95, metalness: 0 });
+    var paperBack = new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.9 });
+    var sheet = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.025, 0.36), [paperBack, paperBack, paperBack, paperMat, paperBack, paperBack]);
+    sheet.position.y = 0.012; sheet.castShadow = true; sandG.add(sheet);
+    var cork = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.2, 0.3), new THREE.MeshStandardMaterial({ color: 0x9c6b3c, roughness: 0.85 }));
+    cork.position.y = 0.125; cork.castShadow = true; sandG.add(cork);
+    [-1, 1].forEach(function (sd) {    // the paper folded up over the block's ends
+      var flap = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.2, 0.36), paperBack);
+      flap.position.set(sd * 0.3, 0.12, 0); sandG.add(flap);
+    });
+    var fingerMat = new THREE.MeshStandardMaterial({ color: 0xd9a27c, roughness: 0.7 });
+    for (var fi = 0; fi < 3; fi++) {    // fingertips on top of the block
+      var f = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.16, 4, 8), fingerMat);
+      f.rotation.x = Math.PI / 2; f.position.set(-0.13 + fi * 0.13, 0.25, 0.02); sandG.add(f);
+    }
+
     var shownTip = null;
     function showTip() {
       if (shownTip === S.tip) return;
@@ -623,13 +706,14 @@
     liquid.position.y = 1.0; bottleG.add(liquid);
 
     var activeTool = chisel, shownMode = "cut", shownBrushKey = "";
-    var toolFor = { cut: chisel, paint: brushG, finish: bottleG };
+    var toolFor = { cut: chisel, sand: sandG, paint: brushG, finish: bottleG };
     function showTool() {
-      if (shownMode !== S.mode) {
-        var next = toolFor[S.mode];
+      var tp = L.TIPS[S.tip], m = S.mode === "cut" && tp && tp.look === "sand" ? "sand" : S.mode;
+      if (shownMode !== m) {
+        var next = toolFor[m];
         next.position.copy(activeTool.position); next.quaternion.copy(activeTool.quaternion);
         activeTool.visible = false; next.visible = true;
-        activeTool = next; shownMode = S.mode;
+        activeTool = next; shownMode = m;
       }
       if (S.mode === "paint") {
         var key = S.paintTool + ":" + S.color;
@@ -714,6 +798,43 @@
         }
       }
       dustGeo.attributes.position.needsUpdate = true;
+    }
+
+    /* Sanding dust: finer, paler and more of it, flung off the pad along the spin. */
+    var SDUST_N = 900;
+    var sdPos = new Float32Array(SDUST_N * 3), sdDat = [];
+    for (var sdi = 0; sdi < SDUST_N; sdi++) { sdDat.push({ life: 0, vx: 0, vy: 0, vz: 0 }); sdPos[sdi * 3 + 1] = -10; }
+    var sdGeo = new THREE.BufferGeometry();
+    sdGeo.setAttribute("position", new THREE.BufferAttribute(sdPos, 3).setUsage(THREE.DynamicDrawUsage));
+    var sandDust = new THREE.Points(sdGeo, new THREE.PointsMaterial({ map: makeChipSprite(), size: 0.05, transparent: true, opacity: 0.8, depthWrite: false, color: 0xf6e6c4, sizeAttenuation: true }));
+    sandDust.frustumCulled = false;
+    scene.add(sandDust);
+    var sdCursor = 0, sdLive = 0;
+    function spawnSandDust(origin, n) {
+      for (var i = 0; i < n; i++) {
+        var d = sdDat[sdCursor], idx = sdCursor; sdCursor = (sdCursor + 1) % SDUST_N;
+        var sp = 0.9 + Math.random() * 1.8;
+        d.life = 0.5 + Math.random() * 0.7;
+        // tangential, the way the surface is travelling, with a little spread off the surface
+        d.vx = (Math.random() - 0.5) * 0.6;
+        d.vy = T3.y * sp + N3.y * Math.random() * 0.4;
+        d.vz = T3.z * sp + N3.z * Math.random() * 0.4 + 0.15;
+        sdPos[idx * 3] = origin.x + (Math.random() - 0.5) * 0.5; sdPos[idx * 3 + 1] = origin.y; sdPos[idx * 3 + 2] = origin.z;
+      }
+    }
+    function updateSandDust(dt) {
+      var live = 0;
+      for (var i = 0; i < SDUST_N; i++) {
+        var d = sdDat[i];
+        if (d.life > 0) {
+          d.life -= dt; live++;
+          d.vy -= 0.9 * dt; d.vx *= 1 - 1.2 * dt; d.vy *= 1 - 1.2 * dt; d.vz *= 1 - 1.2 * dt;   // light: it hangs, then drifts down
+          sdPos[i * 3] += d.vx * dt; sdPos[i * 3 + 1] += d.vy * dt; sdPos[i * 3 + 2] += d.vz * dt;
+          if (d.life <= 0) sdPos[i * 3 + 1] = -10;
+        }
+      }
+      sdLive = live;
+      sdGeo.attributes.position.needsUpdate = true;
     }
 
     /* ---------------- paint drops (flung off the spinning piece) and spray mist ---------------- */
@@ -936,6 +1057,13 @@
         spawnChips(contactPoint, amount);
         if (Math.random() < 0.6) spawnDust(contactPoint, 2);
       },
+      /* Sanding at t: fine dust, as much as pressure x how much rougher than the grit's floor it still is. */
+      onSand: function (t, pr, rough, dt) {
+        var r = work.sample(t);
+        contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
+        spawnSandDust(contactPoint, Math.floor(pr * rough * dt * 1400 + Math.random()));
+      },
+      dustCount: function () { return sdLive; },
       onPaint: function (pr, dt) {
         var t = S.tool.t, r = work.sample(t);
         contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
@@ -968,6 +1096,7 @@
         poseChisel(dt);
         updateChips(dt);
         updateDust(dt);
+        updateSandDust(dt);
         updateDrops(dt);
         updateMist(dt);
         if (S.shake > 0 && !S.reduceMotion) {

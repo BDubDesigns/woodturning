@@ -28,6 +28,12 @@
       audio.sawFilter = sawBp;
       audio.sawGain = ctx.createGain(); audio.sawGain.gain.value = 0;
       noise.connect(sawBp); sawBp.connect(audio.sawGain); audio.sawGain.connect(audio.master);
+      // sanding: a soft, airy hiss from the same noise, level set per frame
+      var sandHp = ctx.createBiquadFilter(); sandHp.type = "highpass"; sandHp.frequency.value = 2200; sandHp.Q.value = 0.5;
+      var sandBp = ctx.createBiquadFilter(); sandBp.type = "bandpass"; sandBp.frequency.value = 4200; sandBp.Q.value = 0.6;
+      audio.sandFilter = sandBp;
+      audio.sandGain = ctx.createGain(); audio.sandGain.gain.value = 0;
+      noise.connect(sandHp); sandHp.connect(sandBp); sandBp.connect(audio.sandGain); audio.sandGain.connect(audio.master);
       var humOsc = ctx.createOscillator(); humOsc.type = "sawtooth"; humOsc.frequency.value = 52;
       audio.humOsc = humOsc;
       var humLp = ctx.createBiquadFilter(); humLp.type = "lowpass"; humLp.frequency.value = 220;
@@ -102,6 +108,13 @@
     audio.init();
     audio.burst("bandpass", 4200, 2.5, 0.05, 0.12); audio.thump(1046, 1046, 0.16, 0.06, 0.04); audio.thump(1568, 1568, 0.3, 0.06, 0.12);
   };
+  /* sanding: level 0..1 (pressure x speed x how rough it still is), rpm brightens the hiss */
+  audio.sand = function (level, rpmNow) {
+    if (!audio.ctx || !audio.sandGain) return;
+    var now = audio.ctx.currentTime, lv = audio.on && audio.latheOn ? Math.min(1, Math.max(0, level)) : 0;
+    audio.sandGain.gain.setTargetAtTime(lv * 0.34, now, 0.05);
+    audio.sandFilter.frequency.setTargetAtTime(3200 + (rpmNow || 1100) * 0.9, now, 0.1);
+  };
   /* sawing: level 0..1 follows how fast the blade is moving */
   audio.saw = function (level) {
     if (!audio.ctx || !audio.sawGain) return;
@@ -117,6 +130,7 @@
     var now = audio.ctx.currentTime;
     if (!on) {
       audio.cutGain.gain.setTargetAtTime(0, now, 0.05);
+      if (audio.sandGain) audio.sandGain.gain.setTargetAtTime(0, now, 0.05);
       if (audio.humGain) audio.humGain.gain.setTargetAtTime(0, now, 0.05);
     } else if (audio.sawGain) {
       audio.sawGain.gain.setTargetAtTime(0, now, 0.05);
@@ -158,6 +172,7 @@
     if (!on && audio.ctx) {
       if (audio.sawGain) audio.sawGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
       audio.cutGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
+      if (audio.sandGain) audio.sandGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
       if (audio.humGain) audio.humGain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03);
     }
   };
