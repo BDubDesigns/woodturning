@@ -9,6 +9,13 @@
    the shed holds of that wood, and the pay. TAKE IT puts the order on
    the lathe (main.js draws its shape as a ghost and grades DONE against
    it); a finished piece of the right wood can be delivered from here too.
+
+   Blueprints (commissions.js): an order for a piece whose blueprint the
+   player doesn't own shows locked, with no TAKE IT, until it is bought;
+   buying it flips the card in place with a short highlight. Below the
+   orders a greyed teaser shows the cheapest blueprint not owned yet, with
+   a button to its card at Arbor Freight. The teaser is not an order and
+   takes no slot, and it is hidden while the new-player flow runs.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -17,7 +24,7 @@
   var host = root.__farm, board = G.commissions, state = host.state;
   function $(id) { return document.getElementById(id); }
   var listEl = $("orderList"), footEl = $("boardFoot"), toastEl = $("otoast"), overlay = $("gradeOverlay");
-  var shown = false, sig = "";
+  var shown = false, sig = "", wasLocked = {};
 
   var COIN = '<svg class="coin" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>';
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -95,7 +102,7 @@
   /* ---------------- the board ---------------- */
   function signature() {
     var B = board.state;
-    return JSON.stringify([api.guided, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces]; }), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
+    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces]; }), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
   }
   function render(force) {
     if (!shown) return;
@@ -104,9 +111,12 @@
     if (!force && s === sig) { tickClock(); return; }
     sig = s;
     var B = board.state, h = "";
+    var flipped = [];
     B.orders.forEach(function (o) {
-      var st = stockFor(o), on = B.active === o.id, name = pieceName(o);
-      h += '<article class="order' + (on ? " on" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '">';
+      var st = stockFor(o), on = B.active === o.id, name = pieceName(o), lock = board.locked(o);
+      if (wasLocked[o.id] && !lock) flipped.push(o.id);
+      wasLocked[o.id] = lock;
+      h += '<article class="order' + (on ? " on" : "") + (lock ? " locked" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '" data-kind="' + esc(o.kind) + '">';
       h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + o.reward + "</b></div></div>";
       h += '<h3 class="o-name">' + esc(name) + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
       h += shapeSvg(o);
@@ -114,8 +124,14 @@
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
       h += '<p class="o-blurb">' + esc(C.PIECES[o.kind].blurb) + "</p>";
       h += '<p class="o-have' + (st.blanks || st.logs || st.pieces ? "" : " none") + '">' + haveLine(o, st) + "</p>";
+      if (lock) h += '<p class="o-lock"><b>Locked.</b> Needs the ' + esc(name) + " blueprint" + (api.guided ? "." : ", from Arbor Freight.") + "</p>";
       h += '<div class="row">';
-      if (on) {
+      if (lock) {
+        if (!api.guided) {
+          h += act("SEE BLUEPRINT", C.PIECES[o.kind].price + " coins at Arbor Freight", "primary", "blueprint");
+          h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
+        }
+      } else if (on) {
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
@@ -126,7 +142,7 @@
         } else if (!api.guided) h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
         if (!api.guided) h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
-      if (st.pieces) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
+      if (st.pieces && !lock) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
       h += "</div></article>";
     });
     for (var k = B.orders.length; k < C.CFG.BOARD_SIZE && !api.guided; k++) {
@@ -134,7 +150,15 @@
       h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p>" +
         '<div class="row">' + act("GET ONE NOW", cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + dia + ".", dia >= cost ? "" : "short", "rush") + "</div></article>";
     }
+    var tk = api.guided ? null : board.teaser();
+    if (tk) {
+      var tdef = C.PIECES[tk];
+      h += '<article class="order teaser" data-teaser="' + tk + '">' + G.BlueprintArt.blueprintSVG(tk, { id: "teaser" + tk }) +
+        '<p class="o-teaser"><b>' + esc(tdef.name) + "</b>: get the blueprint at Arbor Freight. Orders for it pay up to " + Math.round(tdef.base * (1 + C.CFG.BONUS)) + " coins in pine.</p>" +
+        '<div class="row">' + act("SEE IT", tdef.price + " coins", "", "teaser") + "</div></article>";
+    }
     listEl.innerHTML = h;
+    flipped.forEach(function (id) { var el = listEl.querySelector('[data-order="' + id + '"]'); if (el) el.classList.add("unlocked"); });
     var f = "", recent = B.history.slice(-5).reverse();
     if (recent.length) {
       f += '<section class="order hist" aria-label="Delivered commissions"><div class="h-top"><span class="h-k">DELIVERED</span><span class="h-n">' + B.done + (B.done === 1 ? " commission" : " commissions") + "</span></div>";
@@ -154,9 +178,13 @@
   listEl.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
     if (!b) return;
+    var tz = b.closest("[data-teaser]");
+    if (tz) { openBlueprint(tz.getAttribute("data-teaser")); return; }
     var card = b.closest("[data-order]"), id = card ? parseInt(card.getAttribute("data-order"), 10) : 0;
     var o = board.get(id), what = b.getAttribute("data-act");
     if (!o) return;
+    if (what === "blueprint") { openBlueprint(o.kind); return; }
+    if ((what === "take" || what === "practise") && board.locked(o)) { toast("That needs the " + pieceName(o) + " blueprint first."); return; }
     if (what === "take") {
       board.accept(id);
       G.showScreen("lathe");
@@ -180,6 +208,11 @@
       choose(o);
     }
   });
+  /* The shop, on one blueprint's card. */
+  function openBlueprint(kind) {
+    G.showScreen("shop");
+    if (G.ShopUI && G.ShopUI.focusBlueprint) G.ShopUI.focusBlueprint(kind);
+  }
   function o0(id) { var o = board.get(id); return o ? esc(o.client) : "The customer"; }
   // GET ONE NOW on an empty slot: a diamond posts the next order straight away
   listEl.addEventListener("click", function (ev) {

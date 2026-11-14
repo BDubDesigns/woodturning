@@ -7,6 +7,8 @@
 //  4. Buying chisels puts new tips on the rack, and they cut.
 //  5. Buying a motor makes the same pass take more wood off.
 //  6. What was bought is saved: a reload keeps it.
+//  7. Blueprints: buying the bat's makes bat orders turn up on the board, and the
+//     board teases the next one.
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import { resolve } from "node:path";
@@ -31,7 +33,9 @@ const coins = () => page.evaluate(() => window.__farm.state.wallet.balance("coin
 console.log("\nTHE STORE");
 check(/ARBOR/.test(await page.locator("#screenTitle").textContent()), "the SHOP tab opens Arbor Freight");
 check((await page.locator("#tabOrders").textContent()).trim() === "ORDERS" && (await page.locator("#tabShop").textContent()).trim() === "SHOP", "the tabs read ORDERS and SHOP");
-check(await page.locator(".af-line").count() === 5, "five lines: lighting, motor, chisels, brushes, finishing");
+check(await page.locator(".af-line[data-line]").count() === 5, "five lines: lighting, motor, chisels, brushes, finishing");
+check(await page.locator(".bp-card").count() === 5 && await page.locator(".bp-card .bp-art").count() === 5, "and a blueprint card, with its drawing, for every piece");
+check(/OWNED/.test(await page.locator('[data-blueprint="rolling_pin"]').textContent()), "the rolling pin blueprint comes with the shed");
 check(await page.locator(".af-price").count() === 5, "each shows the next rung's price tag");
 if (shots) await page.screenshot({ path: `${shots}/shop.png` });
 
@@ -41,6 +45,37 @@ check(/SAVE UP/.test(await page.locator('[data-buy="light"]').textContent()), "w
 await page.click('[data-buy="light"]', { force: true });   // a real tap still lands on a greyed button
 check(/150 coins and you have 100/.test(await page.locator("#stoast").textContent()), "the store says what it costs");
 check(await coins() === 100 && await page.evaluate(() => window.__shop.shop.level("light")) === 0, "and a tap buys nothing");
+
+console.log("\nBLUEPRINTS");
+check(/BUY IT/.test(await page.locator('[data-blueprint="baseball_bat"]').textContent()) && /SAVE UP/.test(await page.locator('[data-blueprint="walking_stick"]').textContent()),
+  "with 100 coins the 100 coin bat says BUY IT and the 250 walking stick SAVE UP");
+await page.click('[data-blueprint="walking_stick"]', { force: true });
+check(await coins() === 100 && !(await page.evaluate(() => window.__orders.board.ownsBlueprint("walking_stick"))), "a tap on SAVE UP buys nothing");
+if (shots) await page.screenshot({ path: `${shots}/shop-blueprints.png` });
+await page.click('[data-blueprint="baseball_bat"]');
+await tick(0.2);
+check(await coins() === 0 && await page.evaluate(() => window.__orders.board.ownsBlueprint("baseball_bat")), "BUY IT takes the 100 coins and the bat blueprint is owned");
+check(/OWNED/.test(await page.locator('[data-bp-card="baseball_bat"]').textContent()), "its card is stamped OWNED");
+check(/Blueprint bought/.test(await page.locator("#stoast").textContent()), "the store says so");
+await page.evaluate(() => window.Game.showScreen("orders"));
+const turned = await page.evaluate(() => {
+  const b = window.__orders.board;
+  for (let i = 0; i < 60 && !b.state.orders.some((o) => o.kind === "baseball_bat"); i++) {
+    b.state.orders.slice().forEach((o) => b.decline(o.id));
+    b.state.nextAt = 0; b.refill();
+  }
+  window.__orders.ui.render(true);
+  return b.state.orders.map((o) => o.kind);
+});
+check(turned.includes("baseball_bat") && turned.every((k) => k === "baseball_bat" || k === "rolling_pin"), "bat orders turn up on the board now, and nothing else unowned (" + turned.join(", ") + ")");
+check(await page.locator('.order[data-kind="baseball_bat"] [data-act="take"]').count() > 0 && await page.locator(".order.locked").count() === 0, "and can be taken: nothing on the board is locked");
+check(await page.locator(".order.teaser").count() === 1 && /Walking stick/.test(await page.locator(".order.teaser").textContent()), "the board teases the next blueprint, the walking stick");
+check(await page.locator(".order[data-order]").count() === 3, "the teaser takes no slot");
+if (shots) await page.screenshot({ path: `${shots}/board-teaser.png`, fullPage: true });
+await page.click('.order.teaser [data-act="teaser"]');
+await tick(0.2);
+check(await page.evaluate(() => window.Game.currentScreen()) === "shop", "its button opens the shop");
+await page.evaluate(() => window.Game.showScreen("shop"));
 
 console.log("\nBUYING");
 await page.evaluate(() => { window.__farm.state.wallet.earn("coins", 5000); window.__shop.ui.render(true); });

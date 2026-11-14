@@ -22,7 +22,15 @@
    order for practice, but only the wood the order names can be delivered.
 
    The model owns the commissions section of the save:
-     game.commissions { orders: [...], active, nextId, nextAt, seed, done, history }
+     game.commissions { orders: [...], active, nextId, nextAt, seed, done, history, blueprints }
+
+   Blueprints gate the board: it only rolls orders for pieces whose blueprint
+   the player owns (blueprints, seeded with FREE_BLUEPRINTS). Each PIECES entry
+   has a price; buyBlueprint spends coins through the wallet. An order for a
+   piece you don't own can still sit on the board when something authored put
+   it there (the new-player flow), but it shows locked and accept() refuses it
+   until the blueprint is bought. teaser() is the cheapest one not owned yet,
+   for the board to tease. The shop (shop.js) stays ladders only.
    Coins go through the shared wallet; the piece comes out of the
    shared inventory (state.js).
    ============================================================ */
@@ -57,7 +65,8 @@
     STARS: [0.5, 0.72, 0.9]    // grade needed for one, two, three stars
   };
 
-  /* The kinds of piece. base: coins for a perfect pine one. shape(t, r):
+  /* The kinds of piece. base: coins for a perfect pine one. price: coins for
+     its blueprint (0 for the free ones). shape(t, r):
      target radius as a fraction of R0 at axial position t (0..1), r a
      seeded random source for the small differences between orders. */
   function S(e0, e1, x) { var u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); }
@@ -65,7 +74,7 @@
   function jit(r, a, b) { return a + (b - a) * r(); }
   var PIECES = {
     rolling_pin: {
-      name: "Rolling pin", base: 40,
+      name: "Rolling pin", base: 40, price: 0,
       blurb: "A fat, even body with a slim handle at each end.",
       shape: function (t, r) {
         var h = jit(r, 0.27, 0.33), b = jit(r, 0.58, 0.64), hl = jit(r, 0.13, 0.17);
@@ -73,7 +82,7 @@
       }
     },
     baseball_bat: {
-      name: "Baseball bat", base: 70,
+      name: "Baseball bat", base: 70, price: 100,
       blurb: "Knob, long thin handle, swelling to a heavy barrel.",
       shape: function (t, r) {
         var hd = jit(r, 0.26, 0.3), br = jit(r, 0.6, 0.65), sw = jit(r, 0.32, 0.4);
@@ -83,7 +92,7 @@
       }
     },
     walking_stick: {
-      name: "Walking stick", base: 65,
+      name: "Walking stick", base: 90, price: 250,
       blurb: "A round knob to hold, a collar, then a long tapering shaft.",
       shape: function (t, r) {
         var top = jit(r, 0.58, 0.65), sh0 = jit(r, 0.38, 0.44), sh1 = jit(r, 0.27, 0.31);
@@ -94,7 +103,7 @@
       }
     },
     spindle: {
-      name: "Banister spindle", base: 60,
+      name: "Banister spindle", base: 240, price: 1500,
       blurb: "Square-shouldered ends with beads and coves between.",
       shape: function (t, r) {
         var k = r() < 0.5 ? 3 : 4, mid = jit(r, 0.42, 0.48), amp = jit(r, 0.1, 0.13);
@@ -104,7 +113,7 @@
       }
     },
     chair_leg: {
-      name: "Chair leg", base: 55,
+      name: "Chair leg", base: 140, price: 600,
       blurb: "A thick top where the seat joins, a bead, then a taper to the foot.",
       shape: function (t, r) {
         var top = jit(r, 0.6, 0.65), tl = jit(r, 0.2, 0.25), f0 = jit(r, 0.47, 0.52), f1 = jit(r, 0.3, 0.34);
@@ -117,6 +126,9 @@
     }
   };
   var PIECE_ORDER = ["rolling_pin", "walking_stick", "chair_leg", "spindle", "baseball_bat"];
+  var FREE_BLUEPRINTS = ["rolling_pin"];
+  // the blueprints from cheapest to dearest, the way the shop lists them
+  var BLUEPRINT_ORDER = PIECE_ORDER.slice().sort(function (a, b) { return PIECES[a].price - PIECES[b].price; });
 
   // what each wood is worth over pine, and how often it is asked for
   var WOOD_PAY = { pine: 1, oak: 1.6, walnut: 2.4 };
@@ -127,12 +139,14 @@
   /* ---------------- the target shape ---------------- */
   /* SEG radii (world units, like Workpiece.radius) for an order. A light
      blur keeps every edge something the gouge can actually turn. Bats and
-     sticks are as often turned facing either way. */
-  function targetProfile(order) {
+     sticks are as often turned facing either way; opts.noFlip keeps them one
+     way round (the blueprint art). */
+  function targetProfile(order, opts) {
     var def = PIECES[order.kind];
     if (!def) return null;
     var r = P.rng((order.seed >>> 0) ^ 0x5eed), raw = new Float32Array(SEG), out = new Float32Array(SEG), i, k, q;
     var flip = (order.kind === "baseball_bat" || order.kind === "walking_stick" || order.kind === "chair_leg") && r() < 0.5;
+    if (opts && opts.noFlip) flip = false;
     // the shape's own random numbers, drawn once and replayed for every t: one shape, not noise
     var vals = []; for (i = 0; i < 16; i++) vals.push(r());
     function rr() { return vals[q++ % vals.length]; }
@@ -158,13 +172,17 @@
     return order[order.length - 1];
   }
   /* One order from a seed. opts.wood / opts.kind / opts.specKind / opts.sheen /
-     opts.client force those. Same seed, same order. */
+     opts.client force those. opts.kinds: the pieces it may roll (the board
+     passes the blueprints owned); every piece when it is not given. Same
+     seed, same order. */
   function makeOrder(seed, opts) {
     opts = opts || {};
     var r = P.rng(seed >>> 0);
     var woods = R.WOOD_ORDER.filter(function (w) { return WOOD_PAY[w] != null; });
     var wood = opts.wood && R.WOODS[opts.wood] ? opts.wood : pickWeighted(r, WOOD_WEIGHT, woods);
-    var kind = opts.kind && PIECES[opts.kind] ? opts.kind : PIECE_ORDER[Math.floor(r() * PIECE_ORDER.length)];
+    var kinds = Array.isArray(opts.kinds) ? PIECE_ORDER.filter(function (k) { return opts.kinds.indexOf(k) >= 0; }) : PIECE_ORDER;
+    if (!kinds.length) kinds = FREE_BLUEPRINTS;
+    var kind = opts.kind && PIECES[opts.kind] ? opts.kind : kinds[Math.floor(r() * kinds.length)];
     var client = CLIENTS[Math.floor(r() * CLIENTS.length)];
     if (opts.client) client = opts.client;
     var spec = P.generateSpec(Math.floor(r() * 4294967296), { kind: opts.specKind, sheen: opts.sheen });
@@ -225,7 +243,7 @@
   }
 
   /* ---------------- the board ---------------- */
-  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [] }; }
+  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice() }; }
   function normalizeBoard(b) {
     var out = defaultBoard();
     if (!b || typeof b !== "object") return out;
@@ -237,6 +255,7 @@
     if (isFinite(b.nextAt)) out.nextAt = b.nextAt;
     if (isFinite(b.seed)) out.seed = b.seed >>> 0;
     if (isFinite(b.done) && b.done >= 0) out.done = Math.floor(b.done);
+    if (Array.isArray(b.blueprints)) b.blueprints.forEach(function (k) { if (PIECES[k] && out.blueprints.indexOf(k) < 0) out.blueprints.push(k); });
     if (Array.isArray(b.history)) out.history = b.history.filter(function (h) { return h && typeof h === "object"; }).slice(-CFG.HISTORY);
     return out;
   }
@@ -263,7 +282,10 @@
 
     function nextSeed() { B.seed = (Math.imul(B.seed ^ (B.seed >>> 13), 0x5bd1e995) + 0x9e3779b9) >>> 0; return B.seed; }
     function post(opts2) {
-      var o = makeOrder(opts2 && opts2.seed != null ? opts2.seed : nextSeed(), opts2);
+      var o2 = {}, k;
+      for (k in (opts2 || {})) o2[k] = opts2[k];
+      o2.kinds = B.blueprints;         // only what the player owns, unless opts2.kind forces a piece
+      var o = makeOrder(opts2 && opts2.seed != null ? opts2.seed : nextSeed(), o2);
       o.id = B.nextId++; o.postedAt = now();
       B.orders.push(o);
       return o;
@@ -311,9 +333,37 @@
     function active() { return B.active ? get(B.active) : null; }
     function msUntilNext() { return B.orders.length >= CFG.BOARD_SIZE ? null : Math.max(0, B.nextAt - now()); }
 
+    /* ---- blueprints ---- */
+    function ownsBlueprint(kind) { return B.blueprints.indexOf(kind) >= 0; }
+    function locked(o) { return !!o && !ownsBlueprint(o.kind); }
+    /* Buy a blueprint: the coins go, and the board rolls that piece from now on.
+       An order for it already on the board unlocks in place. */
+    function buyBlueprint(kind) {
+      var def = PIECES[kind];
+      if (!def) return { ok: false, reason: "no such blueprint" };
+      if (ownsBlueprint(kind)) return { ok: false, reason: "owned" };
+      var paid = state.wallet.spend("coins", def.price);
+      if (!paid.ok) return { ok: false, reason: "not enough coins", need: def.price, have: state.wallet.balance("coins") };
+      B.blueprints.push(kind);
+      onChange();
+      return { ok: true, kind: kind, price: def.price };
+    }
+    /* Hand a blueprint over for nothing (the starter pack). */
+    function grantBlueprint(kind) {
+      if (!PIECES[kind] || ownsBlueprint(kind)) return false;
+      B.blueprints.push(kind); onChange();
+      return true;
+    }
+    /* The cheapest blueprint not owned yet, or null when every one is. */
+    function teaser() {
+      for (var i = 0; i < BLUEPRINT_ORDER.length; i++) if (!ownsBlueprint(BLUEPRINT_ORDER[i])) return BLUEPRINT_ORDER[i];
+      return null;
+    }
+
     function accept(id) {
       var o = get(id);
       if (!o) return { ok: false, reason: "no such order" };
+      if (locked(o)) return { ok: false, reason: "no blueprint", kind: o.kind };
       B.active = id; onChange();
       return { ok: true, order: o };
     }
@@ -378,12 +428,13 @@
     return {
       state: B, refill: refill, postAuthored: postAuthored, resume: resume, get: get, active: active, accept: accept, release: release, decline: decline,
       candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
-      grade: grade, targetProfile: targetProfile
+      grade: grade, targetProfile: targetProfile,
+      ownsBlueprint: ownsBlueprint, buyBlueprint: buyBlueprint, grantBlueprint: grantBlueprint, teaser: teaser, locked: locked
     };
   }
 
   var api = {
-    CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
+    CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, FREE_BLUEPRINTS: FREE_BLUEPRINTS, BLUEPRINT_ORDER: BLUEPRINT_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
     targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, grade: grade, starsFor: starsFor, payFor: payFor,
     defaultBoard: defaultBoard, normalizeBoard: normalizeBoard, createBoard: createBoard
   };
