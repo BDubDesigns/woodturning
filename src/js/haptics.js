@@ -5,7 +5,7 @@
      Haptics.supported()          false where there is no way to vibrate (iPhone browsers)
      Haptics.enabled() / setEnabled(bool)   the Settings switch, saved in the profile
      Haptics.cut(level)           every frame while cutting; level 0..1. 0 = stop
-     Haptics.sand(level)          the same, a lighter, finer feel, capped at CFG.SAND_CAP
+     Haptics.sand(level)          every frame while the pad is on the wood; level = how rough the spot is
      Haptics.stop()               stop now
      Haptics.pulse(name)          a one-off: "catch", "done", "stars3"
 
@@ -19,17 +19,30 @@
 (function (root) {
   "use strict";
 
-  /* ---------- every tuning number, in one place (feel them on a real phone) ---------- */
+  /* ---------- every tuning number, in one place (feel them on a real phone) ----------
+     The motor can only be on or off, so "strength" is two things: how long each pulse is
+     (a very short one barely spins the motor up, so it feels soft) and how long the gap
+     between pulses is. The pulse grows in a straight line with the level; the gap follows
+     a curve (CURVE). */
   var CFG = {
-    PULSE_MS: 12,          // one cutting pulse: short, so it reads as texture, not a buzz
-    SAND_PULSE_MS: 8,      // sanding pulses are shorter still: a finer, lighter grain
-    GAP_LIGHT_MS: 140,     // the gap between pulses at the lightest level...
-    GAP_FULL_MS: 25,       // ...down to this at full (hard press at top RPM)
+    CUT: {                 // cutting: level = pressure x RPM (a hard press at 2400 RPM is 1)
+      PULSE_LIGHT_MS: 8,   // a pulse at the lightest touch: soft (much under 8 some motors never spin up)
+      PULSE_FULL_MS: 14,   // ...growing to this at full
+      GAP_LIGHT_MS: 320,   // the gap at the lightest touch: slow, about 3 a second
+      GAP_FULL_MS: 25,     // ...down to this at full: a rattle
+      CURVE: 1.5           // the gap's curve from slow to fast: 1 is a straight line, above 1 leaves the slow end sooner, below 1 stays slow longer
+    },
+    SAND: {                // sanding: level = how rough the spot under the pad still is (pressure only switches it on)
+      PULSE_SMOOTH_MS: 7,  // a smooth spot: tiny ticks...
+      PULSE_ROUGH_MS: 10,  // ...a rough one: a little firmer
+      GAP_SMOOTH_MS: 650,  // a smooth spot: super slow, so you feel it is done
+      GAP_ROUGH_MS: 45,    // rough wood: fast and gritty
+      CURVE: 1.5
+    },
     WINDOW_MS: 250,        // how much pattern is sent at a time
-    SAND_CAP: 0.5,         // sanding never gets past this level
-    MIN_LEVEL: 0.02,       // below this counts as nothing
-    RESEND_DELTA: 0.12,    // a level change this big sends a new pattern straight away
-    RESEND_LEAD_MS: 50,    // otherwise the next one is sent up to this long before its first pulse is due, in time
+    MIN_LEVEL: 0.02,       // below this counts as nothing (cutting only: a sanding pad on wood always ticks)
+    RESEND_DELTA: 0.12,    // a level change this big re-times the beat straight away
+    RESEND_LEAD_MS: 50,    // otherwise the next window is sent up to this long before its first pulse is due
     STOP_GRACE_MS: 60,     // a frame or two with no wood coming off does not stop it (no stutter)
     PULSE_GAP_MS: 60,      // a one-off that lands while another plays waits this long after it
     PULSES: {              // one-off patterns: on, off, on, ... in ms
@@ -41,29 +54,35 @@
 
   /* ---------- level -> pattern (pure) ---------- */
   function clamp01(v) { return v > 1 ? 1 : v > 0 ? v : 0; }
-  /* The gap between pulses at a level: GAP_LIGHT_MS at the lightest, GAP_FULL_MS at 1. */
-  function gapFor(level, cfg) {
-    cfg = cfg || CFG;
-    return Math.round(cfg.GAP_LIGHT_MS + (cfg.GAP_FULL_MS - cfg.GAP_LIGHT_MS) * clamp01(level));
+  function feelOf(f) { return f === "sand" ? CFG.SAND : f && typeof f === "object" ? f : CFG.CUT; }
+  /* The gap between pulses at a level, for a feel ("cut", the default, or "sand"). */
+  function gapFor(level, f) {
+    f = feelOf(f);
+    var slow = f.GAP_LIGHT_MS != null ? f.GAP_LIGHT_MS : f.GAP_SMOOTH_MS, fast = f.GAP_FULL_MS != null ? f.GAP_FULL_MS : f.GAP_ROUGH_MS;
+    return Math.round(fast + (slow - fast) * Math.pow(1 - clamp01(level), f.CURVE));
   }
-  /* About WINDOW_MS of [pulse, gap, pulse, gap, ...]; [] for a level of nothing. */
-  function patternFor(level, pulseMs, cfg) {
-    cfg = cfg || CFG;
+  /* How long each pulse is at a level. */
+  function pulseFor(level, f) {
+    f = feelOf(f);
+    var soft = f.PULSE_LIGHT_MS != null ? f.PULSE_LIGHT_MS : f.PULSE_SMOOTH_MS, firm = f.PULSE_FULL_MS != null ? f.PULSE_FULL_MS : f.PULSE_ROUGH_MS;
+    return Math.round(soft + (firm - soft) * clamp01(level));
+  }
+  /* About WINDOW_MS of [pulse, gap, pulse, ...], always ending on a pulse (the gap after it
+     is the next window's to keep); a slow level fits only one pulse. [] for a cutting level
+     of nothing. */
+  function patternFor(level, f) {
+    var sand = f === "sand" || f === CFG.SAND;
+    if (!sand && !(clamp01(level) >= CFG.MIN_LEVEL)) return [];
     level = clamp01(level);
-    if (!(level >= cfg.MIN_LEVEL)) return [];
-    var on = pulseMs || cfg.PULSE_MS, off = gapFor(level, cfg), out = [], t = 0;
-    while (t + on <= cfg.WINDOW_MS) {
-      out.push(on); t += on;
-      if (t + off + on > cfg.WINDOW_MS) break;
-      out.push(off); t += off;
-    }
-    return out;              // always ends on a pulse: the gap after it is the next pattern's to keep
+    var on = pulseFor(level, f), off = gapFor(level, f), out = [on], t = on;
+    while (t + off + on <= CFG.WINDOW_MS) { out.push(off, on); t += off + on; }
+    return out;
   }
   function lengthOf(p) { var s = 0; for (var i = 0; i < p.length; i++) s += p[i]; return s; }
 
   /* ---------- the backend: the browser's vibration API ---------- */
   var H = {
-    CFG: CFG, gapFor: gapFor, patternFor: patternFor,
+    CFG: CFG, gapFor: gapFor, pulseFor: pulseFor, patternFor: patternFor,
     nav: function () { return root.navigator; },                           // tests swap this
     clock: function () { return root.performance ? root.performance.now() : Date.now(); }   // the lathe's test clock swaps this
   };
@@ -88,11 +107,29 @@
     if (saveProfile) saveProfile();
   }
 
-  /* ---------- continuous: cutting and sanding ---------- */
-  var cur = null;          // what is playing: { kind, level, gap, lastEnd (its last pulse ends), due (the next pulse is due) } or null
+  /* ---------- continuous: cutting and sanding ----------
+     The beat never jumps: when the level changes, the next pulse comes one new gap after
+     the last pulse that played, not straight away, so a level that wobbles from frame to
+     frame never bunches pulses up. */
+  var cur = null;          // what was sent: { kind, level, t0, pattern, prevEnd, lastEnd, due } or null
   var zeroSince = -1;      // when the level first dropped to nothing
   var pulseUntil = 0, pulseTimer = 0;
-  function feel(kind, level, pulseMs) {
+  /* The end of the last pulse of cur that has finished by now (or the one before cur),
+     or null while a pulse is still playing. */
+  function lastPulseDone(now) {
+    var t = cur.t0, done = cur.prevEnd;
+    for (var i = 0; i < cur.pattern.length; i++) {
+      var d = cur.pattern[i];
+      if (i % 2 === 0 && d > 0) {
+        if (now < t) break;
+        if (now < t + d) return null;
+        done = t + d;
+      }
+      t += d;
+    }
+    return done;
+  }
+  function feel(kind, level) {
     if (!on || !supported()) return;
     var now = H.clock();
     if (!(level >= CFG.MIN_LEVEL)) {
@@ -103,20 +140,23 @@
     }
     zeroSince = -1;
     if (now < pulseUntil) return;                // a one-off is playing: let it finish
-    var p = patternFor(level, pulseMs), delay = 0;
-    if (cur && cur.kind === kind && Math.abs(level - cur.level) < CFG.RESEND_DELTA) {
-      // the same feel: carry the beat on. Wait until the current pattern's last pulse is done
-      // and the next is nearly due, then send the next window starting on that beat.
-      if (now < cur.lastEnd || now < cur.due - CFG.RESEND_LEAD_MS) return;
-      delay = Math.max(0, Math.round(cur.due - now));
+    var p = patternFor(level, kind), delay = 0, prev = -1e9;
+    if (cur) {
+      var changed = cur.kind !== kind || Math.abs(level - cur.level) >= CFG.RESEND_DELTA;
+      if (!changed && (now < cur.lastEnd || now < cur.due - CFG.RESEND_LEAD_MS)) return;   // the same feel, and the next pulse isn't due yet
+      prev = lastPulseDone(now);
+      if (prev === null) return;                 // mid-pulse: wait for it to finish
+      delay = Math.max(0, Math.round(prev + gapFor(level, kind) - now));
       if (delay > 0) p = [0, delay].concat(p);
     }
     var len = lengthOf(p);
-    cur = { kind: kind, level: level, lastEnd: now + len, due: now + len + gapFor(level) };
+    cur = { kind: kind, level: level, t0: now, pattern: p, prevEnd: prev, lastEnd: now + len, due: now + len + gapFor(level, kind) };
     send(p);
   }
-  function cut(level) { feel("cut", clamp01(level), CFG.PULSE_MS); }
-  function sand(level) { feel("sand", Math.min(CFG.SAND_CAP, clamp01(level)), CFG.SAND_PULSE_MS); }
+  function cut(level) { feel("cut", clamp01(level)); }
+  /* level: how rough the spot under the pad is, 0 (as smooth as this grit goes) to 1. While
+     the pad is on the wood it always ticks, super slowly once the spot is smooth. */
+  function sand(level) { feel("sand", Math.max(CFG.MIN_LEVEL, clamp01(level))); }
   function stop() {
     var playing = !!cur || H.clock() < pulseUntil || !!pulseTimer;
     cur = null; zeroSince = -1; pulseUntil = 0;
