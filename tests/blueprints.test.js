@@ -154,3 +154,40 @@ test("the drawing is the same every time, whatever orders the board has rolled",
   assert.equal(Art.blueprintSVG("baseball_bat"), Art.blueprintSVG("baseball_bat"));
   assert.ok(/fill-opacity="0.4"/.test(Art.blueprintSVG("spindle", { afford: false })), "the price dims when it can't be afforded");
 });
+
+test("a new order is a piece not already on the board, while the player owns one", () => {
+  const s = setup(5000);
+  s.board.buyBlueprint("baseball_bat"); s.board.buyBlueprint("walking_stick");
+  for (let round = 0; round < 40; round++) {
+    s.board.state.orders.slice().forEach((o) => s.board.decline(o.id));
+    s.advance(4 * C.CFG.NEW_ORDER_MS); s.board.refill();
+    const kinds = s.board.state.orders.map((o) => o.kind);
+    assert.equal(new Set(kinds).size, kinds.length, "three owned, three slots: no repeats (" + kinds.join(", ") + ")");
+  }
+});
+
+test("after the tutorial's bat job, the board is mixed: never three bats", () => {
+  // the case from playtesting: the bat order on the board, rolling pin and bat owned, then resume()
+  for (let seed = 1; seed < 60; seed++) {
+    const game = playedGame(), paused = { on: true };
+    const state = St.createState(game, { now: () => 1_000_000 });
+    let r = seed;
+    const board = C.createBoard(game, { state, now: () => 1_000_000, paused: () => paused.on,
+      random: () => { r = (r * 16807) % 2147483647; return r / 2147483647; } });
+    board.grantBlueprint("baseball_bat");
+    board.postAuthored([{ seed: 3303, wood: "pine", kind: "baseball_bat" }]);
+    board.state.done = 2;                               // the two tutorial orders were delivered
+    paused.on = false;
+    board.resume();
+    const kinds = board.state.orders.map((o) => o.kind);
+    assert.equal(kinds.length, C.CFG.BOARD_SIZE);
+    const bats = kinds.filter((k) => k === "baseball_bat").length, pins = kinds.filter((k) => k === "rolling_pin").length;
+    assert.ok(Math.abs(bats - pins) <= 1 && pins >= 1, "seed " + seed + ": " + kinds.join(", "));
+  }
+});
+
+test("with only one blueprint owned, the board still fills (repeats are fine then)", () => {
+  const s = setup();
+  assert.equal(s.board.state.orders.length, C.CFG.BOARD_SIZE);
+  assert.ok(s.board.state.orders.every((o) => o.kind === "rolling_pin"));
+});

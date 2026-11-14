@@ -30,7 +30,8 @@
    has a price; buyBlueprint spends coins through the wallet. An order for a
    piece you don't own can still sit on the board when something authored put
    it there (the new-player flow), but it shows locked and accept() refuses it
-   until the blueprint is bought. teaser() is the cheapest one not owned yet,
+   until the blueprint is bought. A new order is one of the owned pieces with
+   the fewest orders on the board, so nothing repeats while something else is free. teaser() is the cheapest one not owned yet,
    for the board to tease. The shop (shop.js) stays ladders only.
    Coins go through the shared wallet; the piece comes out of the
    shared inventory (state.js).
@@ -298,7 +299,11 @@
     function post(opts2) {
       var o2 = {}, k;
       for (k in (opts2 || {})) o2[k] = opts2[k];
-      o2.kinds = B.blueprints;         // only what the player owns, unless opts2.kind forces a piece
+      // only what the player owns, unless opts2.kind forces a piece; of those, the ones with the
+      // fewest orders on the board already, so the board stays mixed instead of three of one thing
+      var onBoard = function (kb) { return B.orders.filter(function (q) { return q.kind === kb; }).length; };
+      var least = Math.min.apply(null, B.blueprints.map(onBoard));
+      o2.kinds = B.blueprints.filter(function (kb) { return onBoard(kb) === least; });
       var o = makeOrder(opts2 && opts2.seed != null ? opts2.seed : nextSeed(), o2);
       o.id = B.nextId++; o.postedAt = now();
       B.orders.push(o);
