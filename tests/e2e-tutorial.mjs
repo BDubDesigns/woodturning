@@ -322,6 +322,13 @@ check(await coins() === coinsAtOak + 100 && /100 coins/.test(await coach()), "10
 check(await ringOn('[data-blueprint="baseball_bat"]') && /BUY IT/.test(await page.locator('[data-blueprint="baseball_bat"]').textContent()), "the ring is on the bat blueprint's BUY IT, which says BUY IT straight away");
 check(!(await covers('[data-blueprint="baseball_bat"]')), "the card does not cover it");
 await card();
+{ // scroll the store: the ring stays on its button frame by frame, without waiting for the coach's tick
+  await page.evaluate(() => { document.getElementById("shopScreen").scrollTop += 140; });
+  await page.waitForTimeout(80);
+  const off = await page.evaluate(() => { const r = document.getElementById("coachRing").getBoundingClientRect(), b = document.querySelector('[data-blueprint="baseball_bat"]').getBoundingClientRect(); return Math.abs((r.top + r.height / 2) - (b.top + b.height / 2)); });
+  check(off < 2, `the ring follows the button as the store scrolls (${off.toFixed(1)} px off)`);
+  await page.evaluate(() => { document.getElementById("shopScreen").scrollTop -= 140; });
+}
 await page.click('[data-buy="abrasives"]', { force: true });
 check(await coins() === coinsAtOak + 100 && /Baseball bat blueprint/.test(await page.locator("#stoast").textContent()), "the coins can't go on anything else first");
 await page.click("#tabFarm");

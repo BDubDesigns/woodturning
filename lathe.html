@@ -588,7 +588,7 @@ footer {
 .order .act.primary, .grade-card .act.primary { background: #4a2f14; border-color: var(--amber); }
 .order .act .ad, .grade-card .act .ad { color: #bfae8f; }
 .order .act.primary .an, .grade-card .act.primary .an { color: var(--amber); }
-#boardFoot { color: #bfae8f; font-size: 13.5px; }
+#boardFoot { color: #bfae8f; font-size: 13.5px; display: flex; flex-direction: column; gap: 12px; }
 #boardFoot p { margin: 0 0 8px; line-height: 1.45; }
 .order.hist { padding-bottom: 10px; }
 .h-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
@@ -603,7 +603,8 @@ footer {
 .h-what b { font-weight: 600; color: #f3e7d3; font-size: 14.5px; }
 .h-what small { color: #bfae8f; font-size: 12.5px; }
 .h-pay { flex: none; display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
-.b-help { color: var(--faint); font-size: 12.5px; }
+.order.help { padding-bottom: 12px; }
+#boardFoot .order.help .b-help { margin: 0; color: #bfae8f; font-size: 13.5px; line-height: 1.45; }
 .stars span { color: rgba(255, 255, 255, 0.18); font-size: 18px; letter-spacing: 1px; }
 .stars span.on { color: #f6c46a; text-shadow: 0 0 6px rgba(246, 196, 106, 0.5); }
 #otoast {
@@ -2507,9 +2508,9 @@ header .gear-btn { margin-left: 4px; }
   // the blueprints from cheapest to dearest, the way the shop lists them
   var BLUEPRINT_ORDER = PIECE_ORDER.slice().sort(function (a, b) { return PIECES[a].price - PIECES[b].price; });
 
-  // what each wood is worth over pine, and how often it is asked for
+  // what each wood is worth over pine, and how often it is asked for (relative weights)
   var WOOD_PAY = { pine: 1, oak: 1.6, walnut: 2.4 };
-  var WOOD_WEIGHT = { pine: 0.45, oak: 0.35, walnut: 0.2 };
+  var WOOD_WEIGHT = { pine: 1, oak: 1, walnut: 1 };   // each wood as likely as the others
   var CLIENTS = ["Mrs. Alder", "Old Tom", "The Hollis twins", "Pastor Reed", "Juniper Cafe", "Coach Barrow", "Aunt Marigold",
     "Mr. Fennick", "The Bramble Inn", "Dr. Okafor", "Little Wren", "Captain Moss", "Granny Pell", "The Quarry Club"];
 
@@ -5443,15 +5444,20 @@ header .gear-btn { margin-left: 4px; }
     // the whole limb comes away and leaves a flush stub
     if (arc <= cleanStub(L)) arc = Math.min(arc, H.FLUSH);
     // cut through: everything past arc comes away
-    var piece = { id: L.id, b: L.b, from: arc, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: true };
+    // only the stretch from the cut to the old stub comes away: the rest fell with the last cut.
+    // The first cut takes the leafy end; a stub cut shorter again is bare wood, so its piece is too
+    var to = L.stub, first = L.stub >= L.b.len - 1e-6;
+    var piece = { id: L.id, b: L.b, from: arc, to: to, pts: [], x: 0, y: 0, rot: 0, vx: 0, vy: 0, vr: 0, age: 0, leaf: first };
     var wp = L.wp, k, X, Y;
     var cutPt = this._pointAt(L, arc);
     piece.ox = cutPt.x; piece.oy = cutPt.y; piece.ox0 = cutPt.x; piece.oy0 = cutPt.y;
     for (k = 0; k < wp.length; k++) {
-      if (wp[k].s <= arc) continue;
+      if (wp[k].s <= arc || wp[k].s >= to) continue;
       piece.pts.push({ x: wp[k].x - cutPt.x, y: wp[k].y - cutPt.y, s: wp[k].s });
     }
     piece.pts.unshift({ x: 0, y: 0, s: arc });
+    var endPt = this._pointAt(L, to);
+    piece.pts.push({ x: endPt.x - cutPt.x, y: endPt.y - cutPt.y, s: to });
     var dirx = wp[wp.length - 1].x - cutPt.x;
     piece.vx = (dirx >= 0 ? 1 : -1) * (0.6 + Math.random() * 0.9);
     piece.vy = 1.2 + Math.random() * 1.0;
@@ -6501,8 +6507,9 @@ header .gear-btn { margin-left: 4px; }
         g.save(); g.globalAlpha = fade;
         g.translate(sx(p.ox), sy(p.oy)); g.rotate(-p.rot); g.translate(-sx(p.ox0), -sy(p.oy0));
         frame(sx(lg.bx), sy(lg.by), lg.dir * Math.PI / 2, function () {
-          drawBranch(p.b, p.from, p.b.len, lg.hStar, false);
-          drawCanopy([{ b: p.b, a0: p.from, a1: p.b.len }], lg.hStar, false);
+          var to = p.to != null ? p.to : p.b.len;
+          drawBranch(p.b, p.from, to, lg.hStar, false);
+          if (p.leaf !== false) drawCanopy([{ b: p.b, a0: p.from, a1: to }], lg.hStar, false);   // a bare stub cut again drops bare wood
         });
         g.restore();
       }
@@ -10384,7 +10391,8 @@ header .gear-btn { margin-left: 4px; }
         return '<li>' + starsHtml(r.stars) + '<span class="h-what"><b>' + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + "</b><small>for " + esc(r.client) + (w ? " · " + w.name : "") + '</small></span><span class="h-pay">' + COIN + "+" + r.pay + "</span></li>";
       }).join("") + "</ul></section>";
     }
-    f += '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p>';
+    f += '<section class="order help" aria-label="How orders work"><div class="h-top"><span class="h-k">HOW ORDERS WORK</span></div>' +
+      '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p></section>';
     footEl.innerHTML = f;
   }
   function tickClock() {
@@ -11288,6 +11296,14 @@ header .gear-btn { margin-left: 4px; }
     if (cur && !tut.unlocked(cur)) G.showScreen("lathe");
     setInterval(refresh, 400);
     root.addEventListener("resize", function () { if (minimized) pillHome(true); place(tut.current()); });
+    // the ring is fixed to the window, so it follows its control on every scrolled frame
+    // (the store and the board scroll; capture catches scrolls on any element)
+    var scrollQueued = false;
+    document.addEventListener("scroll", function () {
+      if (scrollQueued || ring.hidden) return;          // nothing to follow: no work on a scroll at all
+      scrollQueued = true;
+      requestAnimationFrame(function () { scrollQueued = false; place(tut.current()); });
+    }, true);
     document.addEventListener("click", function () { setTimeout(refresh, 0); }, true);
     document.addEventListener("pointerup", function () { setTimeout(refresh, 30); }, true);
   }

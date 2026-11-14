@@ -570,7 +570,7 @@ footer {
 .order .act.primary, .grade-card .act.primary { background: #4a2f14; border-color: var(--amber); }
 .order .act .ad, .grade-card .act .ad { color: #bfae8f; }
 .order .act.primary .an, .grade-card .act.primary .an { color: var(--amber); }
-#boardFoot { color: #bfae8f; font-size: 13.5px; }
+#boardFoot { color: #bfae8f; font-size: 13.5px; display: flex; flex-direction: column; gap: 12px; }
 #boardFoot p { margin: 0 0 8px; line-height: 1.45; }
 .order.hist { padding-bottom: 10px; }
 .h-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
@@ -585,7 +585,8 @@ footer {
 .h-what b { font-weight: 600; color: #f3e7d3; font-size: 14.5px; }
 .h-what small { color: #bfae8f; font-size: 12.5px; }
 .h-pay { flex: none; display: inline-flex; align-items: center; gap: 4px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
-.b-help { color: var(--faint); font-size: 12.5px; }
+.order.help { padding-bottom: 12px; }
+#boardFoot .order.help .b-help { margin: 0; color: #bfae8f; font-size: 13.5px; line-height: 1.45; }
 .stars span { color: rgba(255, 255, 255, 0.18); font-size: 18px; letter-spacing: 1px; }
 .stars span.on { color: #f6c46a; text-shadow: 0 0 6px rgba(246, 196, 106, 0.5); }
 #otoast {

@@ -191,3 +191,9 @@ test("with only one blueprint owned, the board still fills (repeats are fine the
   assert.equal(s.board.state.orders.length, C.CFG.BOARD_SIZE);
   assert.ok(s.board.state.orders.every((o) => o.kind === "rolling_pin"));
 });
+
+test("each wood is as likely as the others", () => {
+  const n = { pine: 0, oak: 0, walnut: 0 }, N = 6000;
+  for (let i = 1; i <= N; i++) n[C.makeOrder(i * 7919).wood]++;
+  for (const w in n) assert.ok(Math.abs(n[w] / N - 1 / 3) < 0.03, w + ": " + (n[w] / N).toFixed(3));
+});

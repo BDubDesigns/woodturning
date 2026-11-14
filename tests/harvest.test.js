@@ -207,6 +207,23 @@ test("a slash across a limb cuts it there; the outer part comes away", () => {
   assert.ok(h.pieces.length >= 1, "the cut-off part falls");
 });
 
+test("cutting a stub again drops a bare stretch of branch, not another leafy end", () => {
+  const h = felled(7);
+  const limb = h.limbs.find((l) => l.b.t0 < 0.13 && !l.b.leader) || h.limbs[0];
+  const len = limb.b.len;
+  slash(h, limb, 0.8 * len); slash(h, limb, 0.8 * len);
+  const first = h.pieces[h.pieces.length - 1];
+  assert.ok(first.leaf, "the first cut takes the leafy end");
+  assert.ok(Math.abs(first.to - len) < 1e-6);
+  const stub = limb.stub, n = h.pieces.length;
+  slash(h, limb, 0.6 * len); slash(h, limb, 0.6 * len);
+  assert.ok(h.pieces.length > n && limb.stub < stub, "the stub was cut again");
+  const second = h.pieces[h.pieces.length - 1];
+  assert.equal(second.leaf, false, "a bare stub cut again is bare");
+  assert.ok(Math.abs(second.to - stub) < 1e-6 && Math.abs(second.from - limb.stub) < 1e-6, "and only the piece between the two cuts falls");
+  assert.ok(second.pts.every((q) => q.s >= second.from - 1e-6 && q.s <= second.to + 1e-6));
+});
+
 test("a swipe that misses the limb does nothing", () => {
   const h = felled(7);
   const limb = h.limbs[0];

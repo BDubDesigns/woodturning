@@ -135,9 +135,9 @@
   // the blueprints from cheapest to dearest, the way the shop lists them
   var BLUEPRINT_ORDER = PIECE_ORDER.slice().sort(function (a, b) { return PIECES[a].price - PIECES[b].price; });
 
-  // what each wood is worth over pine, and how often it is asked for
+  // what each wood is worth over pine, and how often it is asked for (relative weights)
   var WOOD_PAY = { pine: 1, oak: 1.6, walnut: 2.4 };
-  var WOOD_WEIGHT = { pine: 0.45, oak: 0.35, walnut: 0.2 };
+  var WOOD_WEIGHT = { pine: 1, oak: 1, walnut: 1 };   // each wood as likely as the others
   var CLIENTS = ["Mrs. Alder", "Old Tom", "The Hollis twins", "Pastor Reed", "Juniper Cafe", "Coach Barrow", "Aunt Marigold",
     "Mr. Fennick", "The Bramble Inn", "Dr. Okafor", "Little Wren", "Captain Moss", "Granny Pell", "The Quarry Club"];
 
