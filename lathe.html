@@ -8326,8 +8326,9 @@ header .gear-btn { margin-left: 4px; }
     { id: "sand", screen: "lathe", target: ["#stage"],
       title: "Sand it smooth",
       text: "Press it to the spinning wood, just like the chisel. The dark lines fade and dust flies off. When the dust thins out, that spot is smooth. Sand until SMOOTH reads " + Math.round(SAND_SMOOTH * 100) + "%.",
-      hint: function (c) { return s(c, "tip") !== "sand" ? "Tap SANDPAPER again to pick it back up." : null; },
-      done: function (c) { return n(c, "smoothHere") >= SAND_SMOOTH; } },
+      done: function (c) { return n(c, "smoothHere") >= SAND_SMOOTH; },
+      // put the sandpaper down (or reloaded, which picks up the gouge): back to picking it up, ring and all
+      rescue: function (c) { if (s(c, "tip") && s(c, "tip") !== "sand") return "pick_sand"; } },
     { id: "to_paint", screen: "lathe", target: ["#modePaint"],
       title: "Nice and smooth",
       text: "Smooth. Now let's give it some colour. Tap PAINT.",
@@ -8363,7 +8364,8 @@ header .gear-btn { margin-left: 4px; }
       title: "Pick the pine one",
       text: "Each order names a shape, a wood, a paint and a finish. You have pine logs, so take the pine rolling pin.",
       done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; },
-      replay: { title: "Pick an order", target: ['[data-act="take"]', '[data-act="lathe"]', ".order[data-order]"],
+      rescue: rescuePine,   // every pine log went on practice: without one the card has no TAKE IT
+      replay: { rescue: null, title: "Pick an order", target: ['[data-act="take"]', '[data-act="lathe"]', ".order[data-order]"],
         text: "Each order names a shape, a wood, a paint and a finish. The card says if your shed has that wood. Tap TAKE IT (or PRACTISE IT if you have none).",
         done: function (c) { return !!s(c, "activeWood") && s(c, "screen") === "lathe"; } } },
     { id: "turn", screen: "lathe", target: ["#profileBar"], mode: "cut",
@@ -9922,6 +9924,7 @@ header .gear-btn { margin-left: 4px; }
     btn.className = "plot land"; btn.type = "button"; btn.id = "buyLand";
     btn.addEventListener("click", function () {
       var price = farm.landPrice(), dprice = farm.landPriceDiamonds();
+      if (G.tutorialHoldsCoins && G.tutorialHoldsCoins()) { toast(G.tutorialHoldsCoins()); return; }
       var r = farm.buyLand();
       if (r.ok) {
         toast("New land cleared. Plot " + (r.index + 1) + " is ready to plant.");
@@ -10072,6 +10075,7 @@ header .gear-btn { margin-left: 4px; }
       F.WOOD_ORDER.forEach(function (id) {
         var w = WOODS[id], price = farm.plantPrice(id);
         var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), price + " coins · " + (mine.isUnlocked() ? "ready right away" : F.formatDuration(w.growMs) + " to grow"), "", coins >= price, function () {
+          if (G.tutorialHoldsCoins && G.tutorialHoldsCoins()) { toast(G.tutorialHoldsCoins()); return; }
           var r = farm.plant(selected, id);
           if (r.ok) { adWood = null; select(selected); tick(); return; }
           if (r.reason !== "not enough coins") return;
@@ -10162,6 +10166,9 @@ header .gear-btn { margin-left: 4px; }
       });
       if (g.note) toastHere(g.note);
       renderWallet();
+      // the store and the board show the new balance straight away, not on their next tick
+      if (G.ShopUI) G.ShopUI.render(false);
+      if (G.OrdersUI) G.OrdersUI.render(false);
     },
     postFirstBoard: function (list) { if (G.commissions) G.commissions.postAuthored(list); },
     resumeBoard: function () { if (G.commissions) G.commissions.resume(); }
@@ -10613,6 +10620,8 @@ header .gear-btn { margin-left: 4px; }
   }
   var BP_ICON = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="6" width="26" height="20" rx="2" fill="#1d4a8a"/><path d="M7 16c3-5 6 0 9-1s5-4 9 1c-4 5-6 2-9 1s-6 4-9-1z" fill="none" stroke="#f4f8ff" stroke-width="1.4"/><path d="M5 16h22" stroke="#f4f8ff" stroke-width="0.7" stroke-dasharray="3 1.5"/></svg>';
   function buyBlueprint(k) {
+    var held = k !== "baseball_bat" && G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return { ok: false, reason: "held" }; }
     var r = board.buyBlueprint(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That blueprint is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
@@ -10660,9 +10669,10 @@ header .gear-btn { margin-left: 4px; }
     if (bp) { if (!bp.classList.contains("owned")) buyBlueprint(bp.getAttribute("data-blueprint")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;
     if (!b) return;
-    var k = b.getAttribute("data-buy"), tc = G.tutorial && G.tutorial.current();
+    var k = b.getAttribute("data-buy");
     // the tutorial's 100 coins are for the bat blueprint: nothing else until it is bought
-    if (tc && tc.id === "buy_bat" && !G.tutorial.isReplay()) { toast("First the Baseball bat blueprint, at the top of the store."); return; }
+    var held = G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return; }
     var r = shop.buy(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
@@ -11257,6 +11267,12 @@ header .gear-btn { margin-left: 4px; }
     if (G.OrdersUI && G.OrdersUI.guided !== tut.guidedBoard()) { G.OrdersUI.guided = tut.guidedBoard(); if (G.OrdersUI.render) G.OrdersUI.render(true); }
   }
   G.tutorialRefresh = refresh;
+  /* While the flow's 100 coins wait for the bat blueprint, nothing else spends coins:
+     returns what to tell the player, or "" when spending is fine. */
+  G.tutorialHoldsCoins = function () {
+    var st = tut.current();
+    return st && st.id === "buy_bat" && !tut.isReplay() && !ctx.ownsBlueprint("baseball_bat") ? "First the Baseball bat blueprint, at the top of Arbor Freight." : "";
+  };
 
   function start() {
     if (!lathe()) { setTimeout(start, 50); return; }

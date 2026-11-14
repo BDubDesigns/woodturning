@@ -93,6 +93,8 @@
   }
   var BP_ICON = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="6" width="26" height="20" rx="2" fill="#1d4a8a"/><path d="M7 16c3-5 6 0 9-1s5-4 9 1c-4 5-6 2-9 1s-6 4-9-1z" fill="none" stroke="#f4f8ff" stroke-width="1.4"/><path d="M5 16h22" stroke="#f4f8ff" stroke-width="0.7" stroke-dasharray="3 1.5"/></svg>';
   function buyBlueprint(k) {
+    var held = k !== "baseball_bat" && G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return { ok: false, reason: "held" }; }
     var r = board.buyBlueprint(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That blueprint is " + r.need + " coins and you have " + r.have + ". The orders board pays.");
@@ -140,9 +142,10 @@
     if (bp) { if (!bp.classList.contains("owned")) buyBlueprint(bp.getAttribute("data-blueprint")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;
     if (!b) return;
-    var k = b.getAttribute("data-buy"), tc = G.tutorial && G.tutorial.current();
+    var k = b.getAttribute("data-buy");
     // the tutorial's 100 coins are for the bat blueprint: nothing else until it is bought
-    if (tc && tc.id === "buy_bat" && !G.tutorial.isReplay()) { toast("First the Baseball bat blueprint, at the top of the store."); return; }
+    var held = G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return; }
     var r = shop.buy(k);
     if (!r.ok) {
       if (r.reason === "not enough coins") toast("That is " + r.need + " coins and you have " + r.have + ". The orders board pays.");

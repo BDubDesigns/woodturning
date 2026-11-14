@@ -225,6 +225,7 @@
     btn.className = "plot land"; btn.type = "button"; btn.id = "buyLand";
     btn.addEventListener("click", function () {
       var price = farm.landPrice(), dprice = farm.landPriceDiamonds();
+      if (G.tutorialHoldsCoins && G.tutorialHoldsCoins()) { toast(G.tutorialHoldsCoins()); return; }
       var r = farm.buyLand();
       if (r.ok) {
         toast("New land cleared. Plot " + (r.index + 1) + " is ready to plant.");
@@ -375,6 +376,7 @@
       F.WOOD_ORDER.forEach(function (id) {
         var w = WOODS[id], price = farm.plantPrice(id);
         var b = act('<span class="dot" style="background:' + w.leaf + '"></span>' + w.name.toUpperCase(), price + " coins · " + (mine.isUnlocked() ? "ready right away" : F.formatDuration(w.growMs) + " to grow"), "", coins >= price, function () {
+          if (G.tutorialHoldsCoins && G.tutorialHoldsCoins()) { toast(G.tutorialHoldsCoins()); return; }
           var r = farm.plant(selected, id);
           if (r.ok) { adWood = null; select(selected); tick(); return; }
           if (r.reason !== "not enough coins") return;
@@ -465,6 +467,9 @@
       });
       if (g.note) toastHere(g.note);
       renderWallet();
+      // the store and the board show the new balance straight away, not on their next tick
+      if (G.ShopUI) G.ShopUI.render(false);
+      if (G.OrdersUI) G.OrdersUI.render(false);
     },
     postFirstBoard: function (list) { if (G.commissions) G.commissions.postAuthored(list); },
     resumeBoard: function () { if (G.commissions) G.commissions.resume(); }

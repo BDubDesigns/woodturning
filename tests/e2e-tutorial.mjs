@@ -260,7 +260,7 @@ await card();
 await page.evaluate(() => { window.__farm.farm.fell(window.Game.harvestPlot >= 0 ? window.Game.harvestPlot : 0); window.__harvest.game.phase = "delimb"; });
 check(await step() === "delimb" && /Clear the limbs/.test(await coach()), "then delimbing");
 await card();
-await page.evaluate(() => { window.__harvest.game.phase = "saw"; });
+await page.evaluate(() => { const g = window.__harvest.game; if (!g.saw && g._initSaw) g._initSaw(); g.phase = "saw"; });
 check(await step() === "saw" && /Saw the blank/.test(await coach()), "then sawing");
 await card();
 // the saw hands the blank to the lathe the way harvest-view.js does
@@ -270,6 +270,9 @@ await page.evaluate(() => {
   const S = window.__lathe, it = inv.add("blank", { wood: "oak", seed: 7, profile: G.State.pack(new Float32Array(S.work.radius.length).fill(S.work.baseRadius[0])), lengthUnits: 1, lengthRatio: 1, girthUnits: 1 });
   window.Lathe.mountStock({ kind: "blank", id: it.id });
   G.showScreen("lathe");
+  // the forest was stepped by hand above (phases set without real chopping), which its
+  // drawing does not expect; e2e.mjs plays it for real. Clear its complaint, watch from here.
+  document.getElementById("err").style.display = "none";
 });
 await tick(0.2);
 
@@ -298,6 +301,7 @@ if (await keep.count()) await keep.click();
 console.log("\nTHE BAT");
 const coinsAtOak = await coins();
 check(await step() === "bat_order", `both orders delivered (${coinsAtOak} coins): a bigger job`);
+{ const eb = await page.evaluate(() => { const e = document.getElementById("err"); return getComputedStyle(e).display === "none" ? "" : e.textContent; }); check(!eb, "no error box on the way here" + (eb ? ": " + eb : "")); }
 check(JSON.stringify(await tabsShown()) === '["farm","lathe","orders","shop"]', "the SHOP tab appears; the mine waits");
 check(/Coach Barrow wants a bat/.test(await coach()) && /blueprint/.test(await coach()), "the card says the bat needs a blueprint");
 check(await ringOn("#tabShop"), "the ring is on SHOP");
@@ -315,11 +319,15 @@ await page.click("#tabShop");
 await tick(0.1);
 check(await step() === "buy_bat", "in the shop: buy the blueprint");
 check(await coins() === coinsAtOak + 100 && /100 coins/.test(await coach()), "100 coins handed over, as the card says");
-check(await ringOn('[data-blueprint="baseball_bat"]'), "the ring is on the bat blueprint's BUY IT");
+check(await ringOn('[data-blueprint="baseball_bat"]') && /BUY IT/.test(await page.locator('[data-blueprint="baseball_bat"]').textContent()), "the ring is on the bat blueprint's BUY IT, which says BUY IT straight away");
 check(!(await covers('[data-blueprint="baseball_bat"]')), "the card does not cover it");
 await card();
 await page.click('[data-buy="abrasives"]', { force: true });
 check(await coins() === coinsAtOak + 100 && /Baseball bat blueprint/.test(await page.locator("#stoast").textContent()), "the coins can't go on anything else first");
+await page.click("#tabFarm");
+await page.click("#buyLand");
+check(await coins() === coinsAtOak + 100 && await page.evaluate(() => window.__farm.farm.state.plots.length) === 2, "not on new land at the farm either");
+await page.click("#tabShop");
 // leave without buying, and reload: nothing is paid twice, the card follows
 await page.click("#tabLathe");
 check(await step() === "buy_bat" && await ringOn("#tabShop") && !(await page.locator("#coach").isHidden()), "leaving the shop: the card stays up and points back at SHOP");
@@ -436,7 +444,7 @@ check(v3.coach && /Your lathe/.test(v3.text), "sees the first coach card there t
 await p2.evaluate(() => { const r = window.__lathe.work.radius; for (let i = 60; i < 180; i++) r[i] *= 0.85; window.__lathe.work.version++; window.__lathe.advance(0.1); window.__tutorial.refresh(); });
 check(await p2.evaluate(() => window.__tutorial.tutorial.current().id) !== "cut", "and the flow moves on in 3D as in 2D");
 
-check(!errors.length, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));
+check(!errors.length && await p2.evaluate(() => getComputedStyle(document.getElementById("err")).display === "none"), "no page errors, and the error box never showed" + (errors.length ? ": " + errors.join(" | ") : ""));
 await browser.close();
 if (failed) { console.log(`\n${failed} check(s) failed`); process.exit(1); }
 console.log("\nall checks passed");

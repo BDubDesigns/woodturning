@@ -331,6 +331,12 @@
     if (G.OrdersUI && G.OrdersUI.guided !== tut.guidedBoard()) { G.OrdersUI.guided = tut.guidedBoard(); if (G.OrdersUI.render) G.OrdersUI.render(true); }
   }
   G.tutorialRefresh = refresh;
+  /* While the flow's 100 coins wait for the bat blueprint, nothing else spends coins:
+     returns what to tell the player, or "" when spending is fine. */
+  G.tutorialHoldsCoins = function () {
+    var st = tut.current();
+    return st && st.id === "buy_bat" && !tut.isReplay() && !ctx.ownsBlueprint("baseball_bat") ? "First the Baseball bat blueprint, at the top of Arbor Freight." : "";
+  };
 
   function start() {
     if (!lathe()) { setTimeout(start, 50); return; }

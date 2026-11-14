@@ -61,7 +61,7 @@ check(await page.locator("#farmScreen").isVisible(), "#farm opens the farm scree
 check(!(await page.locator("#latheScreen").isVisible()), "lathe screen is hidden while on the farm");
 check((await page.locator(".plot[data-i]").count()) === 2, "starts with two plots");
 check(await page.locator("#buyLand").isVisible(), "a buy-land tile is offered");
-check((await page.textContent("#walletCoins")) === "250" && (await page.textContent("#walletDiamonds")) === "5", "wallet shows starting coins and diamonds");
+check((await page.textContent("#walletCoins")) === "250" && (await page.textContent("#walletDiamonds")) === "10", "wallet shows starting coins and diamonds");
 
 // ---- plant
 await page.click('.plot[data-i="0"]');
@@ -92,11 +92,11 @@ const rem0 = await page.evaluate(() => __farm.farm.remainingMs(__farm.farm.plotA
 await page.click('[data-act="speedup"]');
 const rem1 = await page.evaluate(() => __farm.farm.remainingMs(__farm.farm.plotAt(1)));
 check(Math.abs(rem0 - rem1 - 2 * MIN) < 3000, `speed up skipped 2 minutes (${Math.round(rem0 / 1000)}s -> ${Math.round(rem1 / 1000)}s)`);
-check((await page.textContent("#walletDiamonds")) === "4", "speed up cost one diamond");
+check((await page.textContent("#walletDiamonds")) === "9", "speed up cost one diamond");
 await page.click('[data-act="grownow"]');
 check((await plotClass(1)).includes("mature"), "grow now finishes the oak");
 const dia = await page.textContent("#walletDiamonds");
-check(Number(dia) >= 0 && Number(dia) < 4, `grow now spent the rest (${dia} diamonds left)`);
+check(Number(dia) >= 0 && Number(dia) < 9, `grow now spent the rest (${dia} diamonds left)`);
 check((await saved()).wallet.diamonds === Number(dia), "diamond balance is saved");
 // ---- land
 await page.evaluate(() => { __farm.game.wallet.coins = 90; __farm.tick(); });

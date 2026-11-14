@@ -105,8 +105,9 @@
     { id: "sand", screen: "lathe", target: ["#stage"],
       title: "Sand it smooth",
       text: "Press it to the spinning wood, just like the chisel. The dark lines fade and dust flies off. When the dust thins out, that spot is smooth. Sand until SMOOTH reads " + Math.round(SAND_SMOOTH * 100) + "%.",
-      hint: function (c) { return s(c, "tip") !== "sand" ? "Tap SANDPAPER again to pick it back up." : null; },
-      done: function (c) { return n(c, "smoothHere") >= SAND_SMOOTH; } },
+      done: function (c) { return n(c, "smoothHere") >= SAND_SMOOTH; },
+      // put the sandpaper down (or reloaded, which picks up the gouge): back to picking it up, ring and all
+      rescue: function (c) { if (s(c, "tip") && s(c, "tip") !== "sand") return "pick_sand"; } },
     { id: "to_paint", screen: "lathe", target: ["#modePaint"],
       title: "Nice and smooth",
       text: "Smooth. Now let's give it some colour. Tap PAINT.",
@@ -142,7 +143,8 @@
       title: "Pick the pine one",
       text: "Each order names a shape, a wood, a paint and a finish. You have pine logs, so take the pine rolling pin.",
       done: function (c) { return s(c, "activeWood") === "pine" && s(c, "screen") === "lathe"; },
-      replay: { title: "Pick an order", target: ['[data-act="take"]', '[data-act="lathe"]', ".order[data-order]"],
+      rescue: rescuePine,   // every pine log went on practice: without one the card has no TAKE IT
+      replay: { rescue: null, title: "Pick an order", target: ['[data-act="take"]', '[data-act="lathe"]', ".order[data-order]"],
         text: "Each order names a shape, a wood, a paint and a finish. The card says if your shed has that wood. Tap TAKE IT (or PRACTISE IT if you have none).",
         done: function (c) { return !!s(c, "activeWood") && s(c, "screen") === "lathe"; } } },
     { id: "turn", screen: "lathe", target: ["#profileBar"], mode: "cut",

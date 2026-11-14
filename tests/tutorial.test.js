@@ -148,9 +148,9 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
   assert.deepEqual(t.current().target, ["#tipSand"]);
   c.v.tip = "sand"; at("sand");
   c.v.smoothHere = 0.59; at("sand");                 // not quite
-  c.v.tip = "gouge"; t.check();
-  assert.match(t.current().hint(ctx), /SANDPAPER/, "put the sandpaper down: the card says to pick it up again");
-  c.v.tip = "sand"; c.v.smoothHere = T.SAND_SMOOTH; at("to_paint");
+  c.v.tip = "gouge"; at("pick_sand");               // put the sandpaper down: back to picking it up
+  c.v.tip = "sand"; at("sand");
+  c.v.smoothHere = T.SAND_SMOOTH; at("to_paint");
   c.v.mode = "paint"; at("paint");
   c.v.coverage = T.PAINT_COVER; at("to_finish");
   c.v.mode = "finish"; at("finish");
@@ -497,4 +497,13 @@ test("the speed-up copy follows the diamonds it grants", () => {
   assert.match(T.BY_ID.speed.text, new RegExp("Here are " + T.GRANT_DIAMONDS + " diamonds"));
   assert.match(T.BY_ID.sand.text, /SMOOTH reads 60%/);
   assert.match(T.BY_ID.buy_bat.text, /100 coins/);
+});
+
+test("every pine log went on practice before the first order: a log turns up at the board, so TAKE IT is there", () => {
+  const { c, t, game } = flow();
+  game.tutorial.step = "take";
+  c.logs.pine = 0; c.v.screen = "orders";
+  t.check();
+  assert.equal(id(t), "take");
+  assert.equal(c.logs.pine, 1);
 });
