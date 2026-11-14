@@ -161,6 +161,9 @@ Harvest, all with a finger or mouse:
 - Delimb: swipe across a branch to cut it right there. The outer part falls
   away and the stub can be cut again. Cut close to the log to finish a limb.
   Thick branches take more than one swipe.
+- A cut stub is bare, on every tree: the pine's needles and the oak's and
+  walnut's leaves come off with the cut (a shower of leaves falls from it), and
+  the cut-off part takes its own foliage with it.
 - Delimb is done when the log looks clean: a limb with at least two thirds of
   its length cut off counts as clean and comes away flush, and the counter and
   the saw gate use that one definition. Any swipe that crosses a limb cuts it,
