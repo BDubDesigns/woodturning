@@ -1270,6 +1270,161 @@ header .gear-btn { margin-left: 4px; }
 </script>
     <script>
 /* ============================================================
+   Haptics: the only place in the game that touches vibration.
+   Everything else calls this module and never navigator.vibrate.
+
+     Haptics.supported()          false where there is no way to vibrate (iPhone browsers)
+     Haptics.enabled() / setEnabled(bool)   the Settings switch, saved in the profile
+     Haptics.cut(level)           every frame while cutting; level 0..1. 0 = stop
+     Haptics.sand(level)          the same, a lighter, finer feel, capped at CFG.SAND_CAP
+     Haptics.stop()               stop now
+     Haptics.pulse(name)          a one-off: "catch", "done", "stars3"
+
+   SWAP POINT FOR CAPACITOR (Slice 7, not now): this browser backend can
+   only switch the motor on or off, so strength comes from how dense the
+   pulses are. Capacitor's haptics plugin gives real strength control on
+   Android and iPhone: replace send() / patternFor() below with the
+   plugin's calls (cut and sand set the intensity of one continuous
+   effect, pulse plays an impact pattern), and no game code changes.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  /* ---------- every tuning number, in one place (feel them on a real phone) ---------- */
+  var CFG = {
+    PULSE_MS: 12,          // one cutting pulse: short, so it reads as texture, not a buzz
+    SAND_PULSE_MS: 8,      // sanding pulses are shorter still: a finer, lighter grain
+    GAP_LIGHT_MS: 140,     // the gap between pulses at the lightest level...
+    GAP_FULL_MS: 25,       // ...down to this at full (hard press at top RPM)
+    WINDOW_MS: 250,        // how much pattern is sent at a time
+    SAND_CAP: 0.5,         // sanding never gets past this level
+    MIN_LEVEL: 0.02,       // below this counts as nothing
+    RESEND_DELTA: 0.12,    // a level change this big sends a new pattern straight away
+    RESEND_LEAD_MS: 50,    // otherwise the next one is sent up to this long before its first pulse is due, in time
+    STOP_GRACE_MS: 60,     // a frame or two with no wood coming off does not stop it (no stutter)
+    PULSE_GAP_MS: 60,      // a one-off that lands while another plays waits this long after it
+    PULSES: {              // one-off patterns: on, off, on, ... in ms
+      "catch": [35, 40, 35],              // the tool digs in: a sharp double jolt
+      done: [30],                         // DONE: one soft thump
+      stars3: [15, 70, 20, 70, 40]        // a 3-star grade: three rising taps
+    }
+  };
+
+  /* ---------- level -> pattern (pure) ---------- */
+  function clamp01(v) { return v > 1 ? 1 : v > 0 ? v : 0; }
+  /* The gap between pulses at a level: GAP_LIGHT_MS at the lightest, GAP_FULL_MS at 1. */
+  function gapFor(level, cfg) {
+    cfg = cfg || CFG;
+    return Math.round(cfg.GAP_LIGHT_MS + (cfg.GAP_FULL_MS - cfg.GAP_LIGHT_MS) * clamp01(level));
+  }
+  /* About WINDOW_MS of [pulse, gap, pulse, gap, ...]; [] for a level of nothing. */
+  function patternFor(level, pulseMs, cfg) {
+    cfg = cfg || CFG;
+    level = clamp01(level);
+    if (!(level >= cfg.MIN_LEVEL)) return [];
+    var on = pulseMs || cfg.PULSE_MS, off = gapFor(level, cfg), out = [], t = 0;
+    while (t + on <= cfg.WINDOW_MS) {
+      out.push(on); t += on;
+      if (t + off + on > cfg.WINDOW_MS) break;
+      out.push(off); t += off;
+    }
+    return out;              // always ends on a pulse: the gap after it is the next pattern's to keep
+  }
+  function lengthOf(p) { var s = 0; for (var i = 0; i < p.length; i++) s += p[i]; return s; }
+
+  /* ---------- the backend: the browser's vibration API ---------- */
+  var H = {
+    CFG: CFG, gapFor: gapFor, patternFor: patternFor,
+    nav: function () { return root.navigator; },                           // tests swap this
+    clock: function () { return root.performance ? root.performance.now() : Date.now(); }   // the lathe's test clock swaps this
+  };
+  function supported() { var n = H.nav(); return !!n && typeof n.vibrate === "function"; }
+  function send(pattern) {
+    if (!supported()) return;
+    try { H.nav().vibrate(pattern); } catch (e) {}
+  }
+
+  /* ---------- the Settings switch ---------- */
+  var profile = null, saveProfile = null, on = true;
+  /* The profile's settings section (farm-ui.js hands it over) and how to save it. */
+  function useProfile(settings, save) {
+    profile = settings || null; saveProfile = save || null;
+    on = !(profile && profile.vibration === false);
+  }
+  function enabled() { return on; }
+  function setEnabled(v) {
+    on = !!v;
+    if (profile) profile.vibration = on;
+    if (!on) stop();
+    if (saveProfile) saveProfile();
+  }
+
+  /* ---------- continuous: cutting and sanding ---------- */
+  var cur = null;          // what is playing: { kind, level, gap, lastEnd (its last pulse ends), due (the next pulse is due) } or null
+  var zeroSince = -1;      // when the level first dropped to nothing
+  var pulseUntil = 0, pulseTimer = 0;
+  function feel(kind, level, pulseMs) {
+    if (!on || !supported()) return;
+    var now = H.clock();
+    if (!(level >= CFG.MIN_LEVEL)) {
+      if (!cur) return;
+      if (zeroSince < 0) zeroSince = now;
+      if (now - zeroSince >= CFG.STOP_GRACE_MS) { cur = null; zeroSince = -1; send(0); }
+      return;
+    }
+    zeroSince = -1;
+    if (now < pulseUntil) return;                // a one-off is playing: let it finish
+    var p = patternFor(level, pulseMs), delay = 0;
+    if (cur && cur.kind === kind && Math.abs(level - cur.level) < CFG.RESEND_DELTA) {
+      // the same feel: carry the beat on. Wait until the current pattern's last pulse is done
+      // and the next is nearly due, then send the next window starting on that beat.
+      if (now < cur.lastEnd || now < cur.due - CFG.RESEND_LEAD_MS) return;
+      delay = Math.max(0, Math.round(cur.due - now));
+      if (delay > 0) p = [0, delay].concat(p);
+    }
+    var len = lengthOf(p);
+    cur = { kind: kind, level: level, lastEnd: now + len, due: now + len + gapFor(level) };
+    send(p);
+  }
+  function cut(level) { feel("cut", clamp01(level), CFG.PULSE_MS); }
+  function sand(level) { feel("sand", Math.min(CFG.SAND_CAP, clamp01(level)), CFG.SAND_PULSE_MS); }
+  function stop() {
+    var playing = !!cur || H.clock() < pulseUntil || !!pulseTimer;
+    cur = null; zeroSince = -1; pulseUntil = 0;
+    if (pulseTimer) { clearTimeout(pulseTimer); pulseTimer = 0; }
+    if (playing && supported()) send(0);
+  }
+
+  /* ---------- one-offs ---------- */
+  function pulse(name) {
+    var p = CFG.PULSES[name];
+    if (!p || !on || !supported()) return;
+    var now = H.clock(), wait = pulseUntil > now ? pulseUntil - now + CFG.PULSE_GAP_MS : 0;
+    function play() {
+      pulseTimer = 0;
+      cur = null; zeroSince = -1;                // the one-off replaces any cutting pattern
+      pulseUntil = H.clock() + lengthOf(p);
+      send(p.slice());
+    }
+    if (pulseTimer) { clearTimeout(pulseTimer); pulseTimer = 0; }
+    if (wait > 0 && typeof setTimeout === "function") { pulseUntil = now + wait + lengthOf(p); pulseTimer = setTimeout(play, wait); }
+    else play();
+  }
+
+  // a hidden page never keeps buzzing
+  if (root.document && root.document.addEventListener) {
+    root.document.addEventListener("visibilitychange", function () { if (root.document.hidden) stop(); });
+  }
+
+  H.supported = supported; H.enabled = enabled; H.setEnabled = setEnabled; H.useProfile = useProfile;
+  H.cut = cut; H.sand = sand; H.stop = stop; H.pulse = pulse;
+  if (typeof module !== "undefined" && module.exports) module.exports = H;
+  var G = root.Game || (root.Game = {});
+  G.Haptics = H;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+    <script>
+/* ============================================================
    The shared game state: the wallet and the inventory. One of
    each, owned here, read and written by every tab, so the farm,
    the harvest, the lathe, the mine (and later commissions, the
@@ -6924,7 +7079,7 @@ header .gear-btn { margin-left: 4px; }
   setTimeout(boot, 30);
 
   function boot() {
-    var C = L.CFG, audio = L.audio, P = L.Paint;
+    var C = L.CFG, audio = L.audio, P = L.Paint, Hap = root.Game.Haptics;
     var stage = document.getElementById("stage");
 
     var S = {
@@ -6946,6 +7101,7 @@ header .gear-btn { margin-left: 4px; }
       rpm: 1100,
       spinAngle: 0,
       cutIntensity: 0,
+      hapticCut: 0,                     // the cutting vibration level, eased (haptics.js)
       shake: 0,
       catchCooldown: 0,
       everCut: false,
@@ -7019,6 +7175,7 @@ header .gear-btn { margin-left: 4px; }
       if (e.pointerType !== "mouse") p.hover = false;
       S.pressure.up();
       S.work.endPass();
+      S.hapticCut = 0; Hap.stop();
     }
     stage.addEventListener("pointerup", endPointer);
     stage.addEventListener("pointercancel", endPointer);
@@ -7034,6 +7191,7 @@ header .gear-btn { margin-left: 4px; }
       cutflash.classList.add("on");
       setTimeout(function () { cutflash.classList.remove("on"); }, 110);
       audio.clunk();
+      Hap.pulse("catch");
     }
 
     /* ---------------- UI ---------------- */
@@ -7078,6 +7236,7 @@ header .gear-btn { margin-left: 4px; }
     function sanding() { return S.mode === "cut" && !!L.TIPS[S.tip] && L.TIPS[S.tip].kind === "abrasive"; }
     function setTip(t) {
       if (S.tips.indexOf(t) < 0) return;
+      if (t !== S.tip) Hap.stop();
       S.tip = t;
       var st = toolRowState();
       st.used[t] = 1 + Object.keys(st.used).reduce(function (m, k) { return Math.max(m, st.used[k] || 0); }, 0);   // least recently used = lowest
@@ -7489,6 +7648,7 @@ header .gear-btn { margin-left: 4px; }
       if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
       else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
       else toast(woodName(wood) + " piece added to the shed.");
+      Hap.pulse("done");
       return piece;
     }
     doneBtn.addEventListener("click", function () { audio.init(); closeStock(); finishPiece(); });
@@ -7505,6 +7665,7 @@ header .gear-btn { margin-left: 4px; }
     var PITCH = { cut: 1, paint: 0.42, finish: 2.6 };   // brush swish is soft and low, the spray a high hiss
     function setMode(m) {
       if (!panels[m]) return;
+      if (m !== S.mode) Hap.stop();
       S.mode = m;
       S.pressure.catches = m === "cut" && !sanding();
       syncDepthLabel();
@@ -7811,6 +7972,8 @@ header .gear-btn { margin-left: 4px; }
        frame rate, and a three-second hold takes milliseconds. */
     var testClock = /[?&]testclock\b/.test(location.search);
     S.testClock = testClock;
+    var simMs = 0;   // on the test clock, vibration timing follows the simulation too
+    if (testClock) Hap.clock = function () { return simMs; };
     function frame(nowMs) {
       requestAnimationFrame(frame);
       if (L.hidden || testClock) { lastFrame = nowMs; return; }   // the farm is showing: the lathe sleeps (on the test clock it only draws in advance())
@@ -7830,6 +7993,10 @@ header .gear-btn { margin-left: 4px; }
       view.frame(1 / 60);
       return n;
     };
+    /* How hard the lathe is working, 0..1, from the same inputs that set the cut rate:
+       a hard press at the top RPM is 1. Drives the vibration. */
+    var DRIVE_MAX = L.pressureFactor(1) * L.rpmFactor(C.RPM_MAX), HAPTIC_EASE = 14;
+    function drive(pr) { return Math.min(1, L.pressureFactor(pr) * L.rpmFactor(S.rpm) / DRIVE_MAX); }
     /* One tick of the lathe: spin, pressure, cutting, paint and spray, the tool, sound, stats. */
     function step(dt) {
         if (S.catchCooldown > 0) S.catchCooldown -= dt;
@@ -7839,7 +8006,8 @@ header .gear-btn { margin-left: 4px; }
         S.flow = Math.max(0, S.flow - dt * 3.2);
         if (S.coat.syncWork(S.work)) { drawProfile(); updateSpecInfo(); }   // wood cut away takes its paint
 
-        var p = S.pointer, pr = S.pressure.update(dt);
+        var p = S.pointer, pr = S.pressure.update(dt), hapCut = 0, hapSand = 0;
+        simMs += dt * 1000;
         if (p.active) {
           S.lastT = p.t;
           if (sanding()) {
@@ -7850,13 +8018,19 @@ header .gear-btn { margin-left: 4px; }
               S.coat.wear(p.t, SAND_WEAR * L.pressureFactor(pr) * L.rpmFactor(S.rpm) * dt, L.TIPS.sand.halfWidth);
               S.sandLevel = Math.max(S.sandLevel, pr * (0.35 + 0.65 * Math.min(1, S.rpm / 1800)) * (0.35 + 0.65 * roughHere));
               // the dust is the cue: it thins out as the spot nears the best this grit can do
-              if (view.onSand) view.onSand(p.t, pr, Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor)), dt);
+              var dustAmt = Math.max(0, roughHere - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor));
+              if (view.onSand) view.onSand(p.t, pr, dustAmt, dt);
+              hapSand = drive(pr) * dustAmt / Math.max(0.05, 1 - 0.9 * ((S.grit && S.grit.floor) || L.GRIT_80.floor));   // fades like the dust; haptics.js caps it
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
             }
             S.coat.rebase(S.work);
           } else if (S.mode === "cut") {
             var removed = S.work.cut(p.t, pr, S.tip, dt, (S.catchCooldown > 0 ? 0.45 : 1) * S.cutBoost, S.rpm) * CHIP_SCALE;
             if (removed > 0.00001) {
+              // vibration: the cut rate's own inputs, a hard press at top RPM is 1, eased so it doesn't stutter
+              hapCut = drive(pr);
+              S.hapticCut += (hapCut - S.hapticCut) * Math.min(1, dt * HAPTIC_EASE);
+              hapCut = Math.max(Hap.CFG.MIN_LEVEL, S.hapticCut);
               S.cutIntensity = Math.min(1, S.cutIntensity + removed * 900);
               view.onCut(removed);
               if (!S.everCut) { S.everCut = true; used.cut = true; hint.classList.add("gone"); }
@@ -7869,6 +8043,7 @@ header .gear-btn { margin-left: 4px; }
             if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }
         }
+        if (hapSand > 0) Hap.sand(hapSand); else { if (!hapCut) S.hapticCut = 0; Hap.cut(hapCut); }   // no wood off this frame: nothing
         var tool = S.tool;
         if (p.active) { tool.mode = "contact"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0; }
         else if (p.hover) { tool.mode = "hover"; tool.t = p.t; tool.r = S.work.sample(p.t); tool.lift = 0.12; }
@@ -9743,15 +9918,26 @@ header .gear-btn { margin-left: 4px; }
   var farm = F.createFarm(game, { state: state, onChange: persist, timersOff: mine.timersOff, coinsPerDiamond: M.CFG.COINS_PER_DIAMOND_LAND });
   var wiping = false;   // a reset is under way: nothing may write the old save back
   function persist() { if (wiping) return; farm.touch(); Save.write(storage, game); renderWallet(); }
+  // the player's settings live in the profile: vibration on unless they turned it off
+  if (!game.settings || typeof game.settings !== "object") game.settings = {};
+  var Hap = G.Haptics;
+  Hap.useProfile(game.settings, persist);
 
-  /* ---------------- settings: reset the profile ----------------
-     Wipes the save and reloads as a brand-new player. Two taps, so it is never
-     done by accident. */
+  /* ---------------- settings: vibration, replay, reset the profile ----------------
+     Vibration only shows where the device can vibrate (not iPhone browsers): no
+     switch that does nothing. Reset wipes the save and reloads as a brand-new
+     player. Two taps, so it is never done by accident. */
+  function vibrationHtml() {
+    if (!Hap.supported()) return "";
+    var v = Hap.enabled();
+    return '<div class="row"><button type="button" class="act' + (v ? " primary" : "") + '" data-act="vibration" aria-pressed="' + v + '">' +
+      '<span class="an">VIBRATION ' + (v ? "ON" : "OFF") + '</span><span class="ad">' + (v ? "You feel the chisel bite. Tap to turn off" : "Tap to feel the chisel bite") + "</span></button></div>";
+  }
   var settingsEl = $("settingsOverlay"), armed = false;
   function closeSettings() { settingsEl.hidden = true; settingsEl.innerHTML = ""; armed = false; }
   function openSettings() {
     armed = false;
-    settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' +
+    settingsEl.innerHTML = '<div class="grade-card settings-card"><h2 id="settingsTitle">SETTINGS</h2>' + vibrationHtml() +
       (G.tutorial && G.tutorial.done ?
         '<p class="g-note">Walk through the tutorial again. Nothing in your game changes: every tab stays open and nothing is given out a second time.</p>' +
         '<div class="row"><button type="button" class="act primary" data-act="replay"><span class="an">REPLAY TUTORIAL</span><span class="ad">A guided tour of the game</span></button></div>' : "") +
@@ -9771,6 +9957,14 @@ header .gear-btn { margin-left: 4px; }
     var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
     if (!b) return;
     if (b.getAttribute("data-act") === "close") { closeSettings(); return; }
+    if (b.getAttribute("data-act") === "vibration") {
+      Hap.setEnabled(!Hap.enabled());
+      var row = b.parentNode, tmp = document.createElement("div");
+      tmp.innerHTML = vibrationHtml();
+      if (tmp.firstChild) row.parentNode.replaceChild(tmp.firstChild, row);
+      if (Hap.enabled()) Hap.pulse("done");   // a little thump says it is on
+      return;
+    }
     if (b.getAttribute("data-act") === "replay") {
       closeSettings();
       if (G.tutorial && G.tutorial.replay() && G.tutorialRefresh) G.tutorialRefresh();
@@ -9816,6 +10010,7 @@ header .gear-btn { margin-left: 4px; }
     }
     var L = root.Lathe;
     L.hidden = name !== "lathe";            // the lathe sleeps while another screen shows
+    if (name !== "lathe" && G.Haptics) G.Haptics.stop();   // and never buzzes from behind another screen
     L.audio.lathe(name === "lathe");        // and so does its motor
     harvestStatsEl.style.display = name === "harvest" ? "" : "none";
     if (name === "harvest") L.harvestHost.show(); else L.harvestHost.hide();
@@ -10469,10 +10664,12 @@ header .gear-btn { margin-left: 4px; }
   }
   /* The lathe's DONE with an order on it: show what this piece earns, and let
      the player hand it over or keep it to try again. */
+  var offered = {};   // 3-star grades already felt here, so DELIVER right after does not buzz twice
   function offer(orderId, pieceId) {
     var o = board.get(orderId), g = board.preview(orderId, pieceId);
     if (!o || !g) return;
     var h = '<div class="grade-card"><h2 id="gradeTitle">' + esc(pieceName(o)) + " for " + esc(o.client) + "</h2>";
+    if (g.stars >= 3 && G.Haptics) { G.Haptics.pulse("stars3"); offered[orderId + ":" + pieceId] = 1; }   // only 3 stars buzzes: a pulse means great
     h += gradeHtml(o, g);
     if (g.accepted) {
       h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
@@ -10511,6 +10708,7 @@ header .gear-btn { margin-left: 4px; }
     }
     var o = r.order, g = r.grade;
     var h = '<div class="grade-card done"><h2 id="gradeTitle">Delivered!</h2><div class="g-stars">' + starsHtml(g.stars) + "</div>";
+    if (g.stars >= 3 && G.Haptics && !offered[orderId + ":" + pieceId]) G.Haptics.pulse("stars3");
     h += '<p class="g-pay big">+' + COIN + "<b>" + r.pay + "</b></p>";
     h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : " takes the ") + esc(pieceName(o).toLowerCase()) + (g.bonus ? ", and adds a " + Math.round(C.CFG.BONUS * 100) + "% bonus" : "") + ".</p>";
     h += '<div class="row">' + act("BOARD", "See the other orders", "primary", "board") + act("OK", "Back to work", "", "keep") + "</div></div>";
