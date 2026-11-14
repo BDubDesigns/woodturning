@@ -86,6 +86,19 @@ mine, monetization, distribution, and the one-month bet.
   diamond. Model in `src/js/commissions.js`, screen in
 `src/js/commissions-ui.js`; the save section is `commissions`.
 
+- Blueprints: the board only rolls orders for pieces whose blueprint you own.
+  The rolling pin comes free; the baseball bat is 100 coins, the walking stick
+  250, the chair leg 600 and the banister spindle 1500, bought in any order at
+  Arbor Freight (BLUEPRINTS, the top section). Harder pieces pay more: a
+  perfect pine piece pays 40, 70, 90, 140 and 240. Each card shows the piece as
+  a blueprint (white profile on blue, grid, dimension lines in mm, a title
+  block), stamped OWNED once bought. Under the orders, the board shows a greyed
+  teaser for the cheapest blueprint you don't own, which takes no slot and
+  links to its card. An order for a piece you don't own (only the tutorial
+  posts one) shows locked and can't be taken until the blueprint is bought.
+  Blueprints live in the commissions model (`board.blueprints` in the save);
+  the drawing is `src/js/blueprint-art.js`.
+
 - Arbor Freight (the SHOP tab): the workshop's tool store, where coins from
   orders buy upgrades. Five lines, each a ladder bought in order, every rung
   about four times the price of the last:
@@ -211,6 +224,7 @@ src/js/tutorial-ui.js  the coach card, the highlight ring, hidden tabs
 src/js/commissions.js     commission model: orders, target shapes, grading, the board (pure)
 src/js/commissions-ui.js  the commission board screen and the grade dialog
 src/js/shop.js      Arbor Freight model: upgrade lines, tiers, prices, buying (pure)
+src/js/blueprint-art.js  a piece's blueprint drawing as an SVG string (pure)
 src/js/shop-ui.js   the store screen
 src/js/view3d.js    Three.js view
 src/js/view2d.js    Canvas2D view (fallback and first-class view)

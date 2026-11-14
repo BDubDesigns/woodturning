@@ -254,13 +254,32 @@
     }
     return null;
   }
+  /* A target that is on its screen but scrolled out of view (lower down the store, say)
+     is scrolled into view once per step, so the ring has something to go round. */
+  var scrolledFor = "";
+  function scrollToTarget(st) {
+    if (scrolledFor === st.id) return null;
+    var list = st.target || [];
+    for (var i = 0; i < list.length; i++) {
+      var all = document.querySelectorAll(list[i]);
+      for (var k = 0; k < all.length; k++) {
+        var r = all[k].getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && all[k].scrollIntoView) {
+          scrolledFor = st.id;
+          all[k].scrollIntoView({ block: "center" });
+          return visible(all[k]) ? all[k] : null;
+        }
+      }
+    }
+    return null;
+  }
   var lastPos = "";
   function place(st) {
     var on = !!st && (!st.screen || st.screen === ctx.screen());
     card.hidden = !on || minimized;
     if (minimized) { pillHome(); pill.hidden = !on; }
     if (!on) { ring.hidden = true; return; }
-    var el = targetEl(st), vw = root.innerWidth, vh = root.innerHeight;
+    var el = targetEl(st) || scrollToTarget(st), vw = root.innerWidth, vh = root.innerHeight;
     var r = el ? el.getBoundingClientRect() : null;
     // a target the size of the stage needs no ring: the card says where to touch
     var big = r && r.width * r.height > vw * vh * 0.35;

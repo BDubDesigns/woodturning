@@ -678,6 +678,32 @@ footer {
 .af-later b { color: #f2c230; font-variant-numeric: tabular-nums; }
 .af-top { margin: 0; font-size: 13.5px; color: var(--ok); }
 .af-foot { margin: 0; text-align: center; font-size: 12px; color: #6f8a73; }
+/* blueprints: the drawings, the cards at Arbor Freight, the board's locked orders and its teaser */
+.bp-art { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); }
+.af-bp { border-color: #3d6aa8; }
+.af-bp .af-head h2 { color: #9cc3ff; }
+.bp-icon { background: #dbe7f7; }
+.bp-card { padding: 10px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; }
+.bp-card:first-of-type { border-top: 0; padding-top: 2px; }
+.bp-text { display: flex; flex-direction: column; margin: 8px 0 8px; }
+.bp-text b { font-size: 15px; font-weight: 600; }
+.bp-text small { font-size: 12.5px; color: #bfae8f; line-height: 1.35; margin-top: 2px; }
+.bp-pay { color: #f6c46a; font-weight: 600; white-space: nowrap; }
+.af-line .act.bp-buy.primary { background: #142c4f; border-color: #6fa4f0; }
+.af-line .act.bp-buy.primary .an { color: #cfe2ff; }
+.af-line .act.bp-buy.owned { opacity: 1; border-style: dashed; }
+.af-line .act.bp-buy.owned .an { color: var(--ok); }
+.bp-card.flash { animation: bp-flash 1.5s ease-out; }
+@keyframes bp-flash { 0% { box-shadow: 0 0 0 3px rgba(156, 195, 255, 0.9); background: rgba(111, 164, 240, 0.18); } 100% { box-shadow: 0 0 0 3px rgba(156, 195, 255, 0); background: transparent; } }
+.order.locked .o-shape { filter: grayscale(0.7) brightness(0.8); }
+.o-lock { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; line-height: 1.4; color: #cfe2ff; background: rgba(29, 74, 138, 0.35); border: 1px solid #3d6aa8; }
+.o-lock b { color: #fff; }
+.order.unlocked { animation: order-unlock 1.4s ease-out; }
+@keyframes order-unlock { 0% { box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.95); } 100% { box-shadow: 0 0 0 3px rgba(232, 163, 61, 0); } }
+.order.teaser { border-style: dashed; opacity: 0.72; }
+.order.teaser .bp-art { filter: grayscale(0.85); opacity: 0.8; }
+.o-teaser { margin: 8px 0 10px; font-size: 13.5px; color: #bfae8f; line-height: 1.4; }
+.o-teaser b { color: #f3e7d3; }
 #stoast {
   position: sticky; bottom: 10px; margin: 0 auto 10px; width: fit-content; max-width: 92%;
   padding: 8px 14px; border-radius: 8px; font-size: 14px; text-align: center;

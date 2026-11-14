@@ -98,6 +98,10 @@
   audio.chime = function () {                 // a small, warm "done"
     audio.thump(660, 660, 0.18, 0.05); audio.thump(880, 880, 0.26, 0.05, 0.09);
   };
+  audio.buy = function () {                   // the till: a purchase at Arbor Freight
+    audio.init();
+    audio.burst("bandpass", 4200, 2.5, 0.05, 0.12); audio.thump(1046, 1046, 0.16, 0.06, 0.04); audio.thump(1568, 1568, 0.3, 0.06, 0.12);
+  };
   /* sawing: level 0..1 follows how fast the blade is moving */
   audio.saw = function (level) {
     if (!audio.ctx || !audio.sawGain) return;
