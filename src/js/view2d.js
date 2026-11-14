@@ -164,7 +164,7 @@
 
     function drawBrush(tipX, tipY, dx, dy, rPx) {
       var rgb = P.PALETTE[S.color].rgb, wide = S.paintTool === "brush";
-      var bw = Math.max(wide ? 12 : 5, rPx * (wide ? 0.42 : 0.16));
+      var bw = Math.max(wide ? 12 : 5, rPx * (wide ? 0.42 : 0.16)) * (wide && S.brushTool ? S.brushTool.width : 1);
       var tx = tipX + dx * rPx * 0.34, ty = tipY + dy * rPx * 0.34;          // top of the bristles
       var fx = tx + dx * rPx * 0.28, fy = ty + dy * rPx * 0.28;              // ferrule end
       var hx = fx + dx * rPx * 1.9, hy = fy + dy * rPx * 1.9;

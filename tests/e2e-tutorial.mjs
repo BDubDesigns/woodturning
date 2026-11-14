@@ -192,6 +192,7 @@ check(await page.evaluate(() => window.__orders.board.state.orders.length) === 3
 check(await ringOn("#tabShop"), "the ring is on SHOP");
 await page.click("#tabShop");
 check(await step() === "shop" && /GOT IT/.test(await coach()), "Arbor Freight: one card to read");
+check(await ringOn('[data-buy="light"]'), "the ring is on the halogen's BUY button");
 await shot("05-shop");
 await page.click('[data-coach="ok"]');
 check(await step() === null, "GOT IT ends the flow");
@@ -220,6 +221,16 @@ await p2.goto(url);
 await p2.waitForFunction(() => window.__tutorial && window.__lathe);
 w = await p2.evaluate(() => ({ done: window.__tutorial.tutorial.done, coins: window.__farm.state.wallet.balance("coins") }));
 check(w.done && w.coins === 77, "a save from before the flow skips it, and keeps its coins");
+
+console.log("\nTHE 3D VIEW");
+await p2.goto(`file://${file}?testclock&reset`);
+await p2.waitForFunction(() => window.__tutorial && window.__lathe && window.__lathe.stock);
+await p2.evaluate(() => window.__lathe.advance(0.2));
+const v3 = await p2.evaluate(() => ({ view: window.__lathe.views.current.kind, coach: !document.getElementById("coach").hidden, text: document.getElementById("coach").textContent }));
+check(v3.view === "3d", "a new player in the 3D view");
+check(v3.coach && /Your lathe/.test(v3.text), "sees the first coach card there too");
+await p2.evaluate(() => { const r = window.__lathe.work.radius; for (let i = 60; i < 180; i++) r[i] *= 0.85; window.__lathe.work.version++; window.__lathe.advance(0.1); window.__tutorial.refresh(); });
+check(await p2.evaluate(() => window.__tutorial.tutorial.current().id) !== "cut", "and the flow moves on in 3D as in 2D");
 
 check(!errors.length, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));
 await browser.close();

@@ -20,6 +20,8 @@
   var ICON = {
     light: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2v6" stroke="#222" stroke-width="2"/><path d="M11 8h10l2 6H9z" fill="#3a3a3a"/><circle cx="16" cy="19" r="6" fill="#ffe2a8"/><path d="M8 26l-3 3M24 26l3 3M16 28v3" stroke="#f2c230" stroke-width="2" stroke-linecap="round"/></svg>',
     motor: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="9" width="18" height="15" rx="3" fill="#46625a"/><path d="M7 12v9M10 12v9M13 12v9M16 12v9M19 12v9" stroke="#2b3532" stroke-width="1.4"/><rect x="22" y="14" width="6" height="5" rx="1" fill="#99a1a6"/><rect x="6" y="24" width="14" height="3" fill="#2b3532"/></svg>',
+    brushes: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="13" y="16" width="6" height="14" rx="2" fill="#7c4a22"/><rect x="11.5" y="11" width="9" height="6" rx="1" fill="#c8cfd4"/><path d="M11 11c0-5 2-9 5-9s5 4 5 9z" fill="#2f5fb3"/></svg>',
+    finish: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="12" width="9" height="16" rx="3" fill="#a9d3e8" stroke="#5b8396" stroke-width="1.4"/><rect x="10.5" y="7" width="6" height="5" fill="#3a3a3a"/><path d="M16.5 8h6l-1 3h-5z" fill="#3a3a3a"/><path d="M24 7l4-2M24 9.5h5M24 12l4 2" stroke="#e8a33d" stroke-width="1.6" stroke-linecap="round"/></svg>',
     chisels: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 3l3 0 0 14-1.5 3-1.5-3z" fill="#d6dde1"/><rect x="7.5" y="20" width="4" height="10" rx="1.5" fill="#7c4a22"/><path d="M19 3h5v12c0 2-1.2 3.5-2.5 3.5S19 17 19 15z" fill="#d6dde1"/><rect x="19.5" y="19" width="4" height="11" rx="1.5" fill="#7c4a22"/></svg>'
   };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -67,7 +69,9 @@
   var WHERE = {
     light: "Go and see it hanging over the lathe.",
     motor: "The lathe cuts faster now.",
-    chisels: "It is on the rack by the lathe, with the other chisels."
+    chisels: "It is on the rack by the lathe, with the other chisels.",
+    brushes: "Paint goes on faster now.",
+    finish: "The sheen builds faster and more evenly now."
   };
   bodyEl.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;

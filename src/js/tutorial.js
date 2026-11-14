@@ -161,7 +161,7 @@
       text: "The board fills up with new orders now. Coins buy better tools at Arbor Freight. Tap SHOP.",
       enter: function (c) { call(c, "resumeBoard"); },
       done: function (c) { return s(c, "screen") === "shop"; } },
-    { id: "shop", screen: "shop", target: ['[data-buy="lighting"]'], dismiss: true,
+    { id: "shop", screen: "shop", target: ['[data-buy="light"]'], dismiss: true,
       title: "Arbor Freight",
       text: "A halogen work light is a good first buy. The MINE tab is for diamonds: watch a short ad, crack the vein, 5 diamonds. Everything is open now. Have fun.",
       done: function () { return false; } }

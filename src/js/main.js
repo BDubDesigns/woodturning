@@ -189,6 +189,8 @@
       if (!shop) return;
       S.lightLevel = shop.lightLevel();
       S.cutBoost = shop.cutBoost();
+      S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
+      S.sprayGun = shop.spray();
       setTips(shop.tips());
     }
     L.applyUpgrades = applyUpgrades;
@@ -670,8 +672,8 @@
             }
           } else if (pr > 0.04) {
             var laid;
-            if (S.mode === "paint") { laid = S.coat.brush(p.t, pr, S.paintTool, S.color, dt); view.onPaint(pr, dt, laid); }
-            else { laid = S.coat.spray(p.t, pr, dt); view.onSpray(pr, dt, laid); }
+            if (S.mode === "paint") { laid = S.coat.brush(p.t, pr, S.paintTool, S.color, dt, S.brushTool); view.onPaint(pr, dt, laid); }
+            else { laid = S.coat.spray(p.t, pr, dt, S.sprayGun); view.onSpray(pr, dt, laid); }
             S.flow = Math.max(S.flow, 0.12 + 0.3 * pr);
             if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }

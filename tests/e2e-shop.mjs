@@ -31,8 +31,8 @@ const coins = () => page.evaluate(() => window.__farm.state.wallet.balance("coin
 console.log("\nTHE STORE");
 check(/ARBOR/.test(await page.locator("#screenTitle").textContent()), "the SHOP tab opens Arbor Freight");
 check((await page.locator("#tabOrders").textContent()).trim() === "ORDERS" && (await page.locator("#tabShop").textContent()).trim() === "SHOP", "the tabs read ORDERS and SHOP");
-check(await page.locator(".af-line").count() === 3, "three lines: lighting, motor, chisels");
-check(await page.locator(".af-price").count() === 3, "each shows the next rung's price tag");
+check(await page.locator(".af-line").count() === 5, "five lines: lighting, motor, chisels, brushes, finishing");
+check(await page.locator(".af-price").count() === 5, "each shows the next rung's price tag");
 if (shots) await page.screenshot({ path: `${shots}/shop.png` });
 
 console.log("\nSHORT OF COINS");
@@ -85,13 +85,39 @@ const after = await pass();
 check(after > before, `the same pass takes more off with the bigger motor (${(before * 100).toFixed(2)}% -> ${(after * 100).toFixed(2)}%)`);
 if (shots) await page.screenshot({ path: `${shots}/lathe-upgraded.png` });
 
+// a better brush and sprayer: the same stroke lays more paint, the same sweep more sheen
+async function stroke(mode) {
+  await page.evaluate((m) => { document.getElementById("newLogBtn").click(); window.__lathe.setMode(m); }, mode);
+  await tick(0.2);
+  const box = await page.locator("#stage").boundingBox();
+  const x = box.x + box.width * 0.5, y = box.y + box.height * 0.8;
+  await page.mouse.move(x, y); await page.mouse.down();
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(x, y - 4 * i); await tick(0.016); }
+  await tick(0.15);
+  await page.mouse.up();
+  await tick(0.1);
+  return page.evaluate((m) => m === "paint" ? window.__lathe.coat.coverage() : window.__lathe.coat.avgGloss(), mode);
+}
+const paint0 = await stroke("paint"), sheen0 = await stroke("finish");
+await page.evaluate(() => window.Game.showScreen("shop"));
+await page.click('[data-buy="brushes"]');
+check(/Installed: Sash brush/.test(await page.locator("#stoast").textContent()), "the sash brush is installed");
+await page.click('[data-buy="finish"]');
+check(/Installed: Trigger sprayer/.test(await page.locator("#stoast").textContent()), "the trigger sprayer is installed");
+await page.evaluate(() => window.Game.showScreen("lathe"));
+const paint1 = await stroke("paint"), sheen1 = await stroke("finish");
+check(paint1 > paint0 * 1.2, `the same stroke lays more paint with the sash brush (${paint0.toFixed(3)} -> ${paint1.toFixed(3)})`);
+check(sheen1 > sheen0 * 1.2, `the same sweep builds more sheen with the trigger sprayer (${sheen0.toFixed(3)} -> ${sheen1.toFixed(3)})`);
+await page.evaluate(() => window.__lathe.setMode("cut"));
+
 console.log("\nSAVED");
 await page.evaluate(() => window.__farm.persist());
 await page.reload();
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 await tick(0.2);
-const kept = await page.evaluate(() => ({ light: window.__lathe.lightLevel, tips: window.__lathe.tips, boost: window.__lathe.cutBoost }));
+const kept = await page.evaluate(() => ({ light: window.__lathe.lightLevel, tips: window.__lathe.tips, boost: window.__lathe.cutBoost, flow: window.__lathe.brushTool.flow, rate: window.__lathe.sprayGun.rate }));
 check(kept.light === 1 && kept.tips.includes("parting") && kept.boost > 0.5, "after a reload the lamp, the chisel and the motor are still there");
+check(kept.flow > 1 && kept.rate > 1, "and so are the brush and the sprayer");
 
 console.log("\nRESET PROFILE");
 await page.click("#settingsBtn");

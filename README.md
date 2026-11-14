@@ -87,7 +87,7 @@ mine, monetization, distribution, and the one-month bet.
 `src/js/commissions-ui.js`; the save section is `commissions`.
 
 - Arbor Freight (the SHOP tab): the workshop's tool store, where coins from
-  orders buy upgrades. Three lines, each a ladder bought in order, every rung
+  orders buy upgrades. Five lines, each a ladder bought in order, every rung
   about four times the price of the last:
   - Lighting: bare bulb, halogen work light (150), LED shop panel (600), studio
     light bar (2400). The lamp hangs at the top of the workshop and the light
@@ -97,6 +97,13 @@ mine, monetization, distribution, and the one-month bet.
     three times the stock motor at the top.
   - Chisels: gouge and skew, then a parting tool (200), detail gouge (700) and
     roughing gouge (2500), each a new button on the chisel rack.
+  - Brushes: hardware store brush, sash brush (160), wide pad brush (600),
+    sable artist's set (2400). Paint goes on faster each rung (up to 2.6x), and
+    the pad brushes lay a wider band; the liner stays a thin line.
+  - Finishing: spray bottle, trigger sprayer (180), HVLP spray gun (700), spray
+    booth (2800). Sheen builds faster and wider each rung (up to 2.8x), and the
+    mist gets a flat core, so a pass lays an even band instead of a blotch.
+    (The grade reads the average sheen, so evenness is how it looks, not the score.)
   Model in `src/js/shop.js` (save section `shop`), screen in `src/js/shop-ui.js`;
   chisel tips are data in `TIPS` in `cutting.js`.
 
