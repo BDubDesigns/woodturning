@@ -75,6 +75,7 @@
       if (b && b.active()) b.release();
       if (L.syncOrder) L.syncOrder();
       if (L.mountBlank) L.mountBlank(null);
+      practiceSpec();
       G.showScreen("lathe");
     },
     /* Put this wood's order on the lathe, with that wood mounted if the shed has it. */
@@ -186,7 +187,7 @@
 
   /* Skipping asks first: a tap on "Skip tutorial" turns the card into the question,
      saying what skipping means, and KEEP LEARNING is the big button. */
-  var shownId = null, confirming = false;
+  var shownId = null, confirming = false, shownHint = null;
   function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
   function confirmHtml() {
     if (tut.isReplay()) {
@@ -211,12 +212,14 @@
     shownId = st.id;
     card.classList.toggle("confirm", confirming);
     if (confirming) { card.innerHTML = confirmHtml(); return; }
-    var n = st.index + 1, of = T.STEPS.length, rep = tut.isReplay();
+    var n = st.index + 1, of = T.STEPS.length, rep = tut.isReplay(), hint = st.hint ? st.hint(ctx) : null;
+    shownHint = hint;
     card.innerHTML =
       '<div class="coach-k">' + (rep ? "REPLAY" : "GETTING STARTED") + " <span>" + n + " / " + of +
         '<button type="button" class="coach-min" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
       '<h2 class="coach-t">' + esc(st.title) + "</h2>" +
       '<p class="coach-p">' + esc(st.text) + "</p>" +
+      (hint ? '<p class="coach-p coach-hint">' + esc(hint) + "</p>" : "") +
       '<div class="coach-row">' +
         (st.dismiss ? '<button type="button" class="act primary" data-coach="ok"><span class="an">GOT IT</span><span class="ad">Off you go</span></button>' : "") +
         '<button type="button" class="coach-skip" data-coach="skip">' + (rep ? "Stop tutorial" : "Skip tutorial") + "</button>" +
@@ -279,16 +282,23 @@
   var LATHE_STEPS = { cut: 1, to_paint: 1, paint: 1, to_finish: 1, finish: 1, keep: 1 };
   function mountPine() {
     var S = lathe(), st = tut.current();
-    if (!S || !st || tut.isReplay() || !LATHE_STEPS[st.id] || S.stock) return;
-    if (inv.count("log", "pine") && L.mountStock) L.mountStock({ kind: "log", key: "pine" });
+    if (!S || !st || !LATHE_STEPS[st.id]) return;
+    if (!tut.isReplay() && !S.stock && inv.count("log", "pine") && L.mountStock) L.mountStock({ kind: "log", key: "pine" });
+    practiceSpec();
   }
+  /* The practice piece always gets the same spec, which wants satin. */
+  function practiceSpec() { var S = lathe(); if (S && !S.order && S.setSpec) S.setSpec(T.PRACTICE_SPEC); }
 
   /* ---------------- the loop ---------------- */
   function refresh() {
     tut.check();
     var st = tut.current();
     syncTabs();
-    if ((st ? st.id : null) !== shownId) renderCard(st);
+    if ((st ? st.id : null) !== shownId || (st && !confirming && (st.hint ? st.hint(ctx) : null) !== shownHint)) {
+      var hintNow = st && st.hint ? st.hint(ctx) : null;
+      renderCard(st);
+      if (hintNow && minimized) restore();   // something went wrong: bring the card back to say how to fix it
+    }
     place(st);
     if (!st) { card.hidden = true; ring.hidden = true; pill.hidden = true; minimized = false; }
     if (G.OrdersUI && G.OrdersUI.guided !== tut.guidedBoard()) { G.OrdersUI.guided = tut.guidedBoard(); if (G.OrdersUI.render) G.OrdersUI.render(true); }

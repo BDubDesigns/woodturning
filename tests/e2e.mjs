@@ -295,7 +295,7 @@ for (const kind of ["3d", "2d"]) {
   if (actual !== kind) { check(kind === "2d", "3D unavailable in this browser, skipped"); continue; }
   const full = [], smoke = kind === "3d";
   for (const t of smoke ? [0.25] : [0.25, 0.75]) {
-    await page.click("#newLogBtn");
+    await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
     await page.waitForTimeout(100);
     const c = await carve(t, { hold: 3000 });   // a full pass at the default RPM takes a couple of seconds
     const m = await measure();
@@ -312,7 +312,7 @@ for (const kind of ["3d", "2d"]) {
     continue;
   }
   // shallow nudge: cuts, but less
-  await page.click("#newLogBtn");
+  await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
   await carve(0.5, { push: 10, hold: 1200 });
   const shallow = await measure();
   check(shallow.depth > 0.005 && shallow.depth < 0.15, `10px nudge cut a shallow ${(shallow.depth * 40).toFixed(1)} mm`);
@@ -323,7 +323,7 @@ for (const kind of ["3d", "2d"]) {
   const byRpm = {};
   for (const rpm of [300, 2400]) {
     await setRpm(rpm);
-    await page.click("#newLogBtn");
+    await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
     await carve(0.5, { hold: 900 });
     byRpm[rpm] = (await measure()).depth;
   }
@@ -332,7 +332,7 @@ for (const kind of ["3d", "2d"]) {
 
   if (shots) {
     // carve a little spindle for a visual check
-    await page.click("#newLogBtn");
+    await page.evaluate(() => window.Lathe.mountBlank(null));   // a fresh practice blank
     await page.click("#tipGouge");
     for (const t of [0.3, 0.36, 0.42, 0.62, 0.68]) await carve(t, { hold: 700 });
     await page.click("#tipSkew");

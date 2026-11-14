@@ -118,7 +118,9 @@ mine, monetization, distribution, and the one-month bet.
   one function, `awardVein` in `src/js/monetize-ui.js`.
 
 - New-player flow: a guided first session (brief: `docs/new-player-flow.md`).
-  A new game opens on the lathe alone, a pine log mounted and two more in the
+  A new game opens on the lathe alone, a pine log mounted (its practice
+  spec always wants satin, so the player learns to spray; past satin, the card
+  points at UNDO; the first orders want satin and gloss) and two more in the
   shed, with no coins or diamonds. A coach card and a pulsing ring on the real
   control walk the player through it, and each tab appears only when it is
   needed: a practice cut, paint, finish and DONE; ORDERS opens on two authored
@@ -171,6 +173,10 @@ Harvest, all with a finger or mouse:
 
 The lathe:
 
+- UNDO (the round arrow by DONE) asks first, then takes off only the layer of
+  the mode you are in and what lies on it: on FINISH the sheen; on PAINT the
+  paint and the sheen; on CUT it starts the piece over on the same wood (fresh
+  shape, no paint, no sheen). The stock stays mounted either way.
 - Touch or click below the log: the chisel lands on the wood.
 - Nudge up: the first ~40px of push ramps pressure to full (the meter beside
   your finger shows it). More pressure, deeper pass.

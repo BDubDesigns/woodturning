@@ -63,7 +63,7 @@ check(await page.evaluate(() => window.__lathe.tip) === "parting", "and can be p
 
 // the same short pass, before and after a motor upgrade: more wood comes off after
 async function pass() {
-  await page.evaluate(() => window.__lathe.mountStock && document.getElementById("newLogBtn").click());
+  await page.evaluate(() => window.Lathe.mountBlank(null));
   await tick(0.2);
   const box = await page.locator("#stage").boundingBox();
   const x = box.x + box.width * 0.5, y = box.y + box.height * 0.8;
@@ -87,7 +87,7 @@ if (shots) await page.screenshot({ path: `${shots}/lathe-upgraded.png` });
 
 // a better brush and sprayer: the same stroke lays more paint, the same sweep more sheen
 async function stroke(mode) {
-  await page.evaluate((m) => { document.getElementById("newLogBtn").click(); window.__lathe.setMode(m); }, mode);
+  await page.evaluate((m) => { window.Lathe.mountBlank(null); window.__lathe.setMode(m); }, mode);
   await tick(0.2);
   const box = await page.locator("#stage").boundingBox();
   const x = box.x + box.width * 0.5, y = box.y + box.height * 0.8;

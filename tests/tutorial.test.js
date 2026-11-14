@@ -64,7 +64,7 @@ test("a paused board posts nothing on its own, however long it waits", () => {
 test("the first board is authored: the same two orders for every new player", () => {
   const a = board(S.newGame(), { on: true }).b, z = board(S.newGame(), { on: true }).b;
   a.postAuthored(T.FIRST_BOARD); z.postAuthored(T.FIRST_BOARD);
-  assert.deepEqual(a.state.orders.map((o) => [o.wood, o.kind, o.client, o.spec.sheen]), [["pine", "rolling_pin", "Mrs. Alder", "matte"], ["oak", "rolling_pin", "Old Tom", "satin"]]);
+  assert.deepEqual(a.state.orders.map((o) => [o.wood, o.kind, o.client, o.spec.sheen]), [["pine", "rolling_pin", "Mrs. Alder", "satin"], ["oak", "rolling_pin", "Old Tom", "gloss"]]);
   assert.deepEqual(a.state.orders.map((o) => o.spec), z.state.orders.map((o) => o.spec));
   assert.equal(a.state.orders[0].spec.kind, "dipped");
   assert.ok(a.state.orders[1].reward > a.state.orders[0].reward, "the oak order pays a little better");
@@ -123,7 +123,7 @@ function flow(over) {
   let saves = 0;
   const steps = [];
   const t = T.createTutorial(game, { ctx, onChange: () => saves++, onStep: (s) => steps.push(s ? s.id : null) });
-  return { game, c, t, steps, saves: () => saves };
+  return { game, c, ctx, t, steps, saves: () => saves };
 }
 const id = (t) => (t.current() ? t.current().id : null);
 
@@ -136,7 +136,7 @@ test("a new game starts at the first step with only the lathe open", () => {
 });
 
 test("the whole flow, step by step, unlocking tabs as it goes", () => {
-  const { c, t, game } = flow();
+  const { c, ctx, t, game } = flow();
   const at = (want) => { t.check(); assert.equal(id(t), want); };
   at("cut");
   c.v.removed = 0.01; at("cut");                     // some, but not enough
@@ -144,6 +144,10 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
   c.v.mode = "paint"; at("paint");
   c.v.coverage = T.PAINT_COVER; at("to_finish");
   c.v.mode = "finish"; at("finish");
+  c.v.sheenRank = 2; at("finish");
+  assert.match(t.current().hint(ctx), /UNDO/, "past satin (gloss) does not pass: the card says how to undo");
+  c.v.sheenRank = 0;
+  assert.equal(t.current().hint(ctx), null, "and the hint goes once the finish is cleared");
   c.v.sheenRank = 1; at("keep");
   c.pieces.pine = 1; c.logs.pine = 2; at("to_orders");
   assert.equal(c.boards, 1, "the first board is posted as ORDERS opens");
@@ -181,7 +185,7 @@ test("the whole flow, step by step, unlocking tabs as it goes", () => {
 });
 
 test("a player who is ahead of the flow skips the steps they already did", () => {
-  const { c, t } = flow({ removed: 0.1, mode: "finish", coverage: 0.5, sheenRank: 2 });
+  const { c, t } = flow({ removed: 0.1, mode: "finish", coverage: 0.5, sheenRank: 1 });
   c.pieces.pine = 1;
   t.check();
   assert.equal(id(t), "to_orders", "cut, paint, finish and keep all passed in one check");
@@ -306,7 +310,7 @@ test("a replay hands nothing out, start to finish, and a skip during it pays not
   const w0 = wallet(), logs0 = c.logs.pine;
   const at = (want) => { t.check(); assert.equal(id(t), want); };
   c.v.removed = 1; c.v.mode = "paint"; c.v.coverage = 1; at("to_finish");
-  c.v.mode = "finish"; c.v.sheenRank = 2; at("keep");
+  c.v.mode = "finish"; c.v.sheenRank = 1; at("keep");
   c.v.doneTaps++; at("to_orders");
   assert.equal(c.boards, 0, "no first board is posted");
   c.v.screen = "orders"; at("take");
@@ -363,4 +367,30 @@ test("a replay in progress survives a reload, still a replay", () => {
 
 test("every replay override's copy has no em dash", () => {
   T.STEPS.forEach((s) => { if (s.replay) assert.ok(!/\u2014/.test((s.replay.title || "") + (s.replay.text || "")), s.id); });
+});
+
+test("the practice piece's spec wants satin, so the player has to spray", () => {
+  const P = require("../src/js/paint.js");
+  assert.equal(P.validSpec(T.PRACTICE_SPEC), true);
+  assert.equal(T.PRACTICE_SPEC.sheen, "satin");
+  assert.ok(T.FIRST_BOARD.every((o) => o.sheen !== "matte"), "and neither first order can be finished without spraying");
+});
+
+// ---------- undo on the lathe takes off one layer ----------
+test("clearing the finish leaves the paint; clearing the paint takes the finish with it", () => {
+  const P = require("../src/js/paint.js");
+  const c = new P.Coating();
+  for (let k = 0; k < 30; k++) { c.brush(0.5, 1, "brush", "cobalt", 1 / 30); c.spray(0.5, 1, 1 / 30); }
+  const coat = Array.from(c.coat), color = Array.from(c.color);
+  assert.ok(c.avgGloss() > 0 && c.coverage() > 0);
+  const v = c.version;
+  c.clearFinish();
+  assert.equal(c.avgGloss(), 0);
+  assert.deepEqual(Array.from(c.coat), coat, "the paint stays");
+  assert.deepEqual(Array.from(c.color), color);
+  assert.ok(c.version > v, "the views redraw");
+  c.spray(0.5, 1, 0.5);
+  c.clearPaint();
+  assert.equal(c.coverage(), 0);
+  assert.equal(c.avgGloss(), 0, "and the finish on top of it");
 });

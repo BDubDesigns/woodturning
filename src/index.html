@@ -184,9 +184,9 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
             DONE
           </button>
-          <button class="ctl-btn icon-sm" id="newLogBtn" title="Mount a practice blank" aria-label="New practice log">
+          <button class="ctl-btn icon-sm" id="newLogBtn" title="Undo: start the piece over" aria-label="Undo: start the piece over">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-            NEW LOG
+            <span id="undoLabel">UNDO</span>
           </button>
         </div>
       </footer>
@@ -263,6 +263,7 @@
 
     <div id="adOverlay" role="dialog" aria-modal="true" aria-labelledby="adTitle" hidden></div>
     <div id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden></div>
+    <div id="undoOverlay" role="dialog" aria-modal="true" aria-labelledby="undoTitle" hidden></div>
     <div id="gradeOverlay" role="dialog" aria-modal="true" aria-labelledby="gradeTitle" hidden></div>
 
     <script src="vendor/three.min.js"></script>

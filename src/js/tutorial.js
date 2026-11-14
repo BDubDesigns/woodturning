@@ -14,6 +14,7 @@
      rescue(ctx, t) runs on every check; may hand out what the player needs
                to go on (a pine log) or send them back a step (returns an id)
      dismiss   the card has a GOT IT button that ends the step
+     hint(ctx) an extra line for the card right now, or nothing (past satin: how to undo)
      mode      the lathe mode the step starts in (an order starts at the chisel)
      replay    what changes when the flow is replayed (see below): any of the
                fields above, and skip: true to leave the step out
@@ -59,9 +60,13 @@
 
   /* The first board: two easy orders with fixed seeds, so every new player sees the same two. */
   var FIRST_BOARD = [
-    { seed: 1101, wood: "pine", kind: "rolling_pin", specKind: "dipped", sheen: "matte", client: "Mrs. Alder" },
-    { seed: 2202, wood: "oak", kind: "rolling_pin", specKind: "twotone", sheen: "satin", client: "Old Tom" }
+    { seed: 1101, wood: "pine", kind: "rolling_pin", specKind: "dipped", sheen: "satin", client: "Mrs. Alder" },
+    { seed: 2202, wood: "oak", kind: "rolling_pin", specKind: "twotone", sheen: "gloss", client: "Old Tom" }
   ];
+  /* The practice piece's paint spec: always the same, and it wants satin, so the
+     player has to spray to finish it (a matte spec would teach them to skip it). */
+  var PRACTICE_SPEC = { name: "Three bands", kind: "banded", sheen: "satin",
+    segments: [{ a: 0, b: 0.34, paint: "crimson" }, { a: 0.34, b: 0.66, paint: "ivory" }, { a: 0.66, b: 1, paint: "moss" }] };
   var TABS = ["lathe", "orders", "farm", "shop", "mine"];
 
   function n(ctx, name, arg) { var f = ctx && ctx[name]; var v = typeof f === "function" ? f(arg) : 0; return v || 0; }
@@ -94,8 +99,9 @@
       done: function (c) { return s(c, "mode") === "finish"; } },
     { id: "finish", screen: "lathe", target: ["#stage"],
       title: "Spray the sheen",
-      text: "Touch below and nudge up to mist it. The more you spray, the glossier it gets. Watch the lamp catch the shine. Spray until it reads satin.",
-      done: function (c) { return n(c, "sheenRank") >= 1; } },
+      text: "Touch below and nudge up to mist it. The more you spray, the glossier it gets. Watch the lamp catch the shine. This one wants satin: spray until the SHEEN meter reads Satin, and no further.",
+      hint: function (c) { return n(c, "sheenRank") >= 2 ? "That went past satin into gloss. Tap UNDO (the round arrow by DONE) to clear just the finish, then mist it more lightly." : null; },
+      done: function (c) { return n(c, "sheenRank") === 1; } },
     { id: "keep", screen: "lathe", target: ["#doneBtn"],
       title: "Your first piece",
       text: "Tap DONE to take it off the lathe. It goes in the shed.",
@@ -354,7 +360,7 @@
   }
 
   var api = {
-    STEPS: STEPS, BY_ID: BY_ID, TABS: TABS, FIRST_BOARD: FIRST_BOARD, STARTER: STARTER, GRANT_DIAMONDS: GRANT_DIAMONDS,
+    STEPS: STEPS, BY_ID: BY_ID, TABS: TABS, FIRST_BOARD: FIRST_BOARD, PRACTICE_SPEC: PRACTICE_SPEC, STARTER: STARTER, GRANT_DIAMONDS: GRANT_DIAMONDS,
     CUT_FRACTION: CUT_FRACTION, PAINT_COVER: PAINT_COVER, SHAPE_GOOD: SHAPE_GOOD,
     normalize: normalize, createTutorial: createTutorial
   };

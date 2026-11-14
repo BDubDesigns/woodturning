@@ -102,6 +102,17 @@ await tick(0.1);
 check(await step() === "to_finish" && await ringOn("#modeFinish"), "some paint on: the ring moves to FINISH");
 await page.click("#modeFinish");
 check(await step() === "finish", "FINISH: the coach explains the spray");
+check(await page.evaluate(() => window.__lathe.spec.sheen === "satin" && window.__lathe.spec.name === "Three bands"), "the practice spec wants satin, so there is spraying to do");
+// overshoot into gloss: the card says how to undo just the finish
+await page.evaluate(() => { const S = window.__lathe; S.coat.gloss.fill(window.Lathe.Paint.SHEEN.gloss.gloss); S.coat.version++; });
+await tick(0.1);
+check(await step() === "finish" && /past satin into gloss/.test(await coach()) && /UNDO/.test(await coach()), "gloss is past satin: the step waits and the card says to UNDO");
+await page.click("#newLogBtn");
+await page.click('#undoOverlay [data-undo="yes"]');
+await tick(0.1);
+check(await page.evaluate(() => window.__lathe.coat.avgGloss() === 0 && window.__lathe.coat.coverage() > 0.5), "UNDO on FINISH took only the finish off");
+await step();
+check(!/past satin/.test(await coach()), "and the hint goes");
 await page.evaluate(() => { const S = window.__lathe; S.coat.gloss.fill(window.Lathe.Paint.SHEEN.satin.gloss); S.coat.version++; });
 await tick(0.1);
 check(await step() === "keep" && await ringOn("#doneBtn"), "satin reached: the ring is on DONE");

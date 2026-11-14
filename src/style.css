@@ -682,6 +682,11 @@ footer {
   padding: 18px; background: rgba(8, 6, 4, 0.82);
 }
 #settingsOverlay[hidden] { display: none !important; }
+#undoOverlay {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  padding: 18px; background: rgba(8, 6, 4, 0.82);
+}
+#undoOverlay[hidden] { display: none !important; }
 .settings-card .act.danger { border-color: #a33; background: #3a1712; }
 .settings-card .act.danger .an { color: #ff9b8a; }
 .settings-card .act.danger.armed { background: #7a1f14; border-color: #ff6b55; }
@@ -754,6 +759,7 @@ header .gear-btn { margin-left: 4px; }
 }
 .coach-t { margin: 4px 0 4px; font-size: 17px; line-height: 1.2; }
 .coach-p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--dim); }
+.coach-hint { margin-top: 8px; color: var(--amber); }
 .coach-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .coach-row button { pointer-events: auto; }
 .coach.confirm { border-color: var(--amber); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
