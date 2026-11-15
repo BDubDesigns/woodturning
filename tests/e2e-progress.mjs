@@ -43,6 +43,7 @@ async function open(opts) {
     f.game.inventory.items = []; f.game.inventory.stacks = {};
     w.spend("coins", w.balance("coins")); w.spend("diamonds", w.balance("diamonds")); w.earn("coins", 50);
     const o = f.board.state.orders[0]; o.kind = "rolling_pin"; o.wood = "pine";
+    f.board.state.orders.slice(1).forEach((q) => { q.wood = "walnut"; });   // so the piece made for the first order fits only that one
     f.persist(); window.__orders.ui.render(true);
   });
   return { ctx, page };
