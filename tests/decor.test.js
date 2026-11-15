@@ -17,8 +17,8 @@ function setup(coins, game) {
   return { game, state, decor, shop };
 }
 
-test("the decorations, the disco ball at 2,500, each with copy and no em dashes", () => {
-  assert.deepEqual(D.ORDER.slice().sort(), ["disco", "radio", "string_lights"]);
+test("five decorations, the disco ball at 2,500, each with copy and no em dashes", () => {
+  assert.deepEqual(D.ORDER.slice().sort(), ["cat", "disco", "radio", "string_lights", "trophy_wall"]);
   assert.equal(D.ITEMS.disco.price, 2500);
   for (const id of Object.keys(D.ITEMS)) { const it = D.ITEMS[id]; assert.ok(it.name && it.blurb && it.price > 0, id); assert.ok(!/—/.test(it.name + it.blurb), id); }
 });

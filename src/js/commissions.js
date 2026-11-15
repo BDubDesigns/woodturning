@@ -25,6 +25,8 @@
    The model owns the commissions section of the save:
      game.commissions { orders: [...], active, nextId, nextAt, seed, done, history, blueprints, met }
    met lists every client a piece has been delivered to, in the order they were met.
+   best keeps the best-graded piece delivered of each kind, for the trophy wall (decor.js):
+     best[kind] = { wood, profile, coat, sheen, total, stars, client, at }
 
    Blueprints gate the board: it only rolls orders for pieces whose blueprint
    the player owns (blueprints, seeded with FREE_BLUEPRINTS). Each PIECES entry
@@ -303,7 +305,7 @@
   }
 
   /* ---------------- the board ---------------- */
-  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice(), met: [], introduced: [] }; }
+  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice(), met: [], introduced: [], best: {} }; }
   /* The orders that take a slot: everything but a new customer's introduction. */
   function regulars(orders) { return orders.filter(function (o) { return !o.intro; }); }
   function normalizeBoard(b) {
@@ -320,6 +322,10 @@
     if (isFinite(b.seed)) out.seed = b.seed >>> 0;
     if (isFinite(b.done) && b.done >= 0) out.done = Math.floor(b.done);
     if (Array.isArray(b.blueprints)) b.blueprints.forEach(function (k) { if (PIECES[k] && out.blueprints.indexOf(k) < 0) out.blueprints.push(k); });
+    if (b.best && typeof b.best === "object") for (var bk in b.best) {
+      var bp = b.best[bk];
+      if (PIECES[bk] && bp && typeof bp === "object" && Array.isArray(bp.profile) && R.WOODS[bp.wood] && isFinite(bp.total)) out.best[bk] = bp;
+    }
     if (Array.isArray(b.introduced)) b.introduced.forEach(function (c) { if (typeof c === "string" && c && out.introduced.indexOf(c) < 0) out.introduced.push(c); });
     if (Array.isArray(b.met)) b.met.forEach(function (c) { if (typeof c === "string" && c && out.met.indexOf(c) < 0) out.met.push(c); });
     if (Array.isArray(b.history)) out.history = b.history.filter(function (h) { return h && typeof h === "object"; }).slice(-CFG.HISTORY);
@@ -511,6 +517,9 @@
       if (B.active === id) B.active = null;
       B.done++;
       if (B.met.indexOf(o.client) < 0) B.met.push(o.client);
+      // the best of each kind delivered goes on the trophy wall
+      var was = B.best[o.kind];
+      if (!was || g.total > was.total) B.best[o.kind] = { wood: it.wood, profile: it.profile, coat: it.coat || null, sheen: it.sheen || null, total: Math.round(g.total * 1000) / 1000, stars: g.stars, client: o.client, at: now() };
       B.history.push({ id: o.id, kind: o.kind, wood: o.wood, client: o.client, stars: g.stars, total: Math.round(g.total * 1000) / 1000, pay: g.pay, at: now() });
       if (B.history.length > CFG.HISTORY) B.history.splice(0, B.history.length - CFG.HISTORY);
       if (!o.intro && regulars(B.orders).length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
