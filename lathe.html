@@ -9064,6 +9064,8 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
      dismiss   the card has a GOT IT button that ends the step
      showMin   the card's own hide button glows (the first card, so players find it)
      hint(ctx) an extra line for the card right now, or nothing (past satin: how to undo)
+     copy(ctx, t)  { title, text } to show instead of title and text right now, or nothing
+     afterCelebration  the card waits until the delivery celebration has played (tutorial-ui.js)
      mode      the lathe mode the step starts in (an order starts at the chisel)
      replay    what changes when the flow is replayed (see below): any of the
                fields above, and skip: true to leave the step out
@@ -9091,8 +9093,15 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
      postFirstBoard(list) postOrder(def) resumeBoard() takeOrder(wood) setMode(mode) startReplay()
      (grant may also carry blueprints: [kind], the skip pack's bat blueprint)
 
+   The first delivery always reaches the first mastery tier (Familiar) and the first rank
+   (Apprentice): every accepted piece earns a star (progress.js). Right after its celebration,
+   two cards explain them, each waiting for GOT IT. noteDelivery(events) records what the
+   delivery made during the "deliver" step reached (levels); a card with nothing to explain
+   (a replay whose delivery reached neither, or a DONE with no delivery) is passed over.
+   The rank-up has already paid its reward; the cards only say what the player just saw.
+
    The model owns the tutorial section of the save:
-     game.tutorial { step, done, replay, base, taps, granted: { coins, diamonds, batLog, bat, bonus } }
+     game.tutorial { step, done, replay, base, taps, levels, granted: { coins, diamonds, batLog, bat, bonus } }
    taps counts DONE presses (tutorial-ui.js), which a replay step can ask for.
    granted counts what the flow has handed out, so skipping part way through
    tops the starter pack up instead of paying it twice. batLog, bat and bonus
@@ -9209,10 +9218,25 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     { id: "deliver", target: ['[data-act="give"]', '[data-act="deliver"]', "#doneBtn"],
       title: "Deliver it",
       text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay. Kept it instead? DELIVER is on its order in ORDERS.",
+      enter: function (c, t) { t.state.levels = null; },   // what this step's delivery reaches is noted afresh
       done: function (c) { return n(c, "delivered") >= 1; },
       rescue: rescuePine,
       replay: { rescue: null, text: "When the sheen matches, tap DONE. If it is the order's own wood, DELIVER gets you paid: the closer, the more. Practice pieces can't be delivered.",
         done: function (c, t) { return grew(c, t, "delivered") || grew(c, t, "doneTaps"); } } },
+
+    /* ---- what the first delivery just reached: a skill level and a rank ---- */
+    { id: "level_skill", target: [".cel-mastery", "#rankBadge"], dismiss: true, afterCelebration: true,
+      title: "Familiar with rolling pins!",
+      text: "Every star you earn on a piece builds your skill with it. Each skill level pays 15% more for that piece.",
+      copy: function (c, t) {
+        var m = t.state.levels && t.state.levels.mastery;
+        return m && m.many ? { title: "Familiar with " + m.many + "!" } : null;
+      },
+      done: function (c, t) { return !(t.state.levels && t.state.levels.mastery); } },
+    { id: "level_rank", target: [".cel-rank", "#rankBadge"], dismiss: true, afterCelebration: true,
+      title: "Rank 2: Apprentice!",
+      text: "Your rank counts every star from every piece you make. Ranking up pays coins and diamonds: +6 diamonds, +100 coins. And a new customer just walked in.",
+      done: function (c, t) { return !(t.state.levels && t.state.levels.rank); } },
 
     /* ---- the wood you don't have ---- */
     { id: "to_farm", unlock: ["farm"], target: ["#tabFarm"],
@@ -9348,6 +9372,13 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     if (typeof t.step === "string" && BY_ID[t.step]) out.step = t.step;
     if (t.base && typeof t.base === "object") BASE_READINGS.forEach(function (k) { if (count(t.base[k])) out.base[k] = t.base[k]; });
     if (count(t.taps)) out.taps = Math.floor(t.taps);
+    if (t.levels && typeof t.levels === "object") {
+      var lm = t.levels.mastery, lr = t.levels.rank;
+      out.levels = {
+        mastery: lm && typeof lm === "object" ? { kind: String(lm.kind || ""), many: String(lm.many || "") } : null,
+        rank: lr && typeof lr === "object" ? { rank: count(lr.rank) } : null
+      };
+    }
     if (t.granted && typeof t.granted === "object") {
       out.granted.coins = count(t.granted.coins); out.granted.diamonds = count(t.granted.diamonds);
       out.granted.batLog = !!t.granted.batLog; out.granted.bat = !!t.granted.bat; out.granted.bonus = !!t.granted.bonus;
@@ -9426,6 +9457,20 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
       if (STEPS[i]) go(STEPS[i].id); else finish();
       return current();
     }
+    /* A piece was delivered (commissions-ui.js, with what it reached: progress.js events).
+       While the "deliver" step runs, keep the first skill level (Familiar) and the first rank
+       (Apprentice) it reached, for the two cards after it. many: the piece's name, plural. */
+    function noteDelivery(events, many) {
+      var cur = current();
+      if (!cur || cur.id !== "deliver" || T.levels) return;
+      var m = null, r = null;
+      (events || []).forEach(function (e) {
+        if (e.type === "mastery" && e.tier === 1 && !m) m = { kind: e.kind, many: many || "" };
+        if (e.type === "rank" && e.rank === 2 && !r) r = { rank: 2 };
+      });
+      T.levels = { mastery: m, rank: r };
+      onChange();
+    }
     /* GOT IT on a dismiss step. */
     function dismiss() { var cur = current(); if (cur && cur.dismiss) advance(); }
     /* What skipping would hand over now: the starter pack, less what the flow already gave. */
@@ -9453,7 +9498,7 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
 
     var api = {
       state: T, current: current, unlocked: unlocked, check: check, advance: advance, dismiss: dismiss, skip: skip,
-      replay: replay, give: give, skipGrant: skipGrant, base: function () { return T.base || {}; },
+      replay: replay, give: give, skipGrant: skipGrant, noteDelivery: noteDelivery, base: function () { return T.base || {}; },
       get done() { return T.done; }, isActive: function () { return !T.done; },
       isReplay: function () { return !T.done && T.replay; },
       // the board waits until the last card, which refills it; a replay never holds it up
@@ -11267,6 +11312,9 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
       h += '<p class="o-blurb">' + esc(C.PIECES[o.kind].blurb) + "</p>";
       h += '<p class="o-have' + (st.blanks || st.logs || st.pieces ? "" : st.grown >= 0 ? " ready" : st.growing >= 0 ? " growing" : " none") + '">' + haveLine(o, st) + "</p>";
+      // a new customer who turns up during the tutorial waits for the end of it: no buttons, nothing for the coach to trip on
+      var waits = o.intro && api.guided;
+      if (waits) { h += '<p class="o-wait">' + esc(o.client) + " will wait while you finish learning the ropes.</p></article>"; return; }
       if (lock) h += '<p class="o-lock"><b>Locked.</b> Needs the ' + esc(name) + " blueprint" + (api.guided ? "." : ", from Arbor Freight.") + "</p>";
       h += '<div class="row">';
       if (lock) {
@@ -11530,6 +11578,7 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
   }
   function give(orderId, pieceId) {
     var r = board.deliver(orderId, pieceId);
+    if (r.ok && G.tutorial && G.tutorial.noteDelivery) G.tutorial.noteDelivery(r.events, C.PIECES[r.order.kind].many);   // the coach explains what it reached
     if (!r.ok) {
       closeOverlay();
       toast(r.reason === "wrong wood" ? "That piece is the wrong wood for this order." : r.reason === "rejected" ? o0(orderId) + " won't take that one. It needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted." : "That piece is no longer in the shed.");
@@ -12432,7 +12481,7 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
       var b = board();
       if (!b) return false;
       return b.state.orders.some(function (o) {
-        return o.wood === w && b.candidates(o.id).some(function (it) { var g = b.preview(o.id, it.id); return g && g.accepted; });
+        return o.wood === w && !o.intro && b.candidates(o.id).some(function (it) { var g = b.preview(o.id, it.id); return g && g.accepted; });
       });
     },
     delivered: function () { var b = board(); return b ? b.state.done : 0; },
@@ -12470,7 +12519,8 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     takeOrder: function (w) {
       var b = board();
       if (!b) return;
-      var o = b.state.orders.filter(function (q) { return q.wood === w; })[0];
+      // the flow's own orders, never a new customer's introduction (Chef Basil Fury turns up at rank 2)
+      var o = b.state.orders.filter(function (q) { return q.wood === w && !q.intro; })[0];
       if (!o) return;
       b.accept(o.id);
       if (L.takeOrder) L.takeOrder();
@@ -12638,12 +12688,13 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     card.classList.toggle("confirm", confirming);
     if (confirming) { card.classList.remove("touching"); card.innerHTML = confirmHtml(); return; }
     var n = st.index + 1, of = T.STEPS.length, rep = tut.isReplay(), hint = st.hint ? st.hint(ctx) : null;
+    var cp = (st.copy && st.copy(ctx, tut)) || {};
     shownHint = hint;
     card.innerHTML =
       '<div class="coach-k">' + (rep ? "REPLAY" : "GETTING STARTED") + " <span>" + n + " / " + of +
         '<button type="button" class="coach-min' + (st.showMin ? " glow" : "") + '" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
-      '<h2 class="coach-t">' + esc(st.title) + "</h2>" +
-      '<p class="coach-p">' + esc(st.text) + "</p>" +
+      '<h2 class="coach-t">' + esc(cp.title || st.title) + "</h2>" +
+      '<p class="coach-p">' + esc(cp.text || st.text) + "</p>" +
       (hint ? '<p class="coach-p coach-hint">' + esc(hint) + "</p>" : "") +
       '<div class="coach-row">' +
         (st.dismiss ? '<button type="button" class="act primary" data-coach="ok"><span class="an">GOT IT</span><span class="ad">Off you go</span></button>' : "") +
@@ -12701,8 +12752,10 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     return null;
   }
   var lastPos = "";
+  /* The delivery celebration (progress-ui.js) is playing: nothing of the coach shows over it. */
+  function celebrating() { return !!(G.ProgressUI && G.ProgressUI.playing && G.ProgressUI.playing()); }
   function place(st) {
-    var on = !!st && (!st.screen || st.screen === ctx.screen());
+    var on = !!st && (!st.screen || st.screen === ctx.screen()) && !celebrating();
     card.hidden = !on || minimized;
     if (minimized) { pillHome(); pill.hidden = !on; }
     if (!on) { ring.hidden = true; arrow.hidden = true; return; }
