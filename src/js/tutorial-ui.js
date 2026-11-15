@@ -108,7 +108,13 @@
   var ring = document.createElement("div");
   ring.id = "coachRing"; ring.className = "coach-ring"; ring.hidden = true;
   ring.setAttribute("aria-hidden", "true");
-  document.body.appendChild(ring); document.body.appendChild(card);
+  /* On a tab, an arrow under it too, bouncing up at it: the tabs are small and sit up
+     in the header, away from where the player is looking. */
+  var arrow = document.createElement("div");
+  arrow.id = "coachArrow"; arrow.className = "coach-arrow"; arrow.hidden = true;
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.innerHTML = '<svg width="44" height="52" viewBox="0 0 34 40"><path d="M17 3 L31 19 H22 V37 H12 V19 H3 Z" fill="#e8a33d" stroke="#1b130b" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+  document.body.appendChild(ring); document.body.appendChild(arrow); document.body.appendChild(card);
 
   /* The card can be tucked away when it is in the way (over the log, say). It shrinks
      into a glowing button: in the lathe's bottom row, by DONE, or floating at the
@@ -317,7 +323,7 @@
     var on = !!st && (!st.screen || st.screen === ctx.screen());
     card.hidden = !on || minimized;
     if (minimized) { pillHome(); pill.hidden = !on; }
-    if (!on) { ring.hidden = true; return; }
+    if (!on) { ring.hidden = true; arrow.hidden = true; return; }
     var el = scrollToTarget(st) || targetEl(st), vw = root.innerWidth, vh = root.innerHeight;
     var r = el ? el.getBoundingClientRect() : null;
     // a target the size of the stage needs no ring: the card says where to touch
@@ -328,6 +334,12 @@
       ring.style.left = Math.round(r.left - pad) + "px"; ring.style.top = Math.round(r.top - pad) + "px";
       ring.style.width = Math.round(r.width + pad * 2) + "px"; ring.style.height = Math.round(r.height + pad * 2) + "px";
     } else ring.hidden = true;
+    var tab = !!el && !big && el.classList.contains("tab");
+    arrow.hidden = !tab;
+    if (tab) {
+      arrow.style.left = Math.round(r.left + r.width / 2 - 22) + "px";
+      arrow.style.top = Math.round(r.bottom + 10) + "px";
+    }
     // the card goes on the other half of the screen from what it points at
     var low = r ? (r.top + r.height / 2) > vh * 0.5 : false;
     if (big) low = true;    // the stage: the card goes up top, clear of the controls below it
@@ -358,7 +370,7 @@
       if (hintNow && minimized) restore();   // something went wrong: bring the card back to say how to fix it
     }
     place(st);
-    if (!st) { card.hidden = true; ring.hidden = true; pill.hidden = true; minimized = false; }
+    if (!st) { card.hidden = true; ring.hidden = true; arrow.hidden = true; pill.hidden = true; minimized = false; }
     if (G.OrdersUI && G.OrdersUI.guided !== tut.guidedBoard()) { G.OrdersUI.guided = tut.guidedBoard(); if (G.OrdersUI.render) G.OrdersUI.render(true); }
   }
   G.tutorialRefresh = refresh;
@@ -382,7 +394,7 @@
     // (the store and the board scroll; capture catches scrolls on any element)
     var scrollQueued = false;
     document.addEventListener("scroll", function () {
-      if (scrollQueued || ring.hidden) return;          // nothing to follow: no work on a scroll at all
+      if (scrollQueued || (ring.hidden && arrow.hidden)) return;          // nothing to follow: no work on a scroll at all
       scrollQueued = true;
       requestAnimationFrame(function () { scrollQueued = false; place(tut.current()); });
     }, true);
@@ -392,5 +404,5 @@
   syncTabs();
   start();
 
-  root.__tutorial = { tutorial: tut, ctx: ctx, refresh: refresh, card: card, ring: ring, pill: pill, minimize: minimize, restore: restore, get minimized() { return minimized; } };
+  root.__tutorial = { tutorial: tut, ctx: ctx, refresh: refresh, card: card, ring: ring, arrow: arrow, pill: pill, minimize: minimize, restore: restore, get minimized() { return minimized; } };
 })(window);
