@@ -517,7 +517,11 @@
   root.__farm.tutorial = tutorial;
   /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js.
      It waits while the new-player flow runs, which posts its own first orders. */
-  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff, paused: tutorial.boardPaused });
+  /* Mastery and rank (progress.js), in the profile next to the board. Every accepted delivery adds its stars. */
+  var progress = G.Progress.createProgress(game, { onChange: persist });
+  G.progress = progress;
+  root.__farm.progress = progress;
+  var board = G.Commissions.createBoard(game, { state: state, progress: progress, onChange: persist, timersOff: mine.timersOff, paused: tutorial.boardPaused });
   G.commissions = board;
   root.__farm.board = board;
   /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */

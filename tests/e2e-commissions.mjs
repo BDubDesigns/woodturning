@@ -125,8 +125,9 @@ const pieceId = await page.evaluate(() => window.__farm.state.inventory.list("pi
 await page.locator('#gradeOverlay [data-act="give"]').click();
 await tick(0.3);
 const coins1 = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
-const bonusPay = Math.round(first.reward * 1.1);
-check(coins1 === coins0 + bonusPay, `a 90%+ piece pays the full ${first.reward} coins plus the 10% bonus (${coins0} -> ${coins1})`);
+const bonusPay = Math.round(first.reward * 1.1), rankUp = 100;   // the first stars also reach Apprentice, which pays 100 coins (progress.js)
+check(coins1 === coins0 + bonusPay + rankUp, `a 90%+ piece pays the full ${first.reward} coins plus the 10% bonus, and the first rank-up pays 100 (${coins0} -> ${coins1})`);
+check(await page.evaluate(() => window.__farm.progress.rankOf().rank === 2 && window.__farm.progress.masteryOf("rolling_pin").name === "Familiar"), "the delivery's stars reach Apprentice and Familiar");
 check((await page.locator("#walletCoins").textContent()) === String(coins1), "the wallet shows it");
 check(await page.evaluate((id) => !window.__farm.state.inventory.get(id), pieceId), "the piece left the shed");
 check(await page.evaluate((id) => !window.__orders.board.get(id), first.id), "the order left the board");
@@ -135,6 +136,9 @@ if (shots) await page.screenshot({ path: `${shots}/delivered.png` });
 await page.locator('#gradeOverlay [data-act="board"]').click();
 await tick(0.3);
 check(await page.locator(".order.empty").count() === 1, "an empty slot waits for the next order");
+await page.evaluate(() => { const b = window.__orders.board, o = b.state.orders[0]; o.kind = "rolling_pin"; window.__orders.ui.render(true); });
+const card0 = await page.evaluate(() => { const b = window.__orders.board, o = b.state.orders[0], el = document.querySelector(`.order[data-order="${o.id}"]`); return { pay: el.querySelector(".o-pay b").textContent, want: String(Math.round(o.reward * 1.15)), tag: el.querySelector(".o-mastery") && el.querySelector(".o-mastery").textContent }; });
+check(card0.pay === card0.want && card0.tag === "Familiar +15%", `a rolling pin order now shows Familiar +15% and the boosted pay (${card0.tag}, ${card0.pay})`);
 check(/DELIVERED\s*1 commission/.test(await page.locator("#boardFoot").textContent()), "the board counts it");
 check(await page.locator("#boardFoot .order.hist li").count() === 1, "and lists it in its own panel");
 check(await page.evaluate(() => getComputedStyle(document.querySelector("#boardFoot .stars span.on")).color) === "rgb(246, 196, 106)", "with gold stars");

@@ -396,7 +396,7 @@ check(await step() === "wrap", "the bat is on the lathe: the last card");
 w = await page.evaluate(() => ({ order: window.__lathe.order && window.__lathe.order.kind, wood: window.__lathe.wood, coins: window.__farm.state.wallet.balance("coins"), dia: window.__farm.state.wallet.balance("diamonds") }));
 check(w.order === "baseball_bat" && w.wood === "pine", "the pine bat order, on a pine log");
 check(w.coins === coinsAtOak + 150, `the bonus: 150 coins (${coinsAtOak} -> ${w.coins})`);
-check(w.coins >= 150 && w.coins <= 240, `the tutorial ends at ${w.coins} coins, in the planned 150 to 240`);
+check(w.coins >= 260 && w.coins <= 350, `the tutorial ends at ${w.coins} coins, in the planned 260 to 350 (issue #35: the first delivery reaches Apprentice, +100 coins)`);
 console.log(`  ..   ending balance: ${w.coins} coins, ${w.dia} diamonds`);
 check(JSON.stringify(await tabsShown()) === '["farm","lathe","mine","orders","shop"]', "every tab is open, the MINE too");
 check(await page.evaluate(() => window.__orders.board.state.orders.length) === 3, "the board filled up with new orders");
