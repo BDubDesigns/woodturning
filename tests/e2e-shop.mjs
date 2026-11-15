@@ -38,7 +38,7 @@ check((await page.locator("#tabOrders").textContent()).trim() === "ORDERS" && (a
 check(await page.locator(".af-line[data-line]").count() === 6, "six lines: lighting, motor, chisels, sandpaper, brushes, finishing");
 check(await page.locator(".bp-card").count() === 5 && await page.locator(".bp-card .bp-art").count() === 5, "and a blueprint card, with its drawing, for every piece");
 check(/OWNED/.test(await page.locator('[data-blueprint="rolling_pin"]').textContent()), "the rolling pin blueprint comes with the shed");
-check(await page.locator(".af-price").count() === 6, "each shows the next rung's price tag");
+check(await page.locator(".af-line[data-line] .af-price").count() === 6, "each shows the next rung's price tag");
 check(/80 grit/.test(await page.locator('.af-line[data-line="abrasives"]').textContent()) && /150 grit/.test(await page.locator('.af-line[data-line="abrasives"]').textContent()), "sandpaper: 80 grit installed, 150 grit next");
 if (shots) await page.screenshot({ path: `${shots}/shop.png` });
 

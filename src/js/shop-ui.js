@@ -11,6 +11,11 @@
    to the old lamp or a coarser grit; chisels only add to the rack, so
    that line has none.
 
+   Below the lines, DECORATIONS (decor.js): things for the workshop, each
+   bought once and shown in the 3D workshop. The disco ball also joins
+   Lighting's USE list; the radio gets PLAY / STOP here (or tap it on the
+   lathe). G.toggleRadio is how the lathe's tap reaches it.
+
    Above the lines, BLUEPRINTS: a card per piece with its drawing
    (blueprint-art.js), what it pays, and BUY IT / SAVE UP / OWNED.
    Blueprints belong to the board (commissions.js buyBlueprint), since
@@ -20,7 +25,7 @@
 (function (root) {
   "use strict";
   var G = root.Game, Sh = G.Shop, C = G.Commissions, Art = G.BlueprintArt;
-  var host = root.__farm, shop = G.shop, state = host.state, board = G.commissions;
+  var host = root.__farm, shop = G.shop, state = host.state, board = G.commissions, decor = G.decor, Dec = G.Decor;
   function $(id) { return document.getElementById(id); }
   var bodyEl = $("shopBody"), toastEl = $("stoast");
   var shown = false, sig = "";
@@ -44,7 +49,7 @@
   }
 
   function signature() {
-    return JSON.stringify([shop.state.owned, shop.state.active, state.wallet.balance("coins"), board.state.blueprints, G.progress && G.progress.state.totalStars]);
+    return JSON.stringify([shop.state.owned, shop.state.active, decor.state, state.wallet.balance("coins"), board.state.blueprints, G.progress && G.progress.state.totalStars]);
   }
   function render(force) {
     if (!shown) return;
@@ -65,9 +70,10 @@
         h += '<div class="af-own"><span class="af-k">' + (lv ? "YOURS: PICK ONE TO USE" : "INSTALLED") + "</span>";
         for (var t = 0; t <= lv; t++) {
           var on = t === shop.activeLevel(k), tr = ln.tiers[t];
-          h += '<div class="af-tier' + (on ? " on" : "") + '"><div class="af-text"><b>' + esc(tr.name) + "</b>" + (on ? "<small>" + esc(tr.blurb) + "</small>" : "") + "</div>" +
-            '<button type="button" class="act af-use' + (on ? " active" : "") + '" data-use="' + k + '" data-tier="' + t + '"' + (on ? ' aria-pressed="true" aria-disabled="true"' : "") + '><span class="an">' + (on ? "ACTIVE" : "USE") + "</span></button></div>";
+          h += tierRow(k, t, tr, on);
         }
+        // a decoration that can stand in for this line (the disco ball, for the light)
+        shop.decorTiers(k).forEach(function (d) { h += tierRow(k, d.id, d.tier, shop.activeLevel(k) === -1 && shop.current(k) === d.tier); });
         h += "</div>";
       } else {
         h += '<div class="af-now"><span class="af-k">INSTALLED</span><b>' + esc(cur.name) + "</b><small>" + esc(cur.blurb) + "</small></div>";
@@ -84,9 +90,78 @@
       }
       h += "</section>";
     });
+    h += decorHtml(coins);
     h += '<p class="af-foot">All sales final. Prices go up as you go up the line, because of course they do.</p>';
     bodyEl.innerHTML = h;
   }
+
+  function tierRow(k, t, tr, on) {
+    return '<div class="af-tier' + (on ? " on" : "") + '"><div class="af-text"><b>' + esc(tr.name) + "</b>" + (on ? "<small>" + esc(tr.blurb) + "</small>" : "") + "</div>" +
+      '<button type="button" class="act af-use' + (on ? " active" : "") + '" data-use="' + k + '" data-tier="' + t + '"' + (on ? ' aria-pressed="true" aria-disabled="true"' : "") + '><span class="an">' + (on ? "ACTIVE" : "USE") + "</span></button></div>";
+  }
+
+  /* ---------------- decorations ---------------- */
+  var DECOR_ICON = {
+    radio: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="11" width="24" height="16" rx="3" fill="#7a4a26"/><rect x="7" y="14" width="10" height="10" rx="1" fill="#c9b48a"/><circle cx="22" cy="18" r="3" fill="#ffc14d"/><path d="M20 11 L26 3" stroke="#bbb" stroke-width="1.5"/></svg>',
+    string_lights: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M2 8 Q16 20 30 8" fill="none" stroke="#2b241b" stroke-width="1.5"/><g fill="#ffc46b"><circle cx="6" cy="12" r="2.4"/><circle cx="12" cy="15" r="2.4"/><circle cx="20" cy="15" r="2.4"/><circle cx="26" cy="12" r="2.4"/></g></svg>',
+    cat: '<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="17" cy="20" rx="10" ry="6" fill="#d9822b"/><circle cx="9" cy="16" r="5" fill="#d9822b"/><path d="M5 13 L6 8 L9 12 Z M10 12 L13 8 L13 13 Z" fill="#d9822b"/><path d="M27 21 Q31 16 27 13" fill="none" stroke="#d9822b" stroke-width="2.4" stroke-linecap="round"/><rect x="6" y="26" width="20" height="3" rx="1" fill="#6b4a2a"/></svg>',
+    trophy_wall: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="22" width="28" height="3" fill="#6b4a2a"/><path d="M6 21 Q4 13 6 7 Q8 13 6 21Z" fill="#c9884a"/><path d="M14 21 Q11 14 14 5 Q17 14 14 21Z" fill="#e0b321"/><path d="M23 21 Q20 15 23 9 Q26 15 23 21Z" fill="#a3684a"/><rect x="11" y="26" width="6" height="3" fill="#f2c230"/></svg>',
+    disco: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1v6" stroke="#aaa"/><circle cx="16" cy="17" r="10" fill="#cfd6de"/><path d="M6 17h20M16 7v20M9 10l14 14M23 10L9 24" stroke="#8a96a3" stroke-width="0.8"/><circle cx="12" cy="13" r="1.5" fill="#fff"/><circle cx="5" cy="28" r="1.6" fill="#ff4d6d"/><circle cx="27" cy="27" r="1.6" fill="#4dd2ff"/><circle cx="28" cy="6" r="1.4" fill="#ffe14d"/></svg>'
+  };
+  function decorHtml(coins) {
+    var h = '<section class="af-line af-decor" id="afDecor"><div class="af-head"><span class="af-icon">' + DECOR_ICON.disco + '</span><div><h2>DECORATIONS</h2><p>Make the workshop yours. Each one is bought once and shows around the lathe.</p></div></div>';
+    Dec.ORDER.forEach(function (id) {
+      var it = Dec.ITEMS[id], own = decor.owns(id), ok = coins >= it.price;
+      h += '<div class="dc-card' + (own ? " owned" : "") + '" data-decor-card="' + id + '"><span class="af-icon">' + DECOR_ICON[id] + '</span><div class="af-text"><b>' + esc(it.name) + "</b><small>" + esc(it.blurb) + "</small></div>";
+      if (!own) h += '<div class="af-price" aria-label="' + it.price + ' coins">' + COIN + "<b>" + it.price + "</b></div>";
+      h += "</div>";
+      if (!own) {
+        h += '<button type="button" class="act primary af-buy" data-decor="' + id + '"' + (ok ? "" : ' aria-disabled="true"') + '><span class="an">' + (ok ? "BUY IT" : "SAVE UP") + '</span><span class="ad">' +
+          (ok ? it.price + " coins. You have " + coins + "." : "You need " + (it.price - coins) + " more coins. Orders pay.") + "</span></button>";
+      } else if (id === "radio") {
+        var on = decor.radioOn();
+        h += '<button type="button" class="act' + (on ? "" : " primary") + ' af-buy" data-radio="1" aria-pressed="' + on + '"><span class="an">' + (on ? "STOP THE RADIO" : "PLAY THE RADIO") + '</span><span class="ad">' + (on ? "It's playing in the workshop" : "Or tap it on the shelf by the lathe") + "</span></button>";
+      } else if (id === "disco") {
+        var lit = shop.discoOn && shop.discoOn();
+        h += '<button type="button" class="act' + (lit ? " owned" : " primary") + ' af-buy" data-use="light" data-tier="disco"' + (lit ? ' aria-disabled="true"' : "") + '><span class="an">' + (lit ? "IT'S YOUR LIGHT" : "USE AS THE LIGHT") + '</span><span class="ad">' + (lit ? "Pick a lamp under Lighting to see the work again" : "It hangs where the work light hangs") + "</span></button>";
+      } else {
+        h += '<p class="dc-owned">OWNED. It\'s in the workshop.</p>';
+      }
+    });
+    return h + "</section>";
+  }
+  var DECOR_DONE = {
+    radio: "It's on the shelf by the lathe. Tap it to play.",
+    string_lights: "They're up along the rafters.",
+    cat: "It's already asleep on the stool.",
+    trophy_wall: "Your best pieces are on the shelf.",
+    disco: "It's hanging where the work light was. Pick a lamp under Lighting any time."
+  };
+  function buyDecor(id) {
+    var held = G.tutorialHoldsCoins && G.tutorialHoldsCoins();
+    if (held) { toast(held); return; }
+    var r = decor.buy(id);
+    if (!r.ok) { if (r.reason === "not enough coins") toast("That's " + r.need + " coins and you have " + r.have + ". The orders board pays."); return; }
+    if (root.Lathe.audio && root.Lathe.audio.buy) root.Lathe.audio.buy();
+    if (id === "disco") shop.use("light", "disco");   // it goes up straight away: that's the fun of it
+    toast("Bought: " + r.item.name + ". " + DECOR_DONE[id]);
+    if (root.Lathe.applyUpgrades) root.Lathe.applyUpgrades();
+    host.renderWallet();
+    render(true);
+  }
+  /* The radio, on or off: from its button here, or a tap on it by the lathe. */
+  G.toggleRadio = function () {
+    if (!decor.owns("radio")) return false;
+    var A = root.Lathe.audio;
+    A.init();
+    decor.setRadio(!decor.radioOn());
+    A.radio(decor.radioOn());
+    if (root.Lathe.applyUpgrades) root.Lathe.applyUpgrades();
+    var say = decor.radioOn() ? "The radio's on." : "The radio's off.";
+    if (G.currentScreen && G.currentScreen() === "shop") toast(say); else if (root.Lathe.toast) root.Lathe.toast(say);
+    render(true);
+    return decor.radioOn();
+  };
 
   /* ---------------- blueprints ---------------- */
   function blueprintsHtml(coins) {
@@ -152,9 +227,12 @@
     finish: "The sheen builds faster and more evenly now."
   };
   bodyEl.addEventListener("click", function (ev) {
+    var dz = ev.target.closest ? ev.target.closest("[data-decor]") : null;
+    if (dz) { buyDecor(dz.getAttribute("data-decor")); return; }
+    if (ev.target.closest && ev.target.closest("[data-radio]")) { G.toggleRadio(); return; }
     var u = ev.target.closest ? ev.target.closest("[data-use]") : null;
     if (u) {
-      var r0 = shop.use(u.getAttribute("data-use"), parseInt(u.getAttribute("data-tier"), 10));
+      var tierAttr = u.getAttribute("data-tier"), r0 = shop.use(u.getAttribute("data-use"), /^\d+$/.test(tierAttr) ? parseInt(tierAttr, 10) : tierAttr);
       if (r0.ok && !r0.same) {
         toast("Using: " + r0.tier.name + ".");
         if (root.Lathe.applyUpgrades) root.Lathe.applyUpgrades();

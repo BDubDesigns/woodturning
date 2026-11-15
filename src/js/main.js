@@ -99,6 +99,11 @@
       p.t = Math.min(1, Math.max(0, (p.x - lay.left) / (span || 1)));
     }
     stage.addEventListener("pointerdown", function (e) {
+      // a tap on the radio (a decoration, 3D only) turns it on or off, and cuts nothing
+      if (view.decorAt) {
+        var rect0 = stage.getBoundingClientRect();
+        if (view.decorAt(e.clientX - rect0.left, e.clientY - rect0.top) === "radio" && root.Game.toggleRadio) { root.Game.toggleRadio(); e.preventDefault(); return; }
+      }
       if (S.empty) return;   // nothing on the lathe: the picker asks what to turn
       if (S.pointer.active) return;
       audio.init();
@@ -377,6 +382,10 @@
       S.brushTool = shop.brush();     // the store's brushes and sprayer (paint.js brush / spray)
       S.sprayGun = shop.spray();
       S.grit = shop.grit ? shop.grit() : null;   // the sandpaper on the rack
+      S.disco = !!(shop.discoOn && shop.discoOn());   // the disco ball hangs in place of the work light (view3d.js)
+      var dec = root.Game.decor;
+      S.decor = dec ? dec.state : null;           // the decorations the workshop owns (view3d.js draws them)
+      if (dec && audio.radio && audio.radioOn() !== dec.radioOn()) audio.radio(dec.radioOn());
       var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
       if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
       setTips(shop.tips());

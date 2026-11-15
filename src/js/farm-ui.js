@@ -534,7 +534,12 @@
   G.commissions = board;
   root.__farm.board = board;
   /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */
-  var shop = G.Shop.createShop(game, { state: state, onChange: persist });
+  /* Decorations for the workshop (decor.js): sold at Arbor Freight, drawn by view3d.js. The disco ball
+     can stand in for the work light, so the shop asks the decorations what is owned. */
+  var decor = G.Decor.createDecor(game, { state: state, onChange: persist });
+  G.decor = decor;
+  root.__farm.decor = decor;
+  var shop = G.Shop.createShop(game, { state: state, onChange: persist, owns: decor.owns });
   G.shop = shop;
   root.__farm.shop = shop;
 

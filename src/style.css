@@ -973,3 +973,12 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
 }
 .af-line .af-tier .act.af-use { width: auto; }
 .af-line .af-tier .act.af-use.active[aria-disabled="true"] { opacity: 1; }
+
+/* ---------- decorations at Arbor Freight (shop-ui.js) ---------- */
+.dc-card { display: flex; align-items: center; gap: 10px; padding: 10px 0 8px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.dc-card .af-icon { flex: none; }
+.dc-card .af-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dc-card b { font-size: 15px; font-weight: 600; }
+.dc-card small { font-size: 12.5px; color: #bfae8f; line-height: 1.35; margin-top: 2px; }
+.dc-owned { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.12em; color: var(--ok); }
+.af-decor .act.owned .an { color: var(--ok); }
