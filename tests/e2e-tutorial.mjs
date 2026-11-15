@@ -249,8 +249,37 @@ await page.click('#gradeOverlay [data-act="give"]');
 await tick(0.3);
 w = await page.evaluate(() => ({ done: window.__orders.board.state.done, coins: window.__farm.state.wallet.balance("coins") }));
 check(w.done === 1 && w.coins > 0, `delivered: ${w.coins} coins`);
+
+console.log("\nSKILL AND RANK");
+await page.waitForTimeout(500);
+await card("celebration");
+check(await page.evaluate(() => window.Game.ProgressUI.playing() && document.getElementById("coach").hidden && document.getElementById("coachRing").hidden), "the celebration plays first, with no coach over it");
+await page.waitForFunction(() => document.querySelector(".cel[data-cel=done]"), null, { timeout: 10000 });
+await page.waitForTimeout(500);   // the coach looks again a moment later
+await tick(0.05);
+check(await step() === "level_skill" && /Familiar with rolling pins!/.test(await coach()) && /Each skill level pays 15% more for that piece\./.test(await coach()), "then a card: Familiar with rolling pins!");
+check(/GOT IT/.test(await coach()) && await ringOn(".cel-mastery"), "it waits for GOT IT, the ring on the skill bar");
+await card();
+await page.waitForTimeout(450); await tick(0.05);
+check(await step() === "level_skill", "and it waits");
+await page.click('#coach [data-coach="ok"]');
+await tick(0.05);
+check(await step() === "level_rank" && /Rank 2: Apprentice!/.test(await coach()) && /\+6 diamonds, \+100 coins\. And a new customer just walked in\./.test(await coach()), "GOT IT: then Rank 2: Apprentice!, with what it paid");
+check(await ringOn(".cel-rank"), "the ring on the rank bar");
+await card();
+await page.click('#coach [data-coach="ok"]');
+await tick(0.05);
+w = await page.evaluate(() => ({ coins: window.__farm.state.wallet.balance("coins"), dia: window.__farm.state.wallet.balance("diamonds"), rank: window.__farm.progress.rankOf().rank }));
+check(w.rank === 2, `the rank-up already paid (rank ${w.rank}, ${w.coins} coins, ${w.dia} diamonds)`);
 const keep = page.locator('#gradeOverlay [data-act="keep"]');
 if (await keep.count()) await keep.click();
+await page.evaluate(() => window.Game.showScreen("orders"));
+await tick(0.05);
+const basilCard = await page.evaluate(() => { const el = document.querySelector(".order.intro"); return el ? { text: el.textContent, buttons: el.querySelectorAll("[data-act]").length } : null; });
+check(!!basilCard && /Chef Basil Fury/.test(basilCard.text) && /will wait while you finish/.test(basilCard.text) && basilCard.buttons === 0, "Chef Basil Fury's introduction is on the board, waiting, with no buttons for the coach to trip on");
+await card("basil");
+await page.evaluate(() => window.Game.showScreen("lathe"));
+await tick(0.05);
 
 console.log("\nTHE FARM");
 check(await step() === "to_farm", "only the oak order is left, and no oak: the coach points at the farm");

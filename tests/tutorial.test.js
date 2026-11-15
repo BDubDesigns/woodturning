@@ -507,3 +507,78 @@ test("every pine log went on practice before the first order: a log turns up at 
   assert.equal(id(t), "take");
   assert.equal(c.logs.pine, 1);
 });
+
+// ---------- issue #35: the skill and rank cards after the first delivery ----------
+const FIRST_EVENTS = [
+  { type: "mastery", kind: "rolling_pin", tier: 1, name: "Familiar", mult: 1.15, prev: "" },
+  { type: "rank", rank: 2, title: "Apprentice", reward: { diamonds: 6, coins: 100 }, prev: "Hobbyist" }
+];
+test("right after the first delivery, two cards explain Familiar and Apprentice, each waiting for GOT IT", () => {
+  const { c, t, game } = flow();
+  game.tutorial.step = "order_paint"; t.check();
+  c.v.mode = "finish"; t.check();
+  assert.equal(id(t), "deliver");
+  t.noteDelivery(FIRST_EVENTS, "rolling pins");
+  c.v.delivered = 1; c.v.coins = 20; t.check();
+  assert.equal(id(t), "level_skill");
+  const st = t.current();
+  assert.equal(st.dismiss, true); assert.equal(st.afterCelebration, true);
+  assert.equal(st.title, "Familiar with rolling pins!");
+  assert.equal(st.text, "Every star you earn on a piece builds your skill with it. Each skill level pays 15% more for that piece.");
+  t.check(); assert.equal(id(t), "level_skill", "it waits for GOT IT");
+  t.dismiss();
+  assert.equal(id(t), "level_rank");
+  assert.equal(t.current().title, "Rank 2: Apprentice!");
+  assert.equal(t.current().text, "Your rank counts every star from every piece you make. Ranking up pays coins and diamonds: +6 diamonds, +100 coins. And a new customer just walked in.");
+  t.check(); assert.equal(id(t), "level_rank");
+  t.dismiss(); t.check();
+  assert.equal(id(t), "to_farm", "then on to the farm, as before");
+  assert.ok(!/—/.test(T.BY_ID.level_skill.text + T.BY_ID.level_rank.text + T.BY_ID.level_skill.title + T.BY_ID.level_rank.title));
+});
+
+test("the cards are noted only for the deliver step's delivery, and survive a reload", () => {
+  const { c, t, game } = flow();
+  game.tutorial.step = "deliver"; t.check();
+  t.noteDelivery(FIRST_EVENTS, "rolling pins");
+  t.noteDelivery([], "bats");   // a second note (another delivery) changes nothing
+  assert.deepEqual(game.tutorial.levels, { mastery: { kind: "rolling_pin", many: "rolling pins" }, rank: { rank: 2 } });
+  c.v.delivered = 1; t.check();
+  assert.equal(id(t), "level_skill");
+  const again = T.normalize(JSON.parse(JSON.stringify(game.tutorial)));
+  assert.deepEqual(again.levels, game.tutorial.levels);
+  assert.equal(again.step, "level_skill");
+  // a note later in the flow is ignored
+  game.tutorial.step = "oak_order"; game.tutorial.levels = null;
+  t.noteDelivery(FIRST_EVENTS, "rolling pins");
+  assert.equal(game.tutorial.levels, null);
+});
+
+test("a replay shows the cards only if its delivery reaches them; otherwise it passes them by", () => {
+  const go = (events, many) => {
+    const { c, t, ctx } = replayed();
+    const at = (want) => { t.check(); assert.equal(id(t), want); };
+    c.v.removed = 1; at("pick_sand");
+    c.v.tip = "sand"; c.v.smoothHere = 0.7; at("to_paint");
+    c.v.mode = "paint"; c.v.coverage = 1; at("to_finish");
+    c.v.mode = "finish"; c.v.sheenRank = 1; at("keep");
+    c.v.doneTaps++; at("to_orders");
+    c.v.screen = "orders"; at("take");
+    c.v.activeWood = "oak"; c.v.screen = "lathe"; c.v.mode = "cut"; at("turn");
+    c.v.mode = "finish"; at("deliver");
+    if (events) t.noteDelivery(events, many);
+    c.v.delivered += 1; t.check();
+    return { t, c, ctx };
+  };
+  // a player past Familiar and Apprentice: a delivery reaches neither, so on to the farm
+  let r = go([{ type: "mastery", kind: "baseball_bat", tier: 3, name: "Skilled" }], "bats");
+  assert.equal(id(r.t), "to_farm");
+  // DONE on a practice piece, no delivery at all: the same
+  r = go(null);
+  assert.equal(id(r.t), "to_farm");
+  // a player whose replay delivery is their first bat: Familiar with bats, but no rank card
+  r = go([{ type: "mastery", kind: "baseball_bat", tier: 1, name: "Familiar" }], "bats");
+  assert.equal(id(r.t), "level_skill");
+  assert.equal(r.t.current().copy(r.ctx, r.t).title, "Familiar with bats!");
+  r.t.dismiss(); r.t.check();
+  assert.equal(id(r.t), "to_farm");
+});
