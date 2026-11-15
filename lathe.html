@@ -358,12 +358,28 @@ footer {
 .ad-close { width: 100%; flex: none; }
 /* Four tabs plus a three-currency wallet: tighten at phone width, and wrap
    rather than ever spill sideways (tap targets keep their 40px height). */
-#tabs { flex-wrap: wrap; row-gap: 4px; }
-.wallet { margin-left: auto; }
+/* The header carries the rank badge, the screen's stats, the wallet and the gear;
+   the tabs row is only the tabs, sharing its width evenly (never wraps). */
+.tab-group { flex: 1 1 auto; min-width: 0; }
+.tab { flex: 1 1 0; min-width: 0; max-width: 150px; padding-left: 4px; padding-right: 4px; }
+header .wallet { flex: none; }
+header .rank-chip { flex: none; }
+@media (max-width: 560px) {
+  /* the highlighted tab already names the screen (and the shop has its own banner) */
+  header .title-block { display: none; }
+  header { gap: 8px; padding: 6px 10px; }
+  .stats { gap: 10px; }
+  .stat .v { font-size: 18px; }
+  .stat .k { font-size: 9px; letter-spacing: 0.1em; }
+  .stat .k .kl { display: none; }
+  .rank-chip .rt { display: none; }
+  #latheStats, #harvestStats { margin-left: 0; flex: 1 1 auto; min-width: 0; justify-content: center; text-align: center; }
+  header .wallet { margin-left: auto; }
+}
 @media (max-width: 460px) {
   #tabs { padding: 6px 8px; gap: 6px; }
   .tab-group { gap: 4px; }
-  .tab { padding: 6px 8px; font-size: 14px; letter-spacing: 0.06em; }
+  .tab { font-size: 14px; letter-spacing: 0.06em; }
   .wallet { gap: 7px; }
   .coin-chip { gap: 4px; }
   .coin-chip b { font-size: 17px; }
@@ -928,7 +944,7 @@ header .gear-btn { margin-left: 4px; }
 .rank-chip.bump { animation: celBump 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @media (max-width: 460px) { .rank-chip { font-size: 13px; padding: 4px 7px 5px; } }
 /* while a celebration plays, the wallet row shows above the card's shade so the rewards can count into it */
-body.cel-lift #tabs { position: relative; z-index: 51; pointer-events: none; }
+body.cel-lift header { position: relative; z-index: 51; pointer-events: none; }
 body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--nav-bottom, 0px) + 10px); overflow-y: auto; }
 .coin-chip.bump { animation: celBump 0.24s ease-out; }
 
@@ -1072,14 +1088,18 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
           <div class="title" id="screenTitle">THE <em>LATHE</em></div>
           <div class="subtitle" id="screenSubtitle">PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING</div>
         </div>
+        <button type="button" class="rank-chip" id="rankBadge" title="Your rank and skills" aria-haspopup="dialog">
+          <span class="rk" id="rankLabel">R1<span class="rt"> · Hobbyist</span></span>
+          <span class="rbar" aria-hidden="true"><i id="rankBar"></i></span>
+        </button>
         <div class="stats" id="latheStats">
           <div class="stat">
             <div class="v" id="statRemoved">0<small>%</small></div>
-            <div class="k">WOOD REMOVED</div>
+            <div class="k"><span class="kl">WOOD </span>REMOVED</div>
           </div>
           <div class="stat">
             <div class="v" id="statDepth">0.0<small> mm</small></div>
-            <div class="k">CUT DEPTH HERE</div>
+            <div class="k"><span class="kl">CUT </span>DEPTH<span class="kl"> HERE</span></div>
           </div>
           <div class="stat hide-sm">
             <div class="v" id="statShape">Blank</div>
@@ -1093,12 +1113,23 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
           </div>
           <div class="stat">
             <div class="v" id="hLimbs">-</div>
-            <div class="k">LIMBS LEFT</div>
+            <div class="k">LIMBS<span class="kl"> LEFT</span></div>
           </div>
           <div class="stat hide-sm">
             <div class="v" id="hCuts">0<small>/2</small></div>
             <div class="k">SAW CUTS</div>
           </div>
+        </div>
+        <div class="wallet" aria-label="Wallet">
+          <span class="coin-chip" title="Coins">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>
+            <b id="walletCoins" data-currency="coins">0</b>
+          </span>
+          <span class="coin-chip" title="Diamonds">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="#6fd3e6" stroke="#2b7f93" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 21 9 9m3 12 3-12" fill="none" stroke="#2b7f93" stroke-width="1.2" opacity="0.7"/></svg>
+            <b id="walletDiamonds" data-currency="diamonds">0</b>
+          </span>
+          <span class="full-badge" id="fullBadge" title="Full game unlocked" hidden>FULL</span>
         </div>
         <button class="gear-btn" id="settingsBtn" type="button" title="Settings" aria-label="Settings" aria-haspopup="dialog">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -1112,21 +1143,6 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
           <button class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="mineScreen">MINE</button>
           <button class="tab" id="tabOrders" role="tab" aria-selected="false" aria-controls="ordersScreen">ORDERS</button>
           <button class="tab" id="tabShop" role="tab" aria-selected="false" aria-controls="shopScreen">SHOP</button>
-        </div>
-        <div class="wallet" aria-label="Wallet">
-          <button type="button" class="rank-chip" id="rankBadge" title="Your rank and skills" aria-haspopup="dialog">
-            <span class="rk" id="rankLabel">R1 · Hobbyist</span>
-            <span class="rbar" aria-hidden="true"><i id="rankBar"></i></span>
-          </button>
-          <span class="coin-chip" title="Coins">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>
-            <b id="walletCoins" data-currency="coins">0</b>
-          </span>
-          <span class="coin-chip" title="Diamonds">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="#6fd3e6" stroke="#2b7f93" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 21 9 9m3 12 3-12" fill="none" stroke="#2b7f93" stroke-width="1.2" opacity="0.7"/></svg>
-            <b id="walletDiamonds" data-currency="diamonds">0</b>
-          </span>
-          <span class="full-badge" id="fullBadge" title="Full game unlocked" hidden>FULL</span>
         </div>
       </nav>
 
@@ -8615,7 +8631,7 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
     var statDepthK = statDepth.parentNode.querySelector(".k");
     /* While sanding, CUT DEPTH HERE reads SMOOTH under the pad instead. */
-    function syncDepthLabel() { if (statDepthK) statDepthK.textContent = sanding() ? "SMOOTH HERE" : "CUT DEPTH HERE"; }
+    function syncDepthLabel() { if (statDepthK) statDepthK.innerHTML = sanding() ? 'SMOOTH<span class="kl"> HERE</span>' : '<span class="kl">CUT </span>DEPTH<span class="kl"> HERE</span>'; }   // .kl hides on phones
     /* Mount a blank: the harvested one, or a practice blank when none is given. */
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";
@@ -12790,7 +12806,8 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     if (!badge) return;
     var r = Pr.rankAt(Math.max(0, progress.state.totalStars - badgeHeld));
     var t = "R" + r.rank + " · " + r.title;
-    if (badgeLabel.textContent !== t) badgeLabel.textContent = t;
+    // the title hides on phones (style.css .rt), leaving "R1" and the bar; the panel names it
+    if (badgeLabel.textContent !== t) badgeLabel.innerHTML = "R" + r.rank + '<span class="rt"> · ' + r.title + "</span>";
     badgeBar.style.width = Math.round(r.frac * 100) + "%";
     badge.setAttribute("aria-label", "Rank " + r.rank + ", " + r.title + ". " + rankSub(r) + ". Open your progress");
   }
@@ -12879,7 +12896,7 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
     host.holdWallet(hold);
     badgeHeld = b.n; renderBadge();
     // the wallet shows above the card's shade, to count into, and the card sits below it
-    var nav = document.getElementById("tabs");
+    var nav = document.querySelector("#app > header");
     if (nav) overlay.style.setProperty("--nav-bottom", Math.round(nav.getBoundingClientRect().bottom) + "px");
     document.body.classList.add("cel-lift");
     audio.init();
