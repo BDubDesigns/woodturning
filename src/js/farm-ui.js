@@ -551,5 +551,12 @@
     pendingToast = grew.length === 1 ? "While you were away, your " + names[0] + " finished growing." : "While you were away, " + grew.length + " trees finished growing.";
     if (current === "farm") { toast(pendingToast); pendingToast = ""; }
   }
+  // playtest helper: ?coins=5000&diamonds=50 adds that much once, at the end of boot
+  // (so ?reset&coins=5000 is a fresh player with money), then leaves the URL so a reload never adds it again
+  var urlGift = G.State.urlGrant(location.search);
+  if (urlGift) {
+    state.grant(urlGift.bundle);
+    try { history.replaceState(null, "", location.pathname + urlGift.search + location.hash); } catch (e) {}
+  }
 
 })(window);

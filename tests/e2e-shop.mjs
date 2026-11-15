@@ -267,6 +267,19 @@ for (const w of [360, 412]) {
   const sw = await page.evaluate(() => document.documentElement.scrollWidth);
   check(sw <= w, `no sideways scroll at ${w}px (${sw})`);
 }
+console.log("\nPLAYTEST MONEY (?coins, ?diamonds)");
+await page.goto(`file://${file}?reset&coins=5000&diamonds=50&tutorial=off&view=2d&testclock#shop`);
+await page.waitForFunction(() => window.__farm && window.__farm.state);
+const wal = () => page.evaluate(() => ({ c: window.__farm.state.wallet.balance("coins"), d: window.__farm.state.wallet.balance("diamonds") }));
+const w1 = await wal();
+check(w1.c >= 5000 && w1.d >= 50, `?reset&coins=5000&diamonds=50 gives a fresh player the money (${w1.c} coins, ${w1.d} diamonds)`);
+check((await page.locator("#walletCoins").textContent()).trim() === String(w1.c), "and the header wallet shows it");
+const search = await page.evaluate(() => location.search);
+check(!/coins|diamonds|reset/.test(search) && /tutorial=off/.test(search), `the params leave the URL, the rest stay (${search})`);
+await page.reload();
+await page.waitForFunction(() => window.__farm && window.__farm.state);
+const w2 = await wal();
+check(w2.c === w1.c && w2.d === w1.d, "a reload keeps the money and adds none");
 check(errors.length === 0, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));
 
 await browser.close();
