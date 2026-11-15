@@ -189,6 +189,9 @@
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
       h += '<p class="o-blurb">' + esc(C.PIECES[o.kind].blurb) + "</p>";
       h += '<p class="o-have' + (st.blanks || st.logs || st.pieces ? "" : st.grown >= 0 ? " ready" : st.growing >= 0 ? " growing" : " none") + '">' + haveLine(o, st) + "</p>";
+      // a new customer who turns up during the tutorial waits for the end of it: no buttons, nothing for the coach to trip on
+      var waits = o.intro && api.guided;
+      if (waits) { h += '<p class="o-wait">' + esc(o.client) + " will wait while you finish learning the ropes.</p></article>"; return; }
       if (lock) h += '<p class="o-lock"><b>Locked.</b> Needs the ' + esc(name) + " blueprint" + (api.guided ? "." : ", from Arbor Freight.") + "</p>";
       h += '<div class="row">';
       if (lock) {
@@ -452,6 +455,7 @@
   }
   function give(orderId, pieceId) {
     var r = board.deliver(orderId, pieceId);
+    if (r.ok && G.tutorial && G.tutorial.noteDelivery) G.tutorial.noteDelivery(r.events, C.PIECES[r.order.kind].many);   // the coach explains what it reached
     if (!r.ok) {
       closeOverlay();
       toast(r.reason === "wrong wood" ? "That piece is the wrong wood for this order." : r.reason === "rejected" ? o0(orderId) + " won't take that one. It needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted." : "That piece is no longer in the shed.");

@@ -16,6 +16,8 @@
      dismiss   the card has a GOT IT button that ends the step
      showMin   the card's own hide button glows (the first card, so players find it)
      hint(ctx) an extra line for the card right now, or nothing (past satin: how to undo)
+     copy(ctx, t)  { title, text } to show instead of title and text right now, or nothing
+     afterCelebration  the card waits until the delivery celebration has played (tutorial-ui.js)
      mode      the lathe mode the step starts in (an order starts at the chisel)
      replay    what changes when the flow is replayed (see below): any of the
                fields above, and skip: true to leave the step out
@@ -43,8 +45,15 @@
      postFirstBoard(list) postOrder(def) resumeBoard() takeOrder(wood) setMode(mode) startReplay()
      (grant may also carry blueprints: [kind], the skip pack's bat blueprint)
 
+   The first delivery always reaches the first mastery tier (Familiar) and the first rank
+   (Apprentice): every accepted piece earns a star (progress.js). Right after its celebration,
+   two cards explain them, each waiting for GOT IT. noteDelivery(events) records what the
+   delivery made during the "deliver" step reached (levels); a card with nothing to explain
+   (a replay whose delivery reached neither, or a DONE with no delivery) is passed over.
+   The rank-up has already paid its reward; the cards only say what the player just saw.
+
    The model owns the tutorial section of the save:
-     game.tutorial { step, done, replay, base, taps, granted: { coins, diamonds, batLog, bat, bonus } }
+     game.tutorial { step, done, replay, base, taps, levels, granted: { coins, diamonds, batLog, bat, bonus } }
    taps counts DONE presses (tutorial-ui.js), which a replay step can ask for.
    granted counts what the flow has handed out, so skipping part way through
    tops the starter pack up instead of paying it twice. batLog, bat and bonus
@@ -161,10 +170,25 @@
     { id: "deliver", target: ['[data-act="give"]', '[data-act="deliver"]', "#doneBtn"],
       title: "Deliver it",
       text: "When the sheen matches, tap DONE, then DELIVER. The closer it is, the more they pay. Kept it instead? DELIVER is on its order in ORDERS.",
+      enter: function (c, t) { t.state.levels = null; },   // what this step's delivery reaches is noted afresh
       done: function (c) { return n(c, "delivered") >= 1; },
       rescue: rescuePine,
       replay: { rescue: null, text: "When the sheen matches, tap DONE. If it is the order's own wood, DELIVER gets you paid: the closer, the more. Practice pieces can't be delivered.",
         done: function (c, t) { return grew(c, t, "delivered") || grew(c, t, "doneTaps"); } } },
+
+    /* ---- what the first delivery just reached: a skill level and a rank ---- */
+    { id: "level_skill", target: [".cel-mastery", "#rankBadge"], dismiss: true, afterCelebration: true,
+      title: "Familiar with rolling pins!",
+      text: "Every star you earn on a piece builds your skill with it. Each skill level pays 15% more for that piece.",
+      copy: function (c, t) {
+        var m = t.state.levels && t.state.levels.mastery;
+        return m && m.many ? { title: "Familiar with " + m.many + "!" } : null;
+      },
+      done: function (c, t) { return !(t.state.levels && t.state.levels.mastery); } },
+    { id: "level_rank", target: [".cel-rank", "#rankBadge"], dismiss: true, afterCelebration: true,
+      title: "Rank 2: Apprentice!",
+      text: "Your rank counts every star from every piece you make. Ranking up pays coins and diamonds: +6 diamonds, +100 coins. And a new customer just walked in.",
+      done: function (c, t) { return !(t.state.levels && t.state.levels.rank); } },
 
     /* ---- the wood you don't have ---- */
     { id: "to_farm", unlock: ["farm"], target: ["#tabFarm"],
@@ -300,6 +324,13 @@
     if (typeof t.step === "string" && BY_ID[t.step]) out.step = t.step;
     if (t.base && typeof t.base === "object") BASE_READINGS.forEach(function (k) { if (count(t.base[k])) out.base[k] = t.base[k]; });
     if (count(t.taps)) out.taps = Math.floor(t.taps);
+    if (t.levels && typeof t.levels === "object") {
+      var lm = t.levels.mastery, lr = t.levels.rank;
+      out.levels = {
+        mastery: lm && typeof lm === "object" ? { kind: String(lm.kind || ""), many: String(lm.many || "") } : null,
+        rank: lr && typeof lr === "object" ? { rank: count(lr.rank) } : null
+      };
+    }
     if (t.granted && typeof t.granted === "object") {
       out.granted.coins = count(t.granted.coins); out.granted.diamonds = count(t.granted.diamonds);
       out.granted.batLog = !!t.granted.batLog; out.granted.bat = !!t.granted.bat; out.granted.bonus = !!t.granted.bonus;
@@ -378,6 +409,20 @@
       if (STEPS[i]) go(STEPS[i].id); else finish();
       return current();
     }
+    /* A piece was delivered (commissions-ui.js, with what it reached: progress.js events).
+       While the "deliver" step runs, keep the first skill level (Familiar) and the first rank
+       (Apprentice) it reached, for the two cards after it. many: the piece's name, plural. */
+    function noteDelivery(events, many) {
+      var cur = current();
+      if (!cur || cur.id !== "deliver" || T.levels) return;
+      var m = null, r = null;
+      (events || []).forEach(function (e) {
+        if (e.type === "mastery" && e.tier === 1 && !m) m = { kind: e.kind, many: many || "" };
+        if (e.type === "rank" && e.rank === 2 && !r) r = { rank: 2 };
+      });
+      T.levels = { mastery: m, rank: r };
+      onChange();
+    }
     /* GOT IT on a dismiss step. */
     function dismiss() { var cur = current(); if (cur && cur.dismiss) advance(); }
     /* What skipping would hand over now: the starter pack, less what the flow already gave. */
@@ -405,7 +450,7 @@
 
     var api = {
       state: T, current: current, unlocked: unlocked, check: check, advance: advance, dismiss: dismiss, skip: skip,
-      replay: replay, give: give, skipGrant: skipGrant, base: function () { return T.base || {}; },
+      replay: replay, give: give, skipGrant: skipGrant, noteDelivery: noteDelivery, base: function () { return T.base || {}; },
       get done() { return T.done; }, isActive: function () { return !T.done; },
       isReplay: function () { return !T.done && T.replay; },
       // the board waits until the last card, which refills it; a replay never holds it up

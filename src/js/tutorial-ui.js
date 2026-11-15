@@ -50,7 +50,7 @@
       var b = board();
       if (!b) return false;
       return b.state.orders.some(function (o) {
-        return o.wood === w && b.candidates(o.id).some(function (it) { var g = b.preview(o.id, it.id); return g && g.accepted; });
+        return o.wood === w && !o.intro && b.candidates(o.id).some(function (it) { var g = b.preview(o.id, it.id); return g && g.accepted; });
       });
     },
     delivered: function () { var b = board(); return b ? b.state.done : 0; },
@@ -88,7 +88,8 @@
     takeOrder: function (w) {
       var b = board();
       if (!b) return;
-      var o = b.state.orders.filter(function (q) { return q.wood === w; })[0];
+      // the flow's own orders, never a new customer's introduction (Chef Basil Fury turns up at rank 2)
+      var o = b.state.orders.filter(function (q) { return q.wood === w && !q.intro; })[0];
       if (!o) return;
       b.accept(o.id);
       if (L.takeOrder) L.takeOrder();
@@ -256,12 +257,13 @@
     card.classList.toggle("confirm", confirming);
     if (confirming) { card.classList.remove("touching"); card.innerHTML = confirmHtml(); return; }
     var n = st.index + 1, of = T.STEPS.length, rep = tut.isReplay(), hint = st.hint ? st.hint(ctx) : null;
+    var cp = (st.copy && st.copy(ctx, tut)) || {};
     shownHint = hint;
     card.innerHTML =
       '<div class="coach-k">' + (rep ? "REPLAY" : "GETTING STARTED") + " <span>" + n + " / " + of +
         '<button type="button" class="coach-min' + (st.showMin ? " glow" : "") + '" data-coach="min" aria-label="Hide this for now" title="Hide this for now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button></span></div>' +
-      '<h2 class="coach-t">' + esc(st.title) + "</h2>" +
-      '<p class="coach-p">' + esc(st.text) + "</p>" +
+      '<h2 class="coach-t">' + esc(cp.title || st.title) + "</h2>" +
+      '<p class="coach-p">' + esc(cp.text || st.text) + "</p>" +
       (hint ? '<p class="coach-p coach-hint">' + esc(hint) + "</p>" : "") +
       '<div class="coach-row">' +
         (st.dismiss ? '<button type="button" class="act primary" data-coach="ok"><span class="an">GOT IT</span><span class="ad">Off you go</span></button>' : "") +
@@ -319,8 +321,10 @@
     return null;
   }
   var lastPos = "";
+  /* The delivery celebration (progress-ui.js) is playing: nothing of the coach shows over it. */
+  function celebrating() { return !!(G.ProgressUI && G.ProgressUI.playing && G.ProgressUI.playing()); }
   function place(st) {
-    var on = !!st && (!st.screen || st.screen === ctx.screen());
+    var on = !!st && (!st.screen || st.screen === ctx.screen()) && !celebrating();
     card.hidden = !on || minimized;
     if (minimized) { pillHome(); pill.hidden = !on; }
     if (!on) { ring.hidden = true; arrow.hidden = true; return; }
