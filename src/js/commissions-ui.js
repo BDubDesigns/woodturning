@@ -175,8 +175,9 @@
       if ((wasLocked[o.id] || justBought[o.kind]) && !lock) flipped.push(o.id);
       wasLocked[o.id] = lock;
       h += '<article class="order' + (on ? " on" : "") + (lock ? " locked" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '" data-kind="' + esc(o.kind) + '">';
-      h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + o.reward + "</b></div></div>";
-      h += '<h3 class="o-name">' + esc(name) + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
+      var mst = board.progress.masteryOf(o.kind);
+      h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + board.rewardOf(o) + "</b></div></div>";
+      h += '<h3 class="o-name">' + esc(name) + (mst.tier && !lock ? '<span class="o-mastery" title="Your skill with this piece raises its pay">' + esc(mst.name) + " +" + Math.round((mst.mult - 1) * 100) + "%</span>" : "") + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
       h += shapeSvg(o);
       h += '<div class="o-tags"><span class="tag"><i class="dot" style="background:' + (R.WOODS[o.wood] ? R.WOODS[o.wood].trunk : "#c99a5e") + '"></i>' + woodName(o.wood) + "</span>";
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
@@ -415,7 +416,7 @@
     if (g.stars >= 3 && G.Haptics) { G.Haptics.pulse("stars3"); offered[orderId + ":" + pieceId] = 1; }   // only 3 stars buzzes: a pulse means great
     h += gradeHtml(o, g);
     if (g.accepted) {
-      h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
+      h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + board.rewardOf(o) + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
       h += '<div class="row">' + act("DELIVER", "Hand it over for " + g.pay + " coins", "primary", "give") + act("KEEP IT", "It stays in the shed. Try again", "", "keep") + "</div></div>";
     } else {
       h += '<p class="g-reject">' + esc(o.client) + " won't take it. A piece needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted; this one is " + Math.round(g.total * 100) + "%. It stays in the shed.</p>";

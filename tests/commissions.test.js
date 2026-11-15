@@ -234,7 +234,10 @@ test("delivering pays coins, takes the piece from the shed, and clears the order
   assert.ok(s.state.inventory.get(wrong.id), "a refused piece stays in the shed");
   const r = s.board.deliver(o.id, piece.id);
   assert.ok(r.ok);
-  assert.equal(s.state.wallet.balance("coins"), before + Math.round(o.reward * (1 + C.CFG.BONUS)));
+  // the pay, plus the Apprentice reward (progress.js) the first stars bring
+  assert.equal(r.pay, Math.round(o.reward * (1 + C.CFG.BONUS)));
+  assert.equal(s.state.wallet.balance("coins"), before + r.pay + r.rewards.coins);
+  assert.equal(r.rewards.coins, 100);
   assert.equal(s.state.inventory.get(piece.id), null);
   assert.equal(s.board.get(o.id), null);
   assert.equal(s.board.active(), null);

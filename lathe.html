@@ -575,6 +575,7 @@ footer {
 .o-pay b, .g-pay b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #f6c46a; font-variant-numeric: tabular-nums; }
 .coin { vertical-align: -2px; }
 .o-name { margin: 2px 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.o-mastery { font-size: 12px; letter-spacing: 0.1em; padding: 2px 7px; border-radius: 5px; background: rgba(184, 220, 138, 0.14); border: 1px solid rgba(184, 220, 138, 0.55); color: var(--ok); font-variant-numeric: tabular-nums; }
 .o-badge { font-size: 11.5px; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber); }
 .o-shape { display: block; width: 100%; height: 64px; margin: 0 0 10px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45)); }
 .o-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
@@ -2607,6 +2608,149 @@ header .gear-btn { margin-left: 4px; }
 </script>
     <script>
 /* ============================================================
+   Progress: blueprint mastery and the player's rank. Pure,
+   renderer-free, testable in Node.
+
+   Stars are the XP. Only the stars on an accepted delivery count
+   (commissions.js deliver() calls addStars once the customer takes
+   the piece); practice, rejected pieces and pieces kept in the shed
+   earn nothing until they are delivered.
+
+   Mastery is per blueprint, from the stars earned on that kind of
+   piece (MASTERY). Each tier raises the pay for that piece by
+   MASTERY_STEP: the multiplier is 1 + MASTERY_STEP x tier, and it is
+   the tier BEFORE a delivery's stars are added, so the stars just
+   earned don't boost the pay on the same piece. Stars past the top
+   tier still count toward rank; the mastery bar just stays full.
+
+   Rank is overall, from every star on every piece (RANKS). Each
+   rank-up pays a one-time reward (3 x rank diamonds, 50 x rank coins)
+   and brings a new client (Part 3). Rank never gates content.
+
+   addStars(kind, n) returns what happened, in the order to show it:
+   every mastery tier crossed, then every rank crossed, each with its
+   reward. One delivery can cross more than one of each. The caller
+   (commissions.js) pays the rank rewards straight away.
+
+   The model owns the progress section of the save:
+     game.progress { starsByKind: { rolling_pin: 3, ... }, totalStars, rankPaid }
+   rankPaid is the highest rank whose reward has been handed over, so a
+   reward is paid exactly once even if something adds stars twice.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  /* ---------- the tables (every number is a starting point for playtesting) ---------- */
+  var MASTERY_STEP = 0.15;   // each mastery tier is +15% pay on that piece
+  var MASTERY = [            // stars on that piece to reach each tier
+    { tier: 0, name: "",           stars: 0 },
+    { tier: 1, name: "Familiar",   stars: 1 },
+    { tier: 2, name: "Practiced",  stars: 4 },
+    { tier: 3, name: "Skilled",    stars: 9 },
+    { tier: 4, name: "Expert",     stars: 15 },
+    { tier: 5, name: "Renowned",   stars: 25 },
+    { tier: 6, name: "Legendary",  stars: 50 }
+  ];
+  var REWARD_DIAMONDS = 3, REWARD_COINS = 50;   // a rank-up pays this many x the new rank
+  var RANKS = [              // total stars to reach each rank
+    { rank: 1,  title: "Hobbyist",      stars: 0 },
+    { rank: 2,  title: "Apprentice",    stars: 1 },
+    { rank: 3,  title: "Journeyman",    stars: 8 },
+    { rank: 4,  title: "Journeyman",    stars: 15 },
+    { rank: 5,  title: "Craftsman",     stars: 25 },
+    { rank: 6,  title: "Craftsman",     stars: 40 },
+    { rank: 7,  title: "Craftsman",     stars: 60 },
+    { rank: 8,  title: "Master Turner", stars: 85 },
+    { rank: 9,  title: "Master Turner", stars: 120 },
+    { rank: 10, title: "Master Turner", stars: 170 },
+    { rank: 11, title: "Guild Master",  stars: 240 },
+    { rank: 12, title: "Guild Master",  stars: 500 }
+  ];
+  MASTERY.forEach(function (m) { m.mult = Math.round((1 + MASTERY_STEP * m.tier) * 100) / 100; });
+  RANKS.forEach(function (r) { r.reward = r.rank > 1 ? { diamonds: REWARD_DIAMONDS * r.rank, coins: REWARD_COINS * r.rank } : null; });
+  var TOP_TIER = MASTERY.length - 1, TOP_RANK = RANKS[RANKS.length - 1].rank;
+
+  /* ---------- pure lookups ---------- */
+  function tierFor(stars) { var t = 0; for (var i = 0; i < MASTERY.length; i++) if (stars >= MASTERY[i].stars) t = i; return t; }
+  function rankFor(stars) { var r = 1; for (var i = 0; i < RANKS.length; i++) if (stars >= RANKS[i].stars) r = RANKS[i].rank; return r; }
+  function rankRow(rank) { return RANKS[Math.max(0, Math.min(RANKS.length - 1, rank - 1))]; }
+  /* How far from one threshold to the next a count is, 0..1 (1 at the top). */
+  function frac(stars, from, to) { return to == null ? 1 : Math.max(0, Math.min(1, (stars - from) / (to - from))); }
+  function multFor(tier) { return MASTERY[Math.max(0, Math.min(TOP_TIER, tier))].mult; }
+  /* A snapshot of mastery at a star count: { tier, name, stars, from, next, need, frac, mult }.
+     next is the next tier ({ tier, name, stars, mult }) or null at Legendary; need is the stars still to go. */
+  function masteryAt(stars) {
+    var t = tierFor(stars), row = MASTERY[t], nx = t < TOP_TIER ? MASTERY[t + 1] : null;
+    return { tier: t, name: row.name, stars: stars, from: row.stars, next: nx, need: nx ? nx.stars - stars : 0, frac: frac(stars, row.stars, nx && nx.stars), mult: row.mult };
+  }
+  /* A snapshot of rank at a star count: { rank, title, stars, from, next, need, frac, reward }.
+     reward is what reaching this rank paid; next is the next rank (with its reward) or null at the top. */
+  function rankAt(stars) {
+    var r = rankFor(stars), row = rankRow(r), nx = r < TOP_RANK ? rankRow(r + 1) : null;
+    return { rank: r, title: row.title, stars: stars, from: row.stars, next: nx, need: nx ? nx.stars - stars : 0, frac: frac(stars, row.stars, nx && nx.stars), reward: row.reward };
+  }
+
+  /* ---------- the save section ---------- */
+  function count(v) { return typeof v === "number" && isFinite(v) && v > 0 ? Math.floor(v) : 0; }
+  function defaultProgress() { return { starsByKind: {}, totalStars: 0, rankPaid: 1 }; }
+  function normalize(p) {
+    var out = defaultProgress();
+    if (!p || typeof p !== "object") return out;
+    if (p.starsByKind && typeof p.starsByKind === "object") for (var k in p.starsByKind) if (/^[a-z][a-z0-9_]*$/.test(k) && count(p.starsByKind[k])) out.starsByKind[k] = count(p.starsByKind[k]);
+    out.totalStars = count(p.totalStars);
+    out.rankPaid = Math.max(1, Math.min(TOP_RANK, count(p.rankPaid) || 1));
+    return out;
+  }
+
+  /* game: the save object. opts.onChange: called after any change worth saving. */
+  function createProgress(game, opts) {
+    opts = opts || {};
+    var onChange = opts.onChange || function () {};
+    game.progress = normalize(game.progress);
+    var S = game.progress;
+
+    function starsOn(kind) { return S.starsByKind[kind] || 0; }
+    function masteryOf(kind) { var m = masteryAt(starsOn(kind)); m.kind = kind; return m; }
+    function rankOf() { return rankAt(S.totalStars); }
+    /* The pay multiplier mastery gives a piece right now (before any new stars). */
+    function mult(kind) { return multFor(tierFor(starsOn(kind))); }
+
+    /* Add a delivery's stars. Returns the events, in the order to show them:
+         { type: "mastery", kind, tier, name, mult, prev }   one per tier crossed
+         { type: "rank", rank, title, reward: { diamonds, coins }, prev }   one per rank crossed
+       A rank's reward is listed only the first time that rank is reached. */
+    function addStars(kind, n) {
+      n = count(n);
+      if (!n || typeof kind !== "string") return [];
+      var events = [], k0 = starsOn(kind), t0 = tierFor(k0), r0 = rankFor(S.totalStars);
+      S.starsByKind[kind] = k0 + n;
+      S.totalStars += n;
+      var t1 = tierFor(S.starsByKind[kind]), r1 = rankFor(S.totalStars), i;
+      for (i = t0 + 1; i <= t1; i++) events.push({ type: "mastery", kind: kind, tier: i, name: MASTERY[i].name, mult: MASTERY[i].mult, prev: MASTERY[i - 1].name });
+      for (i = r0 + 1; i <= r1; i++) {
+        var row = rankRow(i), paid = i <= S.rankPaid;
+        events.push({ type: "rank", rank: i, title: row.title, reward: paid ? null : row.reward, prev: rankRow(i - 1).title });
+        if (!paid) S.rankPaid = i;
+      }
+      onChange();
+      return events;
+    }
+
+    return { state: S, starsOn: starsOn, masteryOf: masteryOf, rankOf: rankOf, mult: mult, addStars: addStars, totalStars: function () { return S.totalStars; } };
+  }
+
+  var api = {
+    MASTERY: MASTERY, RANKS: RANKS, MASTERY_STEP: MASTERY_STEP, REWARD_DIAMONDS: REWARD_DIAMONDS, REWARD_COINS: REWARD_COINS, TOP_TIER: TOP_TIER, TOP_RANK: TOP_RANK,
+    tierFor: tierFor, rankFor: rankFor, multFor: multFor, masteryAt: masteryAt, rankAt: rankAt,
+    defaultProgress: defaultProgress, normalize: normalize, createProgress: createProgress
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  var G = root.Game || (root.Game = {});
+  G.Progress = api;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+    <script>
+/* ============================================================
    Commissions: the board of orders that gives every piece a
    purpose. Pure, renderer-free, testable in Node.
 
@@ -2643,6 +2787,14 @@ header .gear-btn { margin-left: 4px; }
    for the board to tease. The shop (shop.js) stays ladders only.
    Coins go through the shared wallet; the piece comes out of the
    shared inventory (state.js).
+
+   Progress (progress.js): every accepted delivery adds its stars to that
+   piece's mastery and to the player's rank. Mastery raises the pay for that
+   piece: the board's grade() applies the multiplier to g.pay, so preview(),
+   the order cards (rewardOf) and deliver() all agree. deliver() adds the
+   stars after the customer accepts, pays any rank reward into the wallet
+   right there, and returns the events (tiers and ranks crossed) for the
+   screen to celebrate.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -2651,6 +2803,7 @@ header .gear-btn { margin-left: 4px; }
   var Game = root.Game || {};
   var R = Game.Registry || require("./registry.js");
   var State = Game.State || require("./state.js");
+  var Prog = Game.Progress || require("./progress.js");
   var Lathe = root.Lathe || {};
   var P = Lathe.Paint || require("./paint.js");
   var Cut = Lathe.CFG ? Lathe : require("./cutting.js");
@@ -2679,7 +2832,8 @@ header .gear-btn { margin-left: 4px; }
   };
 
   /* The kinds of piece. base: coins for a perfect pine one. price: coins for
-     its blueprint (0 for the free ones). shape(t, r):
+     its blueprint (0 for the free ones). one / many: what the piece is called
+     in a sentence ("a Skilled bat maker", "Bats pay +45%"). shape(t, r):
      target radius as a fraction of R0 at axial position t (0..1), r a
      seeded random source for the small differences between orders. */
   function S(e0, e1, x) { var u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); }
@@ -2687,7 +2841,7 @@ header .gear-btn { margin-left: 4px; }
   function jit(r, a, b) { return a + (b - a) * r(); }
   var PIECES = {
     rolling_pin: {
-      name: "Rolling pin", base: 40, price: 0,
+      name: "Rolling pin", base: 40, price: 0, one: "rolling pin", many: "rolling pins",
       blurb: "A fat, even body with a slim handle at each end.",
       shape: function (t, r) {
         var h = jit(r, 0.27, 0.33), b = jit(r, 0.58, 0.64), hl = jit(r, 0.13, 0.17);
@@ -2695,7 +2849,7 @@ header .gear-btn { margin-left: 4px; }
       }
     },
     baseball_bat: {
-      name: "Baseball bat", base: 70, price: 100,
+      name: "Baseball bat", base: 70, price: 100, one: "bat", many: "bats",
       blurb: "Knob, long thin handle, swelling to a heavy barrel.",
       shape: function (t, r) {
         var hd = jit(r, 0.26, 0.3), br = jit(r, 0.6, 0.65), sw = jit(r, 0.32, 0.4);
@@ -2705,7 +2859,7 @@ header .gear-btn { margin-left: 4px; }
       }
     },
     walking_stick: {
-      name: "Walking stick", base: 90, price: 250,
+      name: "Walking stick", base: 90, price: 250, one: "walking stick", many: "walking sticks",
       blurb: "A round knob to hold, a collar, then a long tapering shaft.",
       shape: function (t, r) {
         var top = jit(r, 0.58, 0.65), sh0 = jit(r, 0.38, 0.44), sh1 = jit(r, 0.27, 0.31);
@@ -2716,7 +2870,7 @@ header .gear-btn { margin-left: 4px; }
       }
     },
     spindle: {
-      name: "Banister spindle", base: 240, price: 1500,
+      name: "Banister spindle", base: 240, price: 1500, one: "spindle", many: "spindles",
       blurb: "Square-shouldered ends with beads and coves between.",
       shape: function (t, r) {
         var k = r() < 0.5 ? 3 : 4, mid = jit(r, 0.42, 0.48), amp = jit(r, 0.1, 0.13);
@@ -2726,7 +2880,7 @@ header .gear-btn { margin-left: 4px; }
       }
     },
     chair_leg: {
-      name: "Chair leg", base: 140, price: 600,
+      name: "Chair leg", base: 140, price: 600, one: "chair leg", many: "chair legs",
       blurb: "A thick top where the seat joins, a bead, then a taper to the foot.",
       shape: function (t, r) {
         var top = jit(r, 0.6, 0.65), tl = jit(r, 0.2, 0.25), f0 = jit(r, 0.47, 0.52), f1 = jit(r, 0.3, 0.34);
@@ -2842,8 +2996,10 @@ header .gear-btn { margin-left: 4px; }
   }
   /* Grade work against an order. work: { wood, profile, start, coat, rough } where
      profile/start/rough are slice arrays and coat is a Coating, or the saved
-     { coat, color, gloss } arrays of a piece. */
-  function grade(order, work) {
+     { coat, color, gloss } arrays of a piece.
+     opts.mult: a pay multiplier (mastery, a client's quirk), or a function of the
+     stars earned that returns one. The board passes it; on its own, grade() pays 1x. */
+  function grade(order, work, opts) {
     var target = targetProfile(order);
     var prof = State.unpack(work.profile), start = work.start ? State.unpack(work.start) : null;
     var sh = shapeScore(prof, target, start);
@@ -2851,11 +3007,13 @@ header .gear-btn { margin-left: 4px; }
     var m = P.matchSpec(order.spec, coating);
     var sm = smoothScore(work.rough ? State.unpack(work.rough) : null);
     var g = CFG.W_SHAPE * sh.score + CFG.W_PAINT * m.color + CFG.W_SHEEN * m.finish + CFG.W_SMOOTH * sm.score;
-    var woodOk = work.wood === order.wood, accepted = woodOk && g >= CFG.PASS;
+    var woodOk = work.wood === order.wood, accepted = woodOk && g >= CFG.PASS, stars = starsFor(g);
+    var mult = opts && opts.mult != null ? (typeof opts.mult === "function" ? opts.mult(stars) : opts.mult) : 1;
+    if (!(mult > 0)) mult = 1;
     return {
       shape: sh.score, shapeErr: sh.err, paint: m.color, sheen: m.finish, sheenGot: m.sheen, smooth: sm.score, rough: sm.rough,
-      total: g, stars: starsFor(g), woodOk: woodOk, accepted: accepted,
-      pay: accepted ? payFor(order.reward, g) : 0, bonus: accepted && g >= CFG.FULL
+      total: g, stars: stars, woodOk: woodOk, accepted: accepted, mult: mult,
+      pay: accepted ? payFor(order.reward * mult, g) : 0, bonus: accepted && g >= CFG.FULL
     };
   }
   /* What a grade earns on a reward, when the piece is accepted (see CFG.PASS..BONUS). */
@@ -2885,6 +3043,7 @@ header .gear-btn { margin-left: 4px; }
 
   /* game: the save object.
      opts.state: the shared state (state.js).
+     opts.progress: mastery and rank (progress.js); made from the save when not given.
      opts.now: () => ms, so tests can drive the clock.
      opts.random: () => 0..1, where new orders' seeds come from.
      opts.timersOff: () => bool. With the full unlock a new order is posted at once.
@@ -2899,6 +3058,7 @@ header .gear-btn { margin-left: 4px; }
     var timersOff = opts.timersOff || function () { return false; };
     var paused = opts.paused || function () { return false; };
     var state = opts.state || State.createState(game, { onChange: onChange, now: now });
+    var progress = opts.progress || Prog.createProgress(game, { onChange: onChange });
     game.commissions = normalizeBoard(game.commissions);
     var B = game.commissions;
     if (!B.seed) B.seed = Math.floor(random() * 4294967296) >>> 0 || 1;
@@ -3006,6 +3166,14 @@ header .gear-btn { margin-left: 4px; }
       return { ok: true };
     }
 
+    /* ---- pay ---- */
+    /* What an order pays on top of its reward: the piece's mastery, before this delivery's stars. */
+    function payMult(o) { return progress.mult(o.kind); }
+    /* Grade work against an order with its pay multiplier, as preview() and deliver() see it. */
+    function gradeFor(o, work) { return grade(o, work, { mult: function () { return payMult(o); } }); }
+    /* The pay for a perfect job (before the bonus) with mastery applied: what an order card shows. */
+    function rewardOf(o) { return Math.round(o.reward * payMult(o)); }
+
     /* Pieces in the shed that could go to an order: its wood, turned. */
     function candidates(id) {
       var o = get(id);
@@ -3016,19 +3184,27 @@ header .gear-btn { margin-left: 4px; }
     function preview(id, pieceId) {
       var o = get(id), it = state.inventory.get(pieceId);
       if (!o || !it || it.kind !== "piece") return null;
-      return grade(o, it);
+      return gradeFor(o, it);
     }
     /* Hand a piece from the shed over: it leaves the shed, the coins come in,
-       and the order comes off the board. Only the wood the order names will do. */
+       and the order comes off the board. Only the wood the order names will do.
+       The stars go to progress, and any rank reward is paid now; the result
+       carries the events (progress.js addStars) and what was paid for them. */
     function deliver(id, pieceId) {
       var o = get(id), it = state.inventory.get(pieceId);
       if (!o) return { ok: false, reason: "no such order" };
       if (!it || it.kind !== "piece") return { ok: false, reason: "no such piece" };
-      var g = grade(o, it);
+      var g = gradeFor(o, it);
       if (!g.woodOk) return { ok: false, reason: "wrong wood", grade: g };
       if (!g.accepted) return { ok: false, reason: "rejected", grade: g };   // the piece stays in the shed
       if (!state.inventory.take("piece", pieceId)) return { ok: false, reason: "no such piece" };
       if (g.pay > 0) state.wallet.earn("coins", g.pay);
+      var events = progress.addStars(o.kind, g.stars), rewards = { coins: 0, diamonds: 0 };
+      events.forEach(function (e) {
+        if (e.type !== "rank" || !e.reward) return;
+        if (e.reward.coins > 0) { state.wallet.earn("coins", e.reward.coins); rewards.coins += e.reward.coins; }
+        if (e.reward.diamonds > 0) { state.wallet.earn("diamonds", e.reward.diamonds); rewards.diamonds += e.reward.diamonds; }
+      });
       B.orders.splice(B.orders.indexOf(o), 1);
       if (B.active === id) B.active = null;
       B.done++;
@@ -3036,7 +3212,7 @@ header .gear-btn { margin-left: 4px; }
       if (B.history.length > CFG.HISTORY) B.history.splice(0, B.history.length - CFG.HISTORY);
       if (B.orders.length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
       onChange();
-      return { ok: true, grade: g, order: o, pay: g.pay };
+      return { ok: true, grade: g, order: o, pay: g.pay, events: events, rewards: rewards };
     }
 
     /* Don't wait for the next order: post one now for RUSH_DIAMONDS diamonds. */
@@ -3055,7 +3231,7 @@ header .gear-btn { margin-left: 4px; }
     return {
       state: B, refill: refill, postAuthored: postAuthored, resume: resume, get: get, active: active, accept: accept, release: release, decline: decline,
       candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
-      grade: grade, targetProfile: targetProfile,
+      grade: gradeFor, targetProfile: targetProfile, payMult: payMult, rewardOf: rewardOf, progress: progress,
       ownsBlueprint: ownsBlueprint, buyBlueprint: buyBlueprint, grantBlueprint: grantBlueprint, teaser: teaser, locked: locked
     };
   }
@@ -10530,7 +10706,11 @@ header .gear-btn { margin-left: 4px; }
   root.__farm.tutorial = tutorial;
   /* The commission board: made here with the rest of the shared state, drawn by commissions-ui.js.
      It waits while the new-player flow runs, which posts its own first orders. */
-  var board = G.Commissions.createBoard(game, { state: state, onChange: persist, timersOff: mine.timersOff, paused: tutorial.boardPaused });
+  /* Mastery and rank (progress.js), in the profile next to the board. Every accepted delivery adds its stars. */
+  var progress = G.Progress.createProgress(game, { onChange: persist });
+  G.progress = progress;
+  root.__farm.progress = progress;
+  var board = G.Commissions.createBoard(game, { state: state, progress: progress, onChange: persist, timersOff: mine.timersOff, paused: tutorial.boardPaused });
   G.commissions = board;
   root.__farm.board = board;
   /* Arbor Freight, the tool store: made here too, drawn by shop-ui.js, read by the lathe. */
@@ -10727,8 +10907,9 @@ header .gear-btn { margin-left: 4px; }
       if ((wasLocked[o.id] || justBought[o.kind]) && !lock) flipped.push(o.id);
       wasLocked[o.id] = lock;
       h += '<article class="order' + (on ? " on" : "") + (lock ? " locked" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '" data-kind="' + esc(o.kind) + '">';
-      h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + o.reward + "</b></div></div>";
-      h += '<h3 class="o-name">' + esc(name) + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
+      var mst = board.progress.masteryOf(o.kind);
+      h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + board.rewardOf(o) + "</b></div></div>";
+      h += '<h3 class="o-name">' + esc(name) + (mst.tier && !lock ? '<span class="o-mastery" title="Your skill with this piece raises its pay">' + esc(mst.name) + " +" + Math.round((mst.mult - 1) * 100) + "%</span>" : "") + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
       h += shapeSvg(o);
       h += '<div class="o-tags"><span class="tag"><i class="dot" style="background:' + (R.WOODS[o.wood] ? R.WOODS[o.wood].trunk : "#c99a5e") + '"></i>' + woodName(o.wood) + "</span>";
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
@@ -10967,7 +11148,7 @@ header .gear-btn { margin-left: 4px; }
     if (g.stars >= 3 && G.Haptics) { G.Haptics.pulse("stars3"); offered[orderId + ":" + pieceId] = 1; }   // only 3 stars buzzes: a pulse means great
     h += gradeHtml(o, g);
     if (g.accepted) {
-      h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + o.reward + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
+      h += '<p class="g-pay">Pays ' + COIN + "<b>" + g.pay + "</b> of " + board.rewardOf(o) + (g.bonus ? ' <span class="g-bonus">+' + Math.round(C.CFG.BONUS * 100) + "% bonus</span>" : "") + "</p>";
       h += '<div class="row">' + act("DELIVER", "Hand it over for " + g.pay + " coins", "primary", "give") + act("KEEP IT", "It stays in the shed. Try again", "", "keep") + "</div></div>";
     } else {
       h += '<p class="g-reject">' + esc(o.client) + " won't take it. A piece needs " + Math.round(C.CFG.PASS * 100) + "% to be accepted; this one is " + Math.round(g.total * 100) + "%. It stays in the shed.</p>";
