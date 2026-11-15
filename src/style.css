@@ -565,6 +565,9 @@ footer {
 .o-blurb { margin: 0 0 4px; font-size: 13.5px; color: #bfae8f; line-height: 1.4; }
 .o-have { margin: 0 0 10px; font-size: 13.5px; color: var(--ok); line-height: 1.4; }
 .o-have.none { color: #e0b07a; }
+.o-have.growing { color: #cfd9a8; }
+.o-have.ready { color: var(--amber); }
+.o-have b { font-variant-numeric: tabular-nums; }
 .order .row, .grade-card .row { display: flex; flex-wrap: wrap; gap: 10px; }
 .order .act, .grade-card .act { background: #2a2119; color: #f3e7d3; border-color: #5a4630; }
 .order .act.primary, .grade-card .act.primary { background: #4a2f14; border-color: var(--amber); }

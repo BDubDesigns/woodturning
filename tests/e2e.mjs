@@ -171,6 +171,14 @@ async function harvestRun(label, viewport, seed, farmWood) {
   check(k1[0] === true, "first cut went through");
   await shot("8-first-cut");
   await rub(0.72, 14, null);
+  // the blank is sawn: a card asks whether to turn it now or keep it in the shed
+  await pg.waitForFunction(() => document.querySelector(".blank-choice"), null, { timeout: 30000, polling: 100 });
+  const choice = await pg.evaluate(() => { const c = document.querySelector(".blank-choice"), inv = window.__farm.state.inventory; return { text: c.textContent, now: !!c.querySelector('[data-act="turnnow"]'), shed: !!c.querySelector('[data-act="toshed"]'), blanks: inv.count("blank"), logs: inv.count("log"), harvest: !document.getElementById("harvestScreen").hidden }; });
+  check(choice.harvest && choice.now && choice.shed && /blank is ready/.test(choice.text), "sawn: a card offers TURN IT NOW or INTO THE SHED, over the forest");
+  check(choice.blanks === 1 && choice.logs === 0, "the blank is in the shed already, before choosing");
+  check(!/[\u2014\u2013]/.test(choice.text), "no em dashes on the card");
+  await shot("8b-blank-choice");
+  await pg.click('.blank-choice [data-act="turnnow"]');
   // The handoff itself is fast (mount ~5ms, showScreen ~18ms, verified in
   // debug runs; no delay on a real phone). In headless Chromium the default
   // rAF polling for this wait is unreliable and can take 3-11s, so poll on an
