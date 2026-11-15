@@ -649,17 +649,30 @@
       else if (e.key === "5") { setMode("finish"); }
     });
 
-    /* paint choices: only palette colours, and the ones the spec needs wear a marker */
+    /* paint choices: only palette colours, and the ones the spec needs wear a marker. The extra
+       colours (pastels, oxblood) only show while the spec on the lathe needs one. */
     var swatchWrap = document.getElementById("swatches"), swatchEls = {};
-    P.PALETTE_ORDER.forEach(function (key) {
+    P.PALETTE_ORDER.concat(P.EXTRA_ORDER).forEach(function (key) {
       var def = P.PALETTE[key], b = document.createElement("button");
       b.className = "swatch"; b.type = "button"; b.dataset.color = key;
       b.style.setProperty("--sw", def.hex);
       b.setAttribute("aria-label", def.name); b.title = def.name;
       b.setAttribute("aria-pressed", key === S.color ? "true" : "false");
       b.addEventListener("click", function () { audio.init(); setColor(key); });
+      if (def.extra) b.hidden = true;
       swatchWrap.appendChild(b); swatchEls[key] = b;
     });
+    function showSwatches(need) {
+      var n = 0;
+      for (var k in swatchEls) {
+        var on = !P.PALETTE[k].extra || need.indexOf(k) >= 0;
+        swatchEls[k].hidden = !on;
+        if (on) n++;
+      }
+      swatchWrap.style.setProperty("--cols", n);
+      swatchWrap.classList.toggle("many", n > P.PALETTE_ORDER.length);   // an extra colour or two: a little smaller, still one row
+      if (swatchEls[S.color] && swatchEls[S.color].hidden) setColor(P.PALETTE_ORDER[0]);
+    }
     function setColor(key) {
       if (!P.PALETTE[key]) return;
       S.color = key;
@@ -683,6 +696,7 @@
       S.spec = spec;
       var need = P.specPaints(spec);
       for (var k in swatchEls) swatchEls[k].classList.toggle("needed", need.indexOf(k) >= 0);
+      showSwatches(need);
       specName.textContent = S.order ? pieceName(S.order) + " · " + spec.name : spec.name;
       // with no commission on the lathe the spec is only for practice: say so, so it is never taken for an order
       updateOrderNote();

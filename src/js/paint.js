@@ -53,9 +53,17 @@
     cobalt:    { id: "cobalt",    name: "Cobalt",    hex: "#2f5fb3" },
     plum:      { id: "plum",      name: "Plum",      hex: "#7a3b78" },
     ivory:     { id: "ivory",     name: "Ivory",     hex: "#efe6d0" },
-    ink:       { id: "ink",       name: "Ink",       hex: "#25262b" }
+    ink:       { id: "ink",       name: "Ink",       hex: "#25262b" },
+    // extras: only some customers ask for these (clients.js), so the lathe shows their
+    // swatches only when the order on it needs one, and random orders never roll them
+    blush:     { id: "blush",     name: "Blush",     hex: "#f2b6c4", extra: true },
+    mint:      { id: "mint",      name: "Mint",      hex: "#b4e3c8", extra: true },
+    sky:       { id: "sky",       name: "Sky",       hex: "#b3d4ee", extra: true },
+    lavender:  { id: "lavender",  name: "Lavender",  hex: "#cdb9e6", extra: true },
+    oxblood:   { id: "oxblood",   name: "Oxblood",   hex: "#6b1a22", extra: true }
   };
-  var PALETTE_ORDER = ["crimson", "tangerine", "sunflower", "moss", "teal", "cobalt", "plum", "ivory", "ink"];
+  var PALETTE_ORDER = ["crimson", "tangerine", "sunflower", "moss", "teal", "cobalt", "plum", "ivory", "ink"];   // the everyday colours
+  var EXTRA_ORDER = ["blush", "mint", "sky", "lavender", "oxblood"];
   for (var pk in PALETTE) PALETTE[pk].rgb = hexToRgb(PALETTE[pk].hex);
   function hexToRgb(h) {
     return [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
@@ -271,17 +279,22 @@
   }
   function pick(r, list, not) {
     var choices = list.filter(function (k) { return k !== not; });
+    if (!choices.length) choices = PALETTE_ORDER.filter(function (k) { return k !== not; });   // a one-colour family: the second colour comes from the everyday ones
     return choices[Math.floor(r() * choices.length)];
   }
 
   /* Generate a paint spec on the fly. Commissions call this (or build
-     their own spec in the same shape). Same seed, same spec. */
+     their own spec in the same shape). Same seed, same spec.
+     opts.kind: the style (solid, banded, dipped, pinstripe, twotone); opts.sheen;
+     opts.colors: a colour family (PALETTE keys) to paint from, e.g. a customer's pastels. */
   function generateSpec(seed, opts) {
     var r = rng(seed == null ? Math.floor(Math.random() * 4294967296) : seed);
     opts = opts || {};
     var kinds = ["solid", "banded", "dipped", "pinstripe", "twotone"];
     var kind = opts.kind || kinds[Math.floor(r() * kinds.length)];
-    var c1 = pick(r, PALETTE_ORDER), c2 = pick(r, PALETTE_ORDER, c1), c3 = pick(r, PALETTE_ORDER, c2);
+    var fam = Array.isArray(opts.colors) ? opts.colors.filter(function (k) { return PALETTE[k]; }) : [];
+    if (!fam.length) fam = PALETTE_ORDER;
+    var c1 = pick(r, fam), c2 = pick(r, fam, c1), c3 = pick(r, fam, c2);
     var segs, name;
     if (kind === "solid") {
       segs = [{ a: 0, b: 1, paint: c1 }];
@@ -380,7 +393,7 @@
   }
 
   var api = {
-    CFG: CFG, PALETTE: PALETTE, PALETTE_ORDER: PALETTE_ORDER, BRUSHES: BRUSHES, SHEEN: SHEEN, SHEEN_ORDER: SHEEN_ORDER,
+    CFG: CFG, PALETTE: PALETTE, PALETTE_ORDER: PALETTE_ORDER, EXTRA_ORDER: EXTRA_ORDER, BRUSHES: BRUSHES, SHEEN: SHEEN, SHEEN_ORDER: SHEEN_ORDER,
     SPRAY_HALF_WIDTH: SPRAY_HALF_WIDTH,
     kernel: kernel, sprayKernel: sprayKernel, sheenFor: sheenFor,
     Coating: Coating, generateSpec: generateSpec, specPaints: specPaints, describeSpec: describeSpec,

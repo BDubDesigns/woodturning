@@ -69,7 +69,10 @@
     return "You're " + an(ev.name) + " " + ev.name + " " + d.one + " maker now. " + cap(d.many) + " pay +" + pct(ev.mult) + "%.";
   }
   function rewardText(rw) { return rw ? "+" + rw.diamonds + " diamonds, +" + rw.coins + " coins" : ""; }
-  function rankLine(ev) { return "Rank " + ev.rank + ": " + ev.title + "! " + (ev.reward ? rewardText(ev.reward) + "." : ""); }
+  function rankLine(ev) {
+    return "Rank " + ev.rank + ": " + ev.title + "! " + (ev.reward ? rewardText(ev.reward) + "." : "") +
+      (ev.client ? " A new customer is at the door: " + ev.client + "." : "");
+  }
   function masterySub(m) {
     if (!m.next) return m.stars + (m.stars === 1 ? " star" : " stars") + ". As good as it gets.";
     return m.stars + "/" + m.next.stars + " stars to " + m.next.name;
@@ -113,9 +116,9 @@
     var r = progress.rankOf(), h = '<div class="grade-card progress-card"><h2 id="progressTitle">Your progress</h2>';
     h += '<section class="pp-rank"><div class="pp-head"><span class="pp-k">RANK ' + r.rank + '</span><b>' + esc(r.title) + "</b></div>" + bar(r.frac, "rank");
     if (r.next) h += '<p class="pp-next">' + r.need + (r.need === 1 ? " more star" : " more stars") + " to <b>Rank " + r.next.rank + " · " + esc(r.next.title) + "</b>. It pays " +
-      r.next.reward.diamonds + " diamonds and " + r.next.reward.coins + " coins.</p>";
+      r.next.reward.diamonds + " diamonds and " + r.next.reward.coins + " coins" + (G.Clients && G.Clients.forRank(r.next.rank) ? ", and brings a new customer" : "") + ".</p>";
     else h += '<p class="pp-next">The top rank. Every star still counts toward your skills.</p>';
-    h += '<p class="pp-help">Every star on a delivered piece counts. Ranking up pays coins and diamonds.</p></section>';
+    h += '<p class="pp-help">Every star on a delivered piece counts. Ranking up pays coins and diamonds, and a new customer comes to the door.</p></section>';
     h += '<section class="pp-skills"><h3>YOUR SKILLS</h3><p class="pp-help">Each skill level pays 15% more for that piece.</p>';
     C.BLUEPRINT_ORDER.forEach(function (k) {
       var d = pieceDef(k), own = board.ownsBlueprint(k), m = progress.masteryOf(k);

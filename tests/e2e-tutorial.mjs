@@ -399,7 +399,9 @@ check(w.coins === coinsAtOak + 150, `the bonus: 150 coins (${coinsAtOak} -> ${w.
 check(w.coins >= 260 && w.coins <= 350, `the tutorial ends at ${w.coins} coins, in the planned 260 to 350 (issue #35: the first delivery reaches Apprentice, +100 coins)`);
 console.log(`  ..   ending balance: ${w.coins} coins, ${w.dia} diamonds`);
 check(JSON.stringify(await tabsShown()) === '["farm","lathe","mine","orders","shop"]', "every tab is open, the MINE too");
-check(await page.evaluate(() => window.__orders.board.state.orders.length) === 3, "the board filled up with new orders");
+const endBoard = await page.evaluate(() => window.__orders.board.state.orders.map((o) => ({ client: o.client, intro: !!o.intro })));
+check(endBoard.filter((o) => !o.intro).length === 3, "the board filled up with new orders");
+check(endBoard.filter((o) => o.intro).length === 1 && endBoard.find((o) => o.intro).client === "Chef Basil Fury", "and Chef Basil Fury's introduction (rank 2) is waiting as an extra card");
 check(/GOT IT/.test(await coach()) && /Finish this bat on your own/.test(await coach()) && await ringOn("#tabMine"), "one card to read, the ring on MINE");
 await card();
 { // a touch on the lathe tucks this card away for a moment too; GOT IT works once it is back
