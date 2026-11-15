@@ -27,6 +27,11 @@
    tools to the rack rather than replacing one, so there is nothing to switch and
    current("chisels") is always the top owned tier.
 
+   A decoration can stand in for a line's tier: the disco ball (decor.js) shows in
+   Lighting's USE list once bought, and active.light is then "disco". current("light")
+   is DISCO_LIGHT and discoOn() is true; lightLevel() reads 0. opts.owns(id) says
+   which decorations the player owns.
+
    The model owns the shop section of the save:
      game.shop { owned: { light: 0, motor: 0, ... }, active: { light: 0, motor: 0, ... }, spent }
    Coins go through the shared wallet (state.js).
@@ -96,6 +101,10 @@
   var LINE_ORDER = ["light", "motor", "chisels", "abrasives", "brushes", "finish"];
 
   var NO_USE = { chisels: true };   // lines whose tiers add up rather than replace each other: no USE
+  /* Decorations that can be picked in a line's USE list instead of a tier. */
+  var DECOR_TIERS = {
+    light: { disco: { name: "Disco ball", blurb: "Spinning coloured spots. Great fun, harder to see the work by.", level: 0, disco: true } }
+  };
   function defaultShop() {
     var owned = {}, active = {};
     LINE_ORDER.forEach(function (k) { owned[k] = 0; active[k] = 0; });
@@ -113,6 +122,7 @@
     LINE_ORDER.forEach(function (k) {
       var a = s.active && typeof s.active === "object" ? s.active[k] : undefined;
       // nothing saved: the best one owned, as before USE existed
+      if (typeof a === "string" && DECOR_TIERS[k] && DECOR_TIERS[k][a]) { out.active[k] = a; return; }   // a decoration in use (the disco ball)
       out.active[k] = NO_USE[k] || !(typeof a === "number" && isFinite(a)) ? out.owned[k] : Math.max(0, Math.min(out.owned[k], Math.floor(a)));
     });
     if (typeof s.spent === "number" && isFinite(s.spent) && s.spent >= 0) out.spent = Math.floor(s.spent);
@@ -126,18 +136,48 @@
     opts = opts || {};
     var onChange = opts.onChange || function () {};
     var state = opts.state || State.createState(game, { onChange: onChange });
+    var ownsDecor = opts.owns || function () { return false; };
     game.shop = normalizeShop(game.shop);
     var S = game.shop;
 
     function line(k) { return LINES[k] || null; }
     function level(k) { return line(k) ? S.owned[k] : 0; }
-    /* The tier in use: the one picked with USE (chisels: the top one owned). */
-    function activeLevel(k) { return line(k) ? (NO_USE[k] ? S.owned[k] : S.active[k]) : 0; }
-    function current(k) { var l = line(k); return l ? l.tiers[activeLevel(k)] : null; }
-    /* USE: put an owned tier of a line back in use. */
+    /* The decoration in use in a line instead of a tier ("disco"), or null. One sold off
+       (a reset) falls back to the best tier owned. */
+    function activeDecor(k) {
+      var a = S.active[k];
+      return typeof a === "string" && DECOR_TIERS[k] && DECOR_TIERS[k][a] && ownsDecor(a) ? a : null;
+    }
+    /* The tier in use: the one picked with USE (chisels: the top one owned); -1 while a decoration stands in. */
+    function activeLevel(k) {
+      if (!line(k)) return 0;
+      if (NO_USE[k]) return S.owned[k];
+      if (activeDecor(k)) return -1;
+      return typeof S.active[k] === "number" ? S.active[k] : S.owned[k];
+    }
+    function current(k) {
+      var l = line(k);
+      if (!l) return null;
+      var d = activeDecor(k);
+      return d ? DECOR_TIERS[k][d] : l.tiers[activeLevel(k)];
+    }
+    /* The decorations a line's USE list offers (owned ones only). */
+    function decorTiers(k) {
+      var out = [], d = DECOR_TIERS[k] || {};
+      for (var id in d) if (ownsDecor(id)) out.push({ id: id, tier: d[id] });
+      return out;
+    }
+    function discoOn() { return activeDecor("light") === "disco"; }
+    /* USE: put an owned tier of a line back in use, or a decoration that stands in for one. */
     function use(k, tier) {
       if (!line(k)) return { ok: false, reason: "no such line" };
       if (NO_USE[k]) return { ok: false, reason: "not switchable" };
+      if (typeof tier === "string" && isNaN(parseInt(tier, 10))) {
+        if (!(DECOR_TIERS[k] && DECOR_TIERS[k][tier]) || !ownsDecor(tier)) return { ok: false, reason: "not owned" };
+        if (S.active[k] === tier) return { ok: true, line: k, tier: DECOR_TIERS[k][tier], level: -1, same: true };
+        S.active[k] = tier; onChange();
+        return { ok: true, line: k, tier: DECOR_TIERS[k][tier], level: -1 };
+      }
       tier = Math.floor(tier);
       if (!(tier >= 0 && tier <= S.owned[k])) return { ok: false, reason: "not owned" };
       if (S.active[k] === tier) return { ok: true, line: k, tier: line(k).tiers[tier], level: tier, same: true };
@@ -179,12 +219,12 @@
 
     return {
       state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
-      activeLevel: activeLevel, use: use, switchable: switchable,
+      activeLevel: activeLevel, use: use, switchable: switchable, decorTiers: decorTiers, discoOn: discoOn,
       lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray, grit: grit
     };
   }
 
-  var api = { LINES: LINES, LINE_ORDER: LINE_ORDER, NO_USE: NO_USE, defaultShop: defaultShop, normalizeShop: normalizeShop, createShop: createShop };
+  var api = { LINES: LINES, LINE_ORDER: LINE_ORDER, NO_USE: NO_USE, DECOR_TIERS: DECOR_TIERS, defaultShop: defaultShop, normalizeShop: normalizeShop, createShop: createShop };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});
   G.Shop = api;

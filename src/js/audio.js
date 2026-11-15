@@ -42,6 +42,7 @@
       humOsc.connect(humLp); humLp.connect(audio.humGain); audio.humGain.connect(audio.master);
       humOsc.start();
       if (!audio.latheOn) audio.lathe(false);      // started on the harvest screen: no motor hum
+      if (audio.radioOn && audio.radioOn()) audio.radio(true);   // the shop radio was left on: it starts with the sound
     } catch (e) { audio.ctx = null; }
   };
 
@@ -172,6 +173,55 @@
     var C = audio.CEL;
     bell(C.COIN_HZ[(i | 0) % C.COIN_HZ.length], C.COIN_GAIN, C.COIN_DECAY);
   };
+
+  /* ---- the shop radio (a decoration, decor.js): a soft synthesised tune, looped ----
+     It plays on the lathe screen while the radio is on, and follows the sound toggle.
+     Every number for it is here. */
+  audio.RADIO = {
+    BPM: 76,
+    CHORDS: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]],   // I vi IV V, in semitones over ROOT_HZ
+    ROOT_HZ: 261.63,         // C4
+    ARP: [0, 1, 2, 1, 0, 2, 1, 2],   // which chord note each eighth note plays
+    ARP_GAIN: 0.035, ARP_DECAY: 0.5, ARP_LOWPASS_HZ: 1800,
+    BASS_GAIN: 0.05, BASS_DECAY: 0.9,
+    LOOKAHEAD: 0.4           // seconds of tune scheduled ahead
+  };
+  var radio = { on: false, timer: 0, next: 0, step: 0, gain: null };
+  function radioAudible() { return radio.on && audio.on && audio.latheOn; }
+  function radioNote(freq, t, gain, decay, type, lowpass) {
+    var ctx = audio.ctx, o = ctx.createOscillator(); o.type = type; o.frequency.value = freq;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    if (lowpass) { var lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = lowpass; o.connect(lp); lp.connect(g); } else o.connect(g);
+    g.connect(radio.gain); o.start(t); o.stop(t + decay + 0.05);
+  }
+  function radioTick() {
+    if (!audio.ctx || !radio.on) return;
+    var R = audio.RADIO, ctx = audio.ctx, eighth = 30 / R.BPM;
+    radio.gain.gain.setTargetAtTime(radioAudible() ? 1 : 0, ctx.currentTime, 0.08);
+    if (radio.next < ctx.currentTime) radio.next = ctx.currentTime + 0.05;
+    while (radio.next < ctx.currentTime + R.LOOKAHEAD) {
+      var bar = Math.floor(radio.step / 8) % R.CHORDS.length, chord = R.CHORDS[bar], k = radio.step % 8;
+      if (radioAudible()) {
+        radioNote(R.ROOT_HZ * Math.pow(2, chord[R.ARP[k]] / 12), radio.next, R.ARP_GAIN, R.ARP_DECAY, "triangle", R.ARP_LOWPASS_HZ);
+        if (k === 0 || k === 4) radioNote(R.ROOT_HZ / 2 * Math.pow(2, chord[0] / 12), radio.next, R.BASS_GAIN, R.BASS_DECAY, "sine", 0);
+      }
+      radio.next += eighth; radio.step++;
+    }
+  }
+  /* Radio on or off. Before the first tap it only remembers, and starts once audio does (init). */
+  audio.radio = function (on) {
+    radio.on = !!on;
+    if (radio.on) {
+      if (!audio.ctx) return;
+      if (!radio.gain) { radio.gain = audio.ctx.createGain(); radio.gain.gain.value = 0; radio.gain.connect(audio.master); }
+      if (!radio.timer) { radio.next = 0; radio.timer = setInterval(radioTick, 100); radioTick(); }
+    } else {
+      if (radio.timer) { clearInterval(radio.timer); radio.timer = 0; }
+      if (radio.gain) radio.gain.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.05);
+    }
+  };
+  audio.radioOn = function () { return radio.on; };
 
   /* sanding: level 0..1 (pressure x speed x how rough it still is), rpm brightens the hiss */
   audio.sand = function (level, rpmNow) {

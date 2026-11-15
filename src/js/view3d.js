@@ -167,11 +167,15 @@
     scene.add(workLight); scene.add(workLight.target);
     var lightShown = -1;
     function syncLight() {
-      var lv = Math.max(0, Math.min(WORK_LIGHTS.length - 1, S.lightLevel | 0));
+      var lv = S.disco ? "disco" : Math.max(0, Math.min(WORK_LIGHTS.length - 1, S.lightLevel | 0));
       if (lv === lightShown) return;
       lightShown = lv;
-      var w = WORK_LIGHTS[lv];
-      workLight.intensity = w[0]; workLight.color.setHex(w[1]); workLight.angle = w[2]; ambient.intensity = w[3];
+      if (lv === "disco") {   // the disco ball: a dim light that wheels through the colours (frame() turns it)
+        workLight.intensity = DISCO.LIGHT; workLight.angle = 0.9; ambient.intensity = DISCO.AMBIENT;
+      } else {
+        var w = WORK_LIGHTS[lv];
+        workLight.intensity = w[0]; workLight.color.setHex(w[1]); workLight.angle = w[2]; ambient.intensity = w[3];
+      }
       if (fixtureLevel !== lv) { fixtureLevel = lv; buildFixture(lv); }
     }
 
@@ -386,6 +390,14 @@
       var glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
       function part(geo, mat, x, y, z) { var m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); fixture.add(m); return m; }
       function cord(x, len) { part(new THREE.CylinderGeometry(0.012, 0.012, len, 5), blackMat, x, len / 2, 0); }
+      if (lv === "disco") {                 // a mirror ball on a chain: low-poly facets catch the light as it turns
+        cord(0, 3);
+        discoBall = part(new THREE.IcosahedronGeometry(0.3, 1), new THREE.MeshStandardMaterial({ color: 0xe6edf5, emissive: 0x3c4450, metalness: 0.9, roughness: 0.15, flatShading: true, envMap: envTex, envMapIntensity: 1.8 }), 0, -0.32, 0);
+        glow.scale.set(1.1, 1.1, 1); glow.position.set(0, -0.32, 0.05); glow.material.opacity = 0.35;
+        fixture.add(glow);
+        return;
+      }
+      discoBall = null;
       if (lv === 0) {                       // a bare bulb in a socket on a flex
         cord(0, 3);
         part(new THREE.CylinderGeometry(0.05, 0.06, 0.14, 10), blackMat, 0, -0.06, 0);
@@ -414,6 +426,152 @@
       var zf = 0.9, t = (zf - camera.position.z) / _ray.z;
       fixture.position.set(0, camera.position.y + _ray.y * t, zf);
       workLight.position.set(0.2, fixture.position.y - 0.25, zf);
+    }
+
+    /* ---------------- decorations (decor.js) ----------------
+       Bought at Arbor Freight and placed around the lathe. Each is placed against the
+       camera's frame (like the work light), so it shows at any screen shape: a point on
+       screen (x, y from -1 to 1) at a given depth. All low-poly, unlit or simply lit, and
+       none casts a shadow, so they cost phones next to nothing. The 2D view has none.
+       Every placement and tuning number is in DECOR_AT / DISCO / STRINGS below. */
+    var DECOR_AT = {
+      radio: [0.66, 0.5, -1.4],            // screen x, screen y, depth (world z): on a shelf above the tailstock
+      strings: [-1.05, 1.05, 0.985, -0.6]  // from screen x, to screen x, at screen y, depth: along the rafters
+    };
+    var DISCO = {
+      LIGHT: 16, AMBIENT: 0.32,            // the work light dims to this with the disco ball up (the bare bulb is 38)
+      HUE_SPEED: 0.12,                     // colour turns a second
+      SPIN: 0.6,                           // the ball's turns a second (radians x 1/2pi)
+      SPOTS_WALL: 9, SPOTS_FLOOR: 6, SPOTS_WORK: 4,
+      SPOT_OPACITY: 0.5, SPOT_WORK_OPACITY: 0.32
+    };
+    var STRINGS = { BULBS: 18, SAG: 0.32, FLICKER: 0.14, COLORS: [0xffc46b, 0xffe2b0, 0xff9a5c, 0xfff1d6] };
+    var decorG = new THREE.Group(); scene.add(decorG);
+    var discoBall = null, discoT = 0, decorSig = "";
+    var deco = { radio: null, radioBox: null, radioDial: null, strings: null, bulbs: [], spots: null, spotList: [] };
+    function decorOwned(id) { return !!(S.decor && S.decor.owned && S.decor.owned.indexOf(id) >= 0); }
+    /* A world point at screen (nx, ny), on the plane z = zw. */
+    function anchorAt(nx, ny, zw, out) {
+      camera.updateMatrixWorld();
+      _ray.set(nx, ny, 0.5).unproject(camera).sub(camera.position).normalize();
+      var t = (zw - camera.position.z) / _ray.z;
+      return out.set(camera.position.x + _ray.x * t, camera.position.y + _ray.y * t, zw);
+    }
+    var woodBoxMat = new THREE.MeshStandardMaterial({ color: 0x7a4a26, roughness: 0.6, metalness: 0.05 });
+    function buildRadio() {
+      var g = new THREE.Group();
+      function m(geo, mat, x, y, z) { var o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); g.add(o); return o; }
+      m(new THREE.BoxGeometry(1.5, 0.08, 0.5), new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 0.8 }), 0, -0.04, 0);   // the shelf
+      m(new THREE.BoxGeometry(1.0, 0.62, 0.36), woodBoxMat, 0, 0.31, 0);                                                     // the cabinet
+      m(new THREE.BoxGeometry(0.5, 0.42, 0.02), new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.9 }), -0.18, 0.31, 0.185);   // the cloth grille
+      deco.radioDial = m(new THREE.CircleGeometry(0.11, 12), new THREE.MeshBasicMaterial({ color: 0x3a2c1a }), 0.26, 0.38, 0.19);
+      m(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 8), blackMat, 0.2, 0.14, 0.2).rotation.x = Math.PI / 2;
+      m(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 8), blackMat, 0.34, 0.14, 0.2).rotation.x = Math.PI / 2;
+      var ant = m(new THREE.CylinderGeometry(0.01, 0.01, 0.7, 4), steelMat, 0.32, 0.88, -0.05); ant.rotation.z = -0.5;
+      return g;
+    }
+    function buildStrings() {
+      var g = new THREE.Group(), A = new THREE.Vector3(), B = new THREE.Vector3(), pts = [], n = STRINGS.BULBS, cfg = DECOR_AT.strings;
+      anchorAt(cfg[0], cfg[2], cfg[3], A); anchorAt(cfg[1], cfg[2], cfg[3], B);
+      var bulbGeo = new THREE.SphereGeometry(0.05, 6, 4);
+      deco.bulbs = [];
+      for (var i = 0; i < n; i++) {
+        var u = i / (n - 1), p = new THREE.Vector3().lerpVectors(A, B, u);
+        p.y -= STRINGS.SAG * 4 * u * (1 - u);                 // a gentle sag between the ends
+        pts.push(p.clone().add(new THREE.Vector3(0, 0.06, 0)));
+        var col = STRINGS.COLORS[i % STRINGS.COLORS.length];
+        var bulb = new THREE.Mesh(bulbGeo, new THREE.MeshBasicMaterial({ color: col }));
+        bulb.position.copy(p); g.add(bulb);
+        var halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.6 }));
+        halo.scale.set(0.5, 0.5, 1); halo.position.copy(p); g.add(halo);
+        deco.bulbs.push({ halo: halo, phase: Math.random() * 6.28, speed: 0.6 + Math.random() * 1.4 });
+      }
+      var wire = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x1b1712 }));
+      g.add(wire);
+      return g;
+    }
+    function spotTexture() {
+      var c = document.createElement("canvas"); c.width = c.height = 64;
+      var g2 = c.getContext("2d"), gr = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.55, "rgba(255,255,255,0.75)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      g2.fillStyle = gr; g2.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    }
+    var spotTex = null, SPOT_COLORS = [0xff4d6d, 0x4dd2ff, 0xffe14d, 0x7dff6b, 0xc86bff, 0xff9b3d];
+    /* The disco ball's spots: on the back wall, on the floor, and a few sweeping over the work. */
+    function buildSpots() {
+      if (!spotTex) spotTex = spotTexture();
+      var g = new THREE.Group(), geo = new THREE.PlaneGeometry(1, 1);
+      deco.spotList = [];
+      function spot(kind, i, r, op) {
+        var mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: spotTex, color: SPOT_COLORS[i % SPOT_COLORS.length], transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+        mesh.scale.set(r, r, 1);
+        if (kind === "floor") mesh.rotation.x = -Math.PI / 2;
+        g.add(mesh);
+        deco.spotList.push({ mesh: mesh, kind: kind, a: Math.random() * 6.28, rad: 0.5 + Math.random(), speed: (0.4 + Math.random() * 0.5) * (Math.random() < 0.5 ? -1 : 1), i: i });
+      }
+      for (var i = 0; i < DISCO.SPOTS_WALL; i++) spot("wall", i, 1.3, DISCO.SPOT_OPACITY);
+      for (i = 0; i < DISCO.SPOTS_FLOOR; i++) spot("floor", i + 2, 0.8, DISCO.SPOT_OPACITY);
+      for (i = 0; i < DISCO.SPOTS_WORK; i++) spot("work", i + 4, 0.55, DISCO.SPOT_WORK_OPACITY);
+      return g;
+    }
+    function moveSpots(dt) {
+      var lenH = LOG_LEN / 2;
+      deco.spotList.forEach(function (sp) {
+        sp.a += sp.speed * dt * (S.reduceMotion ? 0.15 : 1);
+        var k = sp.a, x;
+        if (sp.kind === "wall") { x = Math.sin(k + sp.i) * 7; sp.mesh.position.set(x, 3.2 + Math.cos(k * 1.3 + sp.i) * 2.2, -6.1); }
+        else if (sp.kind === "floor") { sp.mesh.position.set(Math.sin(k + sp.i * 2) * 4, 0.02, 1.2 + Math.cos(k + sp.i) * 1.6); }
+        else { sp.mesh.position.set(Math.sin(k + sp.i * 1.7) * lenH, CENTER_Y + Math.cos(k * 1.7 + sp.i) * R0 * 0.8, R0 + 0.35); }
+      });
+    }
+    /* Build or drop each decoration when what is owned (or the disco light) changes, and place them for this frame shape. */
+    function syncDecor(force) {
+      var sig = JSON.stringify([S.decor && S.decor.owned, !!S.disco]);
+      if (!force && sig === decorSig) return;
+      decorSig = sig;
+      while (decorG.children.length) decorG.remove(decorG.children[0]);
+      deco.radio = null; deco.strings = null; deco.spots = null; deco.bulbs = []; deco.spotList = [];
+      var at = new THREE.Vector3();
+      if (decorOwned("radio")) {
+        deco.radio = buildRadio();
+        anchorAt(DECOR_AT.radio[0], DECOR_AT.radio[1], DECOR_AT.radio[2], at);
+        deco.radio.position.copy(at); deco.radio.rotation.y = -0.25;
+        decorG.add(deco.radio);
+      }
+      if (decorOwned("string_lights")) { deco.strings = buildStrings(); decorG.add(deco.strings); }
+      if (S.disco) { deco.spots = buildSpots(); decorG.add(deco.spots); moveSpots(0); }
+    }
+    var _box = new THREE.Box3(), _c = new THREE.Vector3();
+    /* Which decoration is under a point on the stage (x, y in px), or null. Only the radio answers taps. */
+    function decorAt(x, y) {
+      if (!deco.radio) return null;
+      _box.setFromObject(deco.radio);
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (var i = 0; i < 8; i++) {
+        _c.set(i & 1 ? _box.max.x : _box.min.x, i & 2 ? _box.max.y : _box.min.y, i & 4 ? _box.max.z : _box.min.z);
+        var p = project(_c.x, _c.y, _c.z);
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      }
+      var pad = 10;
+      return x >= minX - pad && x <= maxX + pad && y >= minY - pad && y <= maxY + pad ? "radio" : null;
+    }
+    function animateDecor(dt) {
+      discoT += dt;
+      if (discoBall) {
+        discoBall.rotation.y += dt * DISCO.SPIN * Math.PI * 2 * (S.reduceMotion ? 0.2 : 1);
+        workLight.color.setHSL((discoT * DISCO.HUE_SPEED) % 1, 0.85, 0.6);
+      }
+      if (deco.spotList.length) moveSpots(dt);
+      for (var i = 0; i < deco.bulbs.length; i++) {
+        var b = deco.bulbs[i];
+        b.halo.material.opacity = 0.55 + (S.reduceMotion ? 0 : STRINGS.FLICKER * Math.sin(discoT * b.speed * 3 + b.phase) * Math.sin(discoT * 0.7 + b.phase * 2));
+      }
+      if (deco.radio && deco.radioDial) {
+        var on = !!(S.decor && S.decor.radio);
+        deco.radioDial.material.color.setHex(on ? 0xffc14d : 0x3a2c1a);
+        deco.radio.scale.y = on && !S.reduceMotion ? 1 + 0.015 * Math.max(0, Math.sin(discoT * Math.PI * 2 * 76 / 60)) : 1;
+      }
     }
 
     /* ---------------- the workpiece ---------------- */
@@ -1017,6 +1175,7 @@
       camera.updateProjectionMatrix();
       hangFixture();
       computeLayout();
+      syncDecor(true);
     }
 
     /* A webview can hand back a WebGL canvas that never composites (blank
@@ -1064,6 +1223,9 @@
         spawnSandDust(contactPoint, Math.floor(pr * rough * dt * 1400 + Math.random()));
       },
       dustCount: function () { return sdLive; },
+      decorAt: decorAt,
+      /* exposed for tests: which decorations are drawn */
+      decorShown: function () { return { disco: !!discoBall, spots: deco.spotList.length, radio: !!deco.radio, strings: deco.bulbs.length }; },
       onPaint: function (pr, dt) {
         var t = S.tool.t, r = work.sample(t);
         contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
@@ -1077,6 +1239,8 @@
       frame: function (dt) {
         syncGhost();
         syncLight();
+        syncDecor(false);
+        animateDecor(dt);
         frameN++;
         showTip();
         showTool();
