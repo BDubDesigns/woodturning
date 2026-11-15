@@ -142,23 +142,49 @@ ov = await page.locator("#gradeOverlay").textContent();
 check(await page.locator("#gradeOverlay [data-piece]").count() === 1 && await page.locator("#gradeOverlay .g-pick.no").count() === 0, "the DELIVER list offers only the piece that fits (2 pine pieces in the shed)");
 await page.evaluate(() => { const o = document.getElementById("gradeOverlay"); o.hidden = true; o.innerHTML = ""; });
 
+console.log("\nYOUR PIECES");
+await render();
+check(/YOUR PIECES/.test(await page.locator("#boardFoot").textContent()) && /2 in the shed/.test(await page.locator("#boardFoot").textContent()), "the board says how many pieces are in the shed");
+await page.click('#boardFoot [data-act="pieces"]');
+ov = await page.locator("#gradeOverlay").textContent();
+let items = await page.locator("#gradeOverlay .p-item").count();
+check(!(await page.locator("#gradeOverlay").isHidden()) && /Your pieces/.test(ov) && items === 2, `SEE THEM lists every turned piece (${items})`);
+check(await page.locator("#gradeOverlay .p-item .o-shape").count() === 2, "each drawn as it came off the lathe");
+check(/Turned for/.test(ov) && /would pay/.test(ov) && /No order on the board would take it right now/.test(ov), "with what it was turned for, and which order would take it now (or that none would)");
+check(await page.locator("#gradeOverlay .p-give").count() === 1, "DELIVER only on the piece an order would take");
+check(!/[\u2014\u2013]/.test(ov), "no em dashes in the list");
+if (shots) await page.screenshot({ path: `${shots}/pieces.png` });
+const coinsBefore = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
+await page.click("#gradeOverlay .p-give");
+w = await page.evaluate(() => ({ coins: window.__farm.state.wallet.balance("coins"), pieces: window.__farm.state.inventory.count("piece"), title: document.getElementById("gradeTitle") && document.getElementById("gradeTitle").textContent }));
+check(w.title === "Delivered!" && w.coins > coinsBefore && w.pieces === 1, `DELIVER from the list hands it over (+${w.coins - coinsBefore} coins, 1 piece left)`);
+await page.evaluate(() => { const o = document.getElementById("gradeOverlay"); o.hidden = true; o.innerHTML = ""; window.Game.showScreen("farm"); window.__farm.tick(); });
+check(await page.locator('#shed [data-act="pieces"]').count() === 1 && /Pieces 1/.test(await page.locator('#shed [data-act="pieces"]').textContent()), "on the farm, the shed's pieces are a button");
+await page.click('#shed [data-act="pieces"]');
+check(!(await page.locator("#gradeOverlay").isHidden()) && await page.locator("#gradeOverlay .p-item").count() === 1, "which opens the same list");
+await page.click('#gradeOverlay [data-act="closepieces"]');
+check(await page.locator("#gradeOverlay").isHidden(), "CLOSE closes it");
+
 console.log("\nSHORT OF COINS OR PLOTS");
+// the pine order was delivered above: the first order on the board now, whatever its wood
 await page.evaluate(() => {
   const f = window.__farm, inv = f.game.inventory; inv.stacks = {}; inv.items = [];
   f.farm.state.plots = f.farm.state.plots.map(() => null);
   const w = f.state.wallet; w.spend("coins", w.balance("coins")); w.earn("coins", 3);
-  f.persist(); window.Game.showScreen("orders");
+  f.persist(); window.Game.showScreen("orders"); window.__orders.ui.render(true);
 });
-await render();
-check(await card().locator('[data-act="plant"].short').count() === 1, "short of coins, PLANT ONE is greyed");
-await card().locator('[data-act="plant"]').click();
-check(await page.evaluate(() => window.Game.currentScreen() === "farm" && !window.__farm.farm.plotAt(0)) && /seed costs 10 coins\. You have 3/.test(await page.locator("#otoast").textContent()), "and a tap says why and goes to the farm, where an ad can plant one");
-await page.evaluate(() => {
-  const f = window.__farm; f.farm.state.plots = f.farm.state.plots.map(() => ({ wood: "oak", plantedAt: Date.now(), skipped: 0 }));
-  const w = f.state.wallet; w.earn("coins", 500); f.persist(); window.Game.showScreen("orders");
-});
-await render();
-await card().locator('[data-act="plant"]').click();
+const anyId = await page.locator('.order[data-order]:not(.locked)').first().getAttribute("data-order");
+const any = page.locator(`.order[data-order="${anyId}"]`), anyWood = await any.getAttribute("data-wood");
+const price = await page.evaluate((w) => window.__farm.farm.plantPrice(w), anyWood);
+check(await any.locator('[data-act="plant"].short').count() === 1, "short of coins, PLANT ONE is greyed");
+await any.locator('[data-act="plant"]').click();
+check(await page.evaluate(() => window.Game.currentScreen() === "farm" && !window.__farm.farm.plotAt(0)) && new RegExp("seed costs " + price + " coins\\. You have 3").test(await page.locator("#otoast").textContent()), "and a tap says why and goes to the farm, where an ad can plant one");
+await page.evaluate((mine) => {   // every plot growing some other wood
+  const f = window.__farm, other = ["pine", "oak", "walnut"].find((x) => x !== mine);
+  f.farm.state.plots = f.farm.state.plots.map(() => ({ wood: other, plantedAt: Date.now(), skipped: 0 }));
+  const w = f.state.wallet; w.earn("coins", 500); f.persist(); window.Game.showScreen("orders"); window.__orders.ui.render(true);
+}, anyWood);
+await any.locator('[data-act="plant"]').click();
 check(await page.evaluate(() => window.Game.currentScreen() === "farm") && /Every plot is taken/.test(await page.locator("#otoast").textContent()), "every plot taken: it says so and goes to the farm");
 
 check(!errors.length, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));

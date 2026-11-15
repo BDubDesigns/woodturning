@@ -19,7 +19,7 @@
    ============================================================ */
 (function (root) {
   "use strict";
-  var G = root.Game, C = G.Commissions, R = G.Registry, F = G.Farm;
+  var G = root.Game, C = G.Commissions, R = G.Registry, F = G.Farm, St = G.State;
   var P = root.Lathe.Paint, R0 = root.Lathe.CFG.R0;
   var host = root.__farm, board = G.commissions, state = host.state;
   function $(id) { return document.getElementById(id); }
@@ -46,24 +46,45 @@
      The silhouette of the target profile, mirrored about the axis, painted
      with the order's bands over the wood, with a highlight as strong as the
      sheen it asks for. */
-  function shapeSvg(o) {
-    var t = C.targetProfile(o), n = t.length, W = 300, H = 64, mid = H / 2, sc = (mid - 2) / R0, i;
-    var top = [], bot = [];
-    for (i = 0; i < n; i += 2) { var x = (i / (n - 1)) * W; top.push(x.toFixed(1) + "," + (mid - t[i] * sc).toFixed(1)); bot.push(x.toFixed(1) + "," + (mid + t[i] * sc).toFixed(1)); }
-    var x1 = W.toFixed(1);
+  var SW = 300, SH = 64;
+  /* The outline of a profile (radius per slice), mirrored about the axis, as an SVG path. */
+  function outline(t) {
+    var n = t.length, mid = SH / 2, sc = (mid - 2) / R0, top = [], bot = [], i;
+    for (i = 0; i < n; i += 2) { var x = (i / (n - 1)) * SW; top.push(x.toFixed(1) + "," + (mid - t[i] * sc).toFixed(1)); bot.push(x.toFixed(1) + "," + (mid + t[i] * sc).toFixed(1)); }
+    var x1 = SW.toFixed(1);
     top.push(x1 + "," + (mid - t[n - 1] * sc).toFixed(1)); bot.push(x1 + "," + (mid + t[n - 1] * sc).toFixed(1));
-    var d = "M" + top.join(" L") + " L" + bot.reverse().join(" L") + " Z";
+    return "M" + top.join(" L") + " L" + bot.reverse().join(" L") + " Z";
+  }
+  /* The silhouette, filled with `inner` (wood, paint) and shaded as glossy as `gloss` (0..1). */
+  function silhouette(id, d, inner, gloss) {
+    return '<svg class="o-shape" viewBox="0 0 ' + SW + " " + SH + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<defs><clipPath id="' + id + '"><path d="' + d + '"/></clipPath>' +
+      '<linearGradient id="' + id + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.35"/><stop offset="0.35" stop-color="#fff" stop-opacity="' + (0.08 + gloss * 0.3).toFixed(2) + '"/><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient></defs>' +
+      '<g clip-path="url(#' + id + ')">' + inner + '<rect width="' + SW + '" height="' + SH + '" fill="url(#' + id + 'g)"/></g>' +
+      '<path d="' + d + '" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="1"/></svg>';
+  }
+  /* A turned piece as it came off the lathe: its own profile, paint and sheen. */
+  function pieceSvg(it) {
+    var prof = St.unpack(it.profile), n = prof.length, wood = R.WOODS[it.wood] ? R.WOODS[it.wood].trunk : "#c99a5e";
+    var inner = '<rect width="' + SW + '" height="' + SH + '" fill="' + wood + '"/>', c = it.coat || {}, gloss = 0;
+    var coat = c.coat ? St.unpack(c.coat) : null, col = c.color ? St.unpack(c.color) : null, gl = c.gloss ? St.unpack(c.gloss) : null;
+    var step = Math.max(1, Math.round(n / 120)), w = (SW / (n - 1)) * step + 0.6;
+    if (coat && col) for (var i = 0; i < n; i += step) {
+      if (!(coat[i] > 0.02)) continue;
+      inner += '<rect x="' + ((i / (n - 1)) * SW - w / 2).toFixed(1) + '" y="0" width="' + w.toFixed(1) + '" height="' + SH + '" fill="' + hex([col[i * 3], col[i * 3 + 1], col[i * 3 + 2]]) + '" fill-opacity="' + Math.min(1, coat[i] * 1.05).toFixed(2) + '"/>';
+    }
+    if (gl) { for (var k = 0; k < gl.length; k++) gloss += gl[k]; gloss /= gl.length || 1; }
+    return silhouette("pc" + it.id, outline(prof), inner, gloss);
+  }
+  function shapeSvg(o) {
+    var t = C.targetProfile(o), W = SW, H = SH;
+    var d = outline(t);
     var id = "osh" + o.id, wood = R.WOODS[o.wood] ? R.WOODS[o.wood].trunk : "#c99a5e";
     var bands = o.spec.segments.map(function (sg) {
       if (!sg.paint) return "";
       return '<rect x="' + (sg.a * W).toFixed(1) + '" y="0" width="' + ((sg.b - sg.a) * W + 0.6).toFixed(1) + '" height="' + H + '" fill="' + P.PALETTE[sg.paint].hex + '"/>';
     }).join("");
-    var gloss = P.SHEEN[o.spec.sheen].gloss;
-    return '<svg class="o-shape" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" aria-hidden="true">' +
-      '<defs><clipPath id="' + id + '"><path d="' + d + '"/></clipPath>' +
-      '<linearGradient id="' + id + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.35"/><stop offset="0.35" stop-color="#fff" stop-opacity="' + (0.08 + gloss * 0.3).toFixed(2) + '"/><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient></defs>' +
-      '<g clip-path="url(#' + id + ')"><rect width="' + W + '" height="' + H + '" fill="' + wood + '"/>' + bands + '<rect width="' + W + '" height="' + H + '" fill="url(#' + id + 'g)"/></g>' +
-      '<path d="' + d + '" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="1"/></svg>';
+    return silhouette(id, d, '<rect width="' + W + '" height="' + H + '" fill="' + wood + '"/>' + bands, P.SHEEN[o.spec.sheen].gloss);
   }
 
   /* ---------------- what the shed has for an order ---------------- */
@@ -139,7 +160,7 @@
   /* ---------------- the board ---------------- */
   function signature() {
     var B = board.state;
-    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces, st.misses, st.grown, st.growing]; }), state.wallet.balance("coins"), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
+    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces, st.misses, st.grown, st.growing]; }), state.wallet.balance("coins"), state.inventory.count("piece"), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
   }
   function render(force) {
     if (!shown) return;
@@ -209,6 +230,9 @@
         return '<li>' + starsHtml(r.stars) + '<span class="h-what"><b>' + esc(C.PIECES[r.kind] ? C.PIECES[r.kind].name : r.kind) + "</b><small>for " + esc(r.client) + (w ? " · " + w.name : "") + '</small></span><span class="h-pay">' + COIN + "+" + r.pay + "</span></li>";
       }).join("") + "</ul></section>";
     }
+    var nPieces = state.inventory.count("piece");
+    f += '<section class="order hist" aria-label="Your pieces"><div class="h-top"><span class="h-k">YOUR PIECES</span><span class="h-n">' + (nPieces ? nPieces + (nPieces === 1 ? " in the shed" : " in the shed") : "none yet") + "</span></div>" +
+      (nPieces ? '<div class="row">' + act("SEE THEM", "Everything you've turned and kept", "", "pieces") + "</div>" : '<p class="b-help">Press DONE on the lathe to keep what you turn. It waits in the shed for an order.</p>') + "</section>";
     f += '<section class="order help" aria-label="How orders work"><div class="h-top"><span class="h-k">HOW ORDERS WORK</span></div>' +
       '<p class="b-help">Take an order, turn the shape, paint it, spray the finish, then press DONE on the lathe. The closer it is to the order, the more it pays. Only the wood the order names will do.</p></section>';
     footEl.innerHTML = f;
@@ -269,6 +293,54 @@
       askPlant(o);
     }
   });
+  /* ---------------- your pieces ----------------
+     Everything turned and kept, newest first, drawn as it came off the lathe. Each
+     says what it was turned for, and which order on the board would take it now
+     and for how much, with DELIVER right there. */
+  function bestFit(it) {
+    var best = null;
+    board.state.orders.forEach(function (o) {
+      if (o.wood !== it.wood || board.locked(o)) return;
+      var g = board.preview(o.id, it.id);
+      if (g && g.accepted && (!best || g.pay > best.g.pay)) best = { o: o, g: g };
+    });
+    return best;
+  }
+  function showPieces() {
+    var inv = state.inventory, list = inv.list("piece").slice().reverse();
+    var h = '<div class="grade-card pieces-card"><h2 id="gradeTitle">Your pieces</h2>';
+    var stock = [];
+    inv.list("log").forEach(function (s) { stock.push(s.count + " " + woodName(s.key).toLowerCase() + (s.count === 1 ? " log" : " logs")); });
+    var bl = {};
+    inv.list("blank").forEach(function (it) { bl[it.wood] = (bl[it.wood] || 0) + 1; });
+    for (var w in bl) stock.push(bl[w] + " " + woodName(w).toLowerCase() + (bl[w] === 1 ? " blank" : " blanks"));
+    h += '<p class="g-note">' + (list.length ? list.length + (list.length === 1 ? " turned piece" : " turned pieces") + " in the shed." : "No turned pieces yet. Press DONE on the lathe to keep what you turn.") +
+      (stock.length ? " Also waiting to be turned: " + stock.join(", ") + "." : "") + "</p>";
+    if (list.length) {
+      h += '<div class="p-list">';
+      list.forEach(function (it) {
+        var made = it.order != null && board.get(it.order), fit = bestFit(it);
+        var sheen = it.sheen && P.SHEEN[it.sheen] ? P.SHEEN[it.sheen].name + " finish" : "No finish";
+        h += '<div class="p-item" data-piece="' + it.id + '">' + pieceSvg(it) +
+          '<div class="p-what"><b>' + esc(woodName(it.wood)) + " " + esc((it.shape || "piece").toLowerCase()) + "</b><small>" + esc(sheen) +
+          (made ? ". Turned for " + esc(made.client) + "'s " + esc(pieceName(made).toLowerCase()) : "") + ".</small></div>";
+        if (fit) h += '<div class="p-fit">' + starsHtml(fit.g.stars) + '<span>' + esc(fit.o.client) + " would pay " + COIN + "<b>" + fit.g.pay + "</b></span>" +
+          '<button type="button" class="act primary p-give" data-give="' + fit.o.id + '"><span class="an">DELIVER</span></button></div>';
+        else h += '<div class="p-fit none">No order on the board would take it right now.</div>';
+        h += "</div>";
+      });
+      h += "</div>";
+    }
+    h += '<div class="row">' + act("CLOSE", "Back to work", "", "closepieces") + "</div></div>";
+    overlay.innerHTML = h; overlay.hidden = false;
+    overlay.querySelector('[data-act="closepieces"]').addEventListener("click", closeOverlay);
+    Array.prototype.forEach.call(overlay.querySelectorAll("[data-give]"), function (b) {
+      b.addEventListener("click", function () {
+        var pid = parseInt(b.closest("[data-piece]").getAttribute("data-piece"), 10);
+        give(parseInt(b.getAttribute("data-give"), 10), pid);
+      });
+    });
+  }
   /* PLANT ONE asks first: what it costs, how long it takes and where it goes. */
   function askPlant(o) {
     var sd = seedFor(o), coins = state.wallet.balance("coins"), w = woodName(o.wood), wl = w.toLowerCase();
@@ -295,6 +367,10 @@
       render(true);
     });
   }
+  footEl.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-act="pieces"]') : null;
+    if (b) showPieces();
+  });
   /* The shop, on one blueprint's card. */
   function openBlueprint(kind) {
     G.showScreen("shop");
@@ -392,7 +468,7 @@
   var api = {
     show: function () { shown = true; render(true); },
     hide: function () { shown = false; },
-    offer: offer, render: render, toast: toast,
+    offer: offer, render: render, toast: toast, showPieces: showPieces,
     /* A blueprint was just bought: its orders flash as they unlock, next time the board shows. */
     bought: function (kind) { justBought[kind] = true; sig = ""; },
     guided: !!(G.tutorial && G.tutorial.guidedBoard())   // the new-player flow is running (tutorial-ui.js keeps this up to date)
