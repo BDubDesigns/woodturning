@@ -320,11 +320,18 @@
       var n = inv.count(kind);
       if (!n) return;
       any = true;
-      h += '<span class="log item" data-kind="' + kind + '">' + R.ITEMS[kind].many + ' <b>' + n + "</b></span>";
+      h += kind === "piece"   // turned pieces open the list of them
+        ? '<button type="button" class="log item see" data-kind="piece" data-act="pieces" aria-label="See your ' + n + (n === 1 ? ' piece' : ' pieces') + '">' + R.ITEMS[kind].many + ' <b>' + n + '</b><span class="see-k">SEE</span></button>'
+        : '<span class="log item" data-kind="' + kind + '">' + R.ITEMS[kind].many + ' <b>' + n + "</b></span>";
     });
     if (!any) h += "<span>No logs yet. Grow a tree and harvest it.</span>";
     if (shedEl.innerHTML !== h) shedEl.innerHTML = h;
   }
+
+  shedEl.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-act="pieces"]') : null;
+    if (b && G.OrdersUI && G.OrdersUI.showPieces) G.OrdersUI.showPieces();
+  });
 
   function act(label, desc, cls, ok, fn) {
     var b = document.createElement("button");
