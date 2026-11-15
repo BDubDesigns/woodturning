@@ -181,3 +181,64 @@ test("sandpaper is one line of grits, upgraded in place: 80 free, then 150, 240 
   assert.equal(shop.grit().floor, 0.22);
   assert.deepEqual(shop.tips().filter((k) => k === "sand"), ["sand"], "still one sheet on the rack");
 });
+
+// ---------- USE: any tier owned can be put back in use (issue #35 part 5) ----------
+test("USE switches the active tier, and the lathe's readings follow it", () => {
+  const game = playedGame(); game.wallet.coins = 20000;
+  const shop = Shop.createShop(game);
+  shop.buy("light"); shop.buy("light");
+  assert.equal(shop.activeLevel("light"), 2, "buying a tier puts it in use");
+  assert.equal(shop.lightLevel(), 2);
+  assert.ok(shop.use("light", 0).ok);
+  assert.equal(shop.activeLevel("light"), 0);
+  assert.equal(shop.current("light").name, "Bare bulb");
+  assert.equal(shop.lightLevel(), 0);
+  assert.equal(shop.level("light"), 2, "still owns the LED panel");
+  assert.equal(shop.next("light").name, "Studio light bar", "and the next one for sale is unchanged");
+  shop.buy("motor"); shop.buy("abrasives"); shop.buy("brushes"); shop.buy("finish");
+  shop.use("motor", 0); shop.use("abrasives", 0); shop.use("brushes", 0); shop.use("finish", 0);
+  assert.equal(shop.cutBoost(), Shop.LINES.motor.tiers[0].boost);
+  assert.deepEqual(shop.grit(), Shop.LINES.abrasives.tiers[0].grit);
+  assert.deepEqual(shop.brush(), Shop.LINES.brushes.tiers[0].brush);
+  assert.deepEqual(shop.spray(), Shop.LINES.finish.tiers[0].spray);
+  shop.use("motor", 1);
+  assert.equal(shop.cutBoost(), Shop.LINES.motor.tiers[1].boost);
+});
+
+test("USE only takes a tier you own, and buying always makes the new tier active", () => {
+  const game = playedGame(); game.wallet.coins = 20000;
+  const shop = Shop.createShop(game);
+  assert.equal(shop.use("light", 1).reason, "not owned");
+  assert.equal(shop.use("light", -1).reason, "not owned");
+  assert.equal(shop.use("nope", 0).reason, "no such line");
+  shop.buy("light");
+  shop.use("light", 0);
+  shop.buy("light");
+  assert.equal(shop.activeLevel("light"), 2, "a new purchase goes straight into use, even after going back to an old one");
+  assert.equal(shop.use("light", 2).same, true);
+});
+
+test("chisels are unchanged: every tier adds tools, so there is nothing to switch", () => {
+  const game = playedGame(); game.wallet.coins = 20000;
+  const shop = Shop.createShop(game);
+  shop.buy("chisels"); shop.buy("chisels");
+  assert.equal(shop.switchable("chisels"), false);
+  assert.equal(shop.use("chisels", 0).reason, "not switchable");
+  assert.deepEqual(shop.tips(), ["gouge", "skew", "parting", "detail", "sand"]);
+  assert.equal(shop.current("chisels").name, "Detail gouge");
+});
+
+test("the tier in use survives a save round trip; a save without one uses the best owned", () => {
+  const store = Save.memoryStore();
+  const game = playedGame(); game.wallet.coins = 20000;
+  const shop = Shop.createShop(game);
+  shop.buy("motor"); shop.buy("motor"); shop.use("motor", 1);
+  Save.write(store, game);
+  const again = Shop.createShop(Save.load(store));
+  assert.equal(again.activeLevel("motor"), 1);
+  assert.equal(again.level("motor"), 2);
+  const old = Shop.normalizeShop({ owned: { light: 2 } });
+  assert.equal(old.active.light, 2);
+  const bad = Shop.normalizeShop({ owned: { light: 1 }, active: { light: 3 } });
+  assert.equal(bad.active.light, 1, "never more than owned");
+});

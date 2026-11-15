@@ -702,6 +702,15 @@ footer {
 .af-now b, .af-item b { font-size: 15px; font-weight: 600; }
 .af-now small, .af-item small { font-size: 12.5px; color: #bfae8f; line-height: 1.35; margin-top: 2px; }
 .af-item { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.af-own { padding: 8px 10px 4px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); margin-bottom: 10px; }
+.af-tier { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.af-tier:first-of-type { border-top: 0; }
+.af-tier .af-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.af-tier b { font-size: 15px; font-weight: 600; }
+.af-tier small { font-size: 12.5px; color: #bfae8f; line-height: 1.35; margin-top: 2px; }
+.af-tier .af-use { flex: none; min-height: 40px; min-width: 84px; padding: 6px 12px; justify-content: center; }
+.af-tier .af-use.active { border-color: var(--ok); background: rgba(184, 220, 138, 0.12); }
+.af-tier .af-use.active .an { color: var(--ok); }
 .af-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .af-price {
   flex: none; position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 18px;
@@ -962,3 +971,5 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
   background: hsl(var(--hue), 35%, 32%); border: 2px solid hsl(var(--hue), 45%, 58%);
   font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #fff;
 }
+.af-line .af-tier .act.af-use { width: auto; }
+.af-line .af-tier .act.af-use.active[aria-disabled="true"] { opacity: 1; }
