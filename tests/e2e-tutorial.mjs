@@ -39,6 +39,14 @@ const ringOn = (sel) => page.evaluate((sel) => {
   const a = r.getBoundingClientRect(), b = el.getBoundingClientRect();
   return a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
 }, sel);
+const arrowOn = (sel) => page.evaluate((sel) => {   // the bouncing arrow sits just under this tab, pointing up at it
+  window.__tutorial.refresh();
+  const a = document.getElementById("coachArrow"), el = document.querySelector(sel);
+  if (!a || a.hidden || !el) return false;
+  const r = a.getBoundingClientRect(), b = el.getBoundingClientRect();
+  return Math.abs((r.left + r.width / 2) - (b.left + b.width / 2)) < 3 && r.top >= b.bottom && r.top < b.bottom + 40;
+}, sel);
+const arrowHidden = () => page.evaluate(() => { window.__tutorial.refresh(); return document.getElementById("coachArrow").hidden; });
 const covers = (sel) => page.evaluate((sel) => {   // does the coach card sit over this control?
   const c = document.getElementById("coach").getBoundingClientRect(), el = [...document.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0);
   if (!el) return false;
@@ -127,6 +135,7 @@ await card();
 console.log("\nSANDING");
 check(/SANDPAPER/.test(await coach()) && /rough/.test(await coach()), "the card says the chisel leaves it rough, and to tap SANDPAPER");
 check(await ringOn("#tipSand"), "the ring is on the SANDPAPER button");
+check(await arrowHidden(), "no arrow: that is not a tab");
 check(!(await covers("#tipSand")), "the card does not cover it");
 await page.click("#tipSand");
 check(await step() === "sand" && /SMOOTH reads 60%/.test(await coach()), "SANDPAPER: the card explains sanding, to 60% SMOOTH");
@@ -189,6 +198,7 @@ console.log("\nFIRST COMMISSION");
 check(await step() === "to_orders", "then ORDERS");
 check(JSON.stringify(await tabsShown()) === '["lathe","orders"]', "the ORDERS tab appears, nothing else");
 check(await ringOn("#tabOrders"), "the ring is on ORDERS");
+check(await arrowOn("#tabOrders"), "and an arrow under the ORDERS tab points at it");
 await card();
 await page.click("#tabOrders");
 await tick(0.1);
@@ -244,6 +254,7 @@ if (await keep.count()) await keep.click();
 
 console.log("\nTHE FARM");
 check(await step() === "to_farm", "only the oak order is left, and no oak: the coach points at the farm");
+check(await arrowOn("#tabFarm"), "the arrow points at the FARM tab");
 check(JSON.stringify(await tabsShown()) === '["farm","lathe","orders"]', "the FARM tab appears");
 await card();
 await page.click("#tabFarm");
@@ -326,6 +337,7 @@ check(await step() === "bat_order", `both orders delivered (${coinsAtOak} coins)
 check(JSON.stringify(await tabsShown()) === '["farm","lathe","orders","shop"]', "the SHOP tab appears; the mine waits");
 check(/Coach Barrow wants a bat/.test(await coach()) && /blueprint/.test(await coach()), "the card says the bat needs a blueprint");
 check(await ringOn("#tabShop"), "the ring is on SHOP");
+check(await arrowOn("#tabShop"), "with the arrow under it");
 w = await page.evaluate(() => ({ logs: window.__farm.state.inventory.count("log", "pine"), toast: document.getElementById("ltoast").textContent }));
 check(w.logs === 2 && /neighbour dropped off a pine log/.test(w.toast), `a pine log arrives, with a toast (${w.logs} in the shed)`);
 await card();
@@ -370,6 +382,7 @@ await tick(0.1);
 check(await coins() === coinsAtOak && await page.evaluate(() => window.__orders.board.ownsBlueprint("baseball_bat")), "BUY IT: the blueprint for the 100 coins");
 check(/OWNED/.test(await page.locator('[data-bp-card="baseball_bat"]').textContent()), "stamped OWNED");
 check(await step() === "take_bat" && await ringOn("#tabOrders"), "the ring moves to ORDERS");
+check(await arrowOn("#tabOrders"), "and the arrow with it");
 await card();
 await page.click("#tabOrders");
 await tick(0.1);
