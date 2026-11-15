@@ -340,12 +340,28 @@ footer {
 .ad-close { width: 100%; flex: none; }
 /* Four tabs plus a three-currency wallet: tighten at phone width, and wrap
    rather than ever spill sideways (tap targets keep their 40px height). */
-#tabs { flex-wrap: wrap; row-gap: 4px; }
-.wallet { margin-left: auto; }
+/* The header carries the rank badge, the screen's stats, the wallet and the gear;
+   the tabs row is only the tabs, sharing its width evenly (never wraps). */
+.tab-group { flex: 1 1 auto; min-width: 0; }
+.tab { flex: 1 1 0; min-width: 0; max-width: 150px; padding-left: 4px; padding-right: 4px; }
+header .wallet { flex: none; }
+header .rank-chip { flex: none; }
+@media (max-width: 560px) {
+  /* the highlighted tab already names the screen (and the shop has its own banner) */
+  header .title-block { display: none; }
+  header { gap: 8px; padding: 6px 10px; }
+  .stats { gap: 10px; }
+  .stat .v { font-size: 18px; }
+  .stat .k { font-size: 9px; letter-spacing: 0.1em; }
+  .stat .k .kl { display: none; }
+  .rank-chip .rt { display: none; }
+  #latheStats, #harvestStats { margin-left: 0; flex: 1 1 auto; min-width: 0; justify-content: center; text-align: center; }
+  header .wallet { margin-left: auto; }
+}
 @media (max-width: 460px) {
   #tabs { padding: 6px 8px; gap: 6px; }
   .tab-group { gap: 4px; }
-  .tab { padding: 6px 8px; font-size: 14px; letter-spacing: 0.06em; }
+  .tab { font-size: 14px; letter-spacing: 0.06em; }
   .wallet { gap: 7px; }
   .coin-chip { gap: 4px; }
   .coin-chip b { font-size: 17px; }
@@ -910,7 +926,7 @@ header .gear-btn { margin-left: 4px; }
 .rank-chip.bump { animation: celBump 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @media (max-width: 460px) { .rank-chip { font-size: 13px; padding: 4px 7px 5px; } }
 /* while a celebration plays, the wallet row shows above the card's shade so the rewards can count into it */
-body.cel-lift #tabs { position: relative; z-index: 51; pointer-events: none; }
+body.cel-lift header { position: relative; z-index: 51; pointer-events: none; }
 body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--nav-bottom, 0px) + 10px); overflow-y: auto; }
 .coin-chip.bump { animation: celBump 0.24s ease-out; }
 

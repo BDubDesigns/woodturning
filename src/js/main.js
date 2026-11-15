@@ -409,7 +409,7 @@
     var statRemoved = document.getElementById("statRemoved"), statDepth = document.getElementById("statDepth"), statShape = document.getElementById("statShape");
     var statDepthK = statDepth.parentNode.querySelector(".k");
     /* While sanding, CUT DEPTH HERE reads SMOOTH under the pad instead. */
-    function syncDepthLabel() { if (statDepthK) statDepthK.textContent = sanding() ? "SMOOTH HERE" : "CUT DEPTH HERE"; }
+    function syncDepthLabel() { if (statDepthK) statDepthK.innerHTML = sanding() ? 'SMOOTH<span class="kl"> HERE</span>' : '<span class="kl">CUT </span>DEPTH<span class="kl"> HERE</span>'; }   // .kl hides on phones
     /* Mount a blank: the harvested one, or a practice blank when none is given. */
     var hintPractice = hint.innerHTML;
     var hintFresh = "<b>Fresh from the saw.</b> Touch below the log, then nudge up to push the chisel in.<br />Slow and steady cuts deep. Whip across fast and you only score the surface.";

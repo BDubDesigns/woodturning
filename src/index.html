@@ -19,14 +19,18 @@
           <div class="title" id="screenTitle">THE <em>LATHE</em></div>
           <div class="subtitle" id="screenSubtitle">PROTOTYPE 02 · SPINNING BLANK · REAL PROFILE CUTTING</div>
         </div>
+        <button type="button" class="rank-chip" id="rankBadge" title="Your rank and skills" aria-haspopup="dialog">
+          <span class="rk" id="rankLabel">R1<span class="rt"> · Hobbyist</span></span>
+          <span class="rbar" aria-hidden="true"><i id="rankBar"></i></span>
+        </button>
         <div class="stats" id="latheStats">
           <div class="stat">
             <div class="v" id="statRemoved">0<small>%</small></div>
-            <div class="k">WOOD REMOVED</div>
+            <div class="k"><span class="kl">WOOD </span>REMOVED</div>
           </div>
           <div class="stat">
             <div class="v" id="statDepth">0.0<small> mm</small></div>
-            <div class="k">CUT DEPTH HERE</div>
+            <div class="k"><span class="kl">CUT </span>DEPTH<span class="kl"> HERE</span></div>
           </div>
           <div class="stat hide-sm">
             <div class="v" id="statShape">Blank</div>
@@ -40,12 +44,23 @@
           </div>
           <div class="stat">
             <div class="v" id="hLimbs">-</div>
-            <div class="k">LIMBS LEFT</div>
+            <div class="k">LIMBS<span class="kl"> LEFT</span></div>
           </div>
           <div class="stat hide-sm">
             <div class="v" id="hCuts">0<small>/2</small></div>
             <div class="k">SAW CUTS</div>
           </div>
+        </div>
+        <div class="wallet" aria-label="Wallet">
+          <span class="coin-chip" title="Coins">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>
+            <b id="walletCoins" data-currency="coins">0</b>
+          </span>
+          <span class="coin-chip" title="Diamonds">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="#6fd3e6" stroke="#2b7f93" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 21 9 9m3 12 3-12" fill="none" stroke="#2b7f93" stroke-width="1.2" opacity="0.7"/></svg>
+            <b id="walletDiamonds" data-currency="diamonds">0</b>
+          </span>
+          <span class="full-badge" id="fullBadge" title="Full game unlocked" hidden>FULL</span>
         </div>
         <button class="gear-btn" id="settingsBtn" type="button" title="Settings" aria-label="Settings" aria-haspopup="dialog">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -59,21 +74,6 @@
           <button class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="mineScreen">MINE</button>
           <button class="tab" id="tabOrders" role="tab" aria-selected="false" aria-controls="ordersScreen">ORDERS</button>
           <button class="tab" id="tabShop" role="tab" aria-selected="false" aria-controls="shopScreen">SHOP</button>
-        </div>
-        <div class="wallet" aria-label="Wallet">
-          <button type="button" class="rank-chip" id="rankBadge" title="Your rank and skills" aria-haspopup="dialog">
-            <span class="rk" id="rankLabel">R1 · Hobbyist</span>
-            <span class="rbar" aria-hidden="true"><i id="rankBar"></i></span>
-          </button>
-          <span class="coin-chip" title="Coins">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>
-            <b id="walletCoins" data-currency="coins">0</b>
-          </span>
-          <span class="coin-chip" title="Diamonds">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="#6fd3e6" stroke="#2b7f93" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 21 9 9m3 12 3-12" fill="none" stroke="#2b7f93" stroke-width="1.2" opacity="0.7"/></svg>
-            <b id="walletDiamonds" data-currency="diamonds">0</b>
-          </span>
-          <span class="full-badge" id="fullBadge" title="Full game unlocked" hidden>FULL</span>
         </div>
       </nav>
 
