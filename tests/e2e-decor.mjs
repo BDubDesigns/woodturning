@@ -107,7 +107,7 @@ console.log("\nTHE CAT");
 if (is3d) {
   await page.evaluate(() => { window.Game.showScreen("lathe"); window.Lathe.mountBlank(null); });
   await tick(0.2);
-  check((await shown()).catMode === "doze", "the cat dozes on its stool");
+  check((await shown()).catMode === "doze", "the cat dozes on its walkway");
   await page.evaluate(() => { window.__lathe.catchN = (window.__lathe.catchN || 0) + 1; });   // what a catch does (main.js onCatch)
   await tick(0.3);
   check((await shown()).catMode === "look", "a catch: it looks up");
@@ -119,6 +119,12 @@ if (is3d) {
   await page.click("#doneBtn");
   await tick(0.3);
   check((await shown()).catMode === "stretch", "DONE: it stretches");
+  const x0 = (await shown()).catX;
+  await page.evaluate(() => window.__lathe.views.current.catWalk());
+  await frames(60);
+  const w = await shown();
+  check(w.catMode === "walk" && Math.abs(w.catX - x0) > 0.3, `now and then it walks along the walkway (${x0} -> ${w.catX})`);
+  check(w.picture, "and a small picture hangs on the back wall");
 }
 
 console.log("\nTHE TROPHY WALL");
