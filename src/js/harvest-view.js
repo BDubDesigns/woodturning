@@ -348,7 +348,7 @@
             toast(e.why === "end" ? "Too close to the end. Move in a little." : "Too close to the other cut.", 1.8);
             break;
           case "blank":
-            handoff = 0; audio.chime(); toast("Blank ready. Off to the lathe.", 2.4);
+            handoff = 0; audio.chime(); toast("Blank ready.", 2.0);
             break;
         }
       }
@@ -1223,8 +1223,9 @@
     if (root.Game.harvestPlot === src.plot) root.Game.harvestPlot = -1;
     return h.farm.fell(src.plot).ok;        // the log is in the shed now, so leaving mid-harvest loses nothing
   }
-  /* A sawn blank: from a farm tree, its log in the shed becomes a blank;
-     from a practice tree it goes straight to the lathe and is not kept. */
+  /* A sawn blank: from a farm tree, its log in the shed becomes a blank, and the
+     player chooses: turn it now, or keep it in the shed for later. From a practice
+     tree it goes straight to the lathe and is not kept. */
   function onBlank(blank, src) {
     var h = host(), G = root.Game, item = null;
     if (src && h && h.state.inventory.take("log", src.wood)) {
@@ -1232,9 +1233,46 @@
         wood: src.wood, seed: blank.seed, profile: G.State.pack(blank.profile),
         lengthUnits: blank.lengthUnits, lengthRatio: blank.lengthRatio, girthUnits: blank.girthUnits
       });
+      if (h.persist) h.persist();
     }
-    if (!(item && L.mountStock && L.mountStock({ kind: "blank", id: item.id }))) L.mountBlank(blank);
-    G.showScreen("lathe");
+    if (!item) { L.mountBlank(blank); G.showScreen("lathe"); return; }
+    offerBlank(item);
+  }
+  /* The choice, on a card over the forest. With an order on for this wood, TURN IT NOW
+     puts it on the lathe for that order. While the new-player flow runs, turning it is
+     the only choice: the next step is on the lathe. */
+  var choiceEl = null;
+  function closeChoice() { if (choiceEl) { choiceEl.remove(); choiceEl = null; } }
+  function offerBlank(item) {
+    var G = root.Game, h = host(), board = G.commissions, o = board && board.active ? board.active() : null;
+    var R = G.Registry, wood = R && R.WOODS[item.wood] ? R.WOODS[item.wood].name : item.wood, wl = wood.toLowerCase();
+    var forOrder = o && o.wood === item.wood ? o : null;
+    var guided = !!(G.tutorial && G.tutorial.isActive && G.tutorial.isActive());
+    var pieceName = forOrder && G.Commissions && G.Commissions.PIECES[forOrder.kind] ? G.Commissions.PIECES[forOrder.kind].name.toLowerCase() : "";
+    function btn(label, desc, cls, act) { return '<button type="button" class="act' + (cls ? " " + cls : "") + '" data-act="' + act + '"><span class="an">' + label + '</span><span class="ad">' + desc + "</span></button>"; }
+    closeChoice();
+    choiceEl = document.createElement("div");
+    choiceEl.className = "blank-choice"; choiceEl.setAttribute("role", "dialog"); choiceEl.setAttribute("aria-labelledby", "blankChoiceTitle");
+    choiceEl.innerHTML = '<div class="grade-card"><h2 id="blankChoiceTitle">Your ' + wl + " blank is ready</h2>" +
+      '<p class="g-note">' + (forOrder ? "It's for " + forOrder.client + "'s " + pieceName + ". Turn it now, or keep it in the shed for later." : "Turn it now, or keep it in the shed for later.") + "</p>" +
+      '<div class="row">' + btn("TURN IT NOW", forOrder ? "On the lathe for " + forOrder.client : "Put it on the lathe", "primary", "turnnow") +
+      (guided ? "" : btn("INTO THE SHED", "Turn it later", "", "toshed")) + "</div></div>";
+    document.getElementById("hstage").appendChild(choiceEl);
+    choiceEl.addEventListener("pointerdown", function (e) { e.stopPropagation(); });   // a tap on the card is not a saw stroke
+    choiceEl.addEventListener("click", function (ev) {
+      var b = ev.target.closest ? ev.target.closest("[data-act]") : null;
+      if (!b) return;
+      var what = b.getAttribute("data-act");
+      closeChoice();
+      if (what === "turnnow") {
+        var ok = L.mountStock && L.mountStock({ kind: "blank", id: item.id });
+        G.showScreen("lathe");
+        if (ok && forOrder && L.takeOrder) L.takeOrder();
+      } else {
+        G.showScreen("farm");
+        if (h && h.toast) h.toast(wood + " blank in the shed. Turn it any time from the lathe.");
+      }
+    });
   }
   L.harvestHost = {
     show: function () {
@@ -1253,6 +1291,8 @@
       if (s && !s.felled && s.plot === want && view.game.phase !== "done") return;
       view.reset();
     },
-    hide: function () { if (view) view.hide(); }
+    hide: function () { closeChoice(); if (view) view.hide(); },   // the blank is in the shed already: leaving loses nothing
+    get choice() { return choiceEl; },
+    offerBlank: offerBlank    // the browser tests show the card for a blank already in the shed
   };
 })(window);

@@ -213,9 +213,9 @@
       title: "Clear the limbs",
       text: "Swipe across each branch to cut it off. Two thirds of a limb off is enough.",
       done: function (c) { var p = s(c, "harvestPhase"); return p === "saw" || p === "done" || s(c, "screen") === "lathe"; } },
-    { id: "saw", screen: "harvest", target: [],
+    { id: "saw", screen: "harvest", target: ['[data-act="turnnow"]'],
       title: "Saw the blank",
-      text: "Press where you want a cut and rub back and forth across it. Two cuts free the middle piece, your blank.",
+      text: "Press where you want a cut and rub back and forth across it. Two cuts free the middle piece, your blank. Then tap TURN IT NOW.",
       done: function (c) { return s(c, "screen") === "lathe"; } },
 
     /* ---- the oak order ---- */

@@ -67,28 +67,65 @@
   }
 
   /* ---------------- what the shed has for an order ---------------- */
-  /* Pieces in the shed that could go to this order. While the new-player flow
-     runs, only one turned for it: the practice piece is not offered. */
-  function fits(o) {
+  /* Turned pieces of the order's wood in the shed. While the new-player flow runs,
+     only one turned for it: the practice piece is not offered. */
+  function ofWood(o) {
     var list = board.candidates(o.id);
     return api.guided ? list.filter(function (it) { return it.order === o.id; }) : list;
   }
+  /* ...and of those, the ones the customer would actually take (close enough to pass). */
+  function fits(o) {
+    return ofWood(o).filter(function (it) { var g = board.preview(o.id, it.id); return g && g.accepted; });
+  }
+  /* Where the order's wood is on the farm: the first grown tree of it, and the one
+     growing that is nearest to done (plot indexes, -1 for none). */
+  function onFarm(o) {
+    var f = host.farm, plots = f.state.plots, grown = -1, growing = -1, best = Infinity;
+    for (var i = 0; i < plots.length; i++) {
+      var p = plots[i];
+      if (!p || p.wood !== o.wood) continue;
+      if (f.isMature(p)) { if (grown < 0) grown = i; }
+      else { var ms = f.remainingMs(p); if (ms < best) { best = ms; growing = i; } }
+    }
+    return { grown: grown, growing: growing };
+  }
   function stockFor(o) {
-    var inv = state.inventory;
+    var inv = state.inventory, all = ofWood(o).length, ok = fits(o).length, farmAt = onFarm(o);
     return {
       blanks: inv.list("blank", function (it) { return it.wood === o.wood; }).length,
       logs: inv.count("log", o.wood),
-      pieces: fits(o).length
+      pieces: ok, misses: all - ok,
+      grown: farmAt.grown, growing: farmAt.growing
     };
   }
   function haveLine(o, st) {
     var w = woodName(o.wood).toLowerCase(), parts = [];
     if (st.blanks) parts.push(st.blanks + " " + w + (st.blanks === 1 ? " blank" : " blanks"));
     if (st.logs) parts.push(st.logs + " " + w + (st.logs === 1 ? " log" : " logs"));
-    if (st.pieces) parts.push(st.pieces + " turned " + (st.pieces === 1 ? "piece" : "pieces"));
-    if (parts.length) return "In the shed: " + parts.join(", ") + ".";
-    var grow = F && F.WOODS[o.wood] ? " (" + F.formatDuration(F.WOODS[o.wood].growMs) + " to grow)" : "";
-    return "No " + w + " in the shed. Plant one on the farm" + grow + ".";
+    if (st.pieces) parts.push(st.pieces + " turned " + (st.pieces === 1 ? "piece that fits" : "pieces that fit"));
+    var miss = st.misses ? (st.misses === 1 ? "Your turned " + w + " piece isn't close enough for this one." : "Your " + st.misses + " turned " + w + " pieces aren't close enough for this one.") : "";
+    if (st.blanks || st.logs) return "In the shed: " + parts.join(", ") + "." + (miss ? " " + miss : "");
+    // nothing to turn in the shed: where the wood is on the farm
+    var lead = parts.length ? "In the shed: " + parts.join(", ") + ". " : miss ? miss + " " : "";
+    if (st.grown >= 0) return lead + "Your " + w + " tree is grown and ready to chop down for a blank.";
+    if (st.growing >= 0) return lead + "Your " + w + " tree is growing: <b data-grow=\"" + st.growing + "\">" + F.formatDuration(host.farm.remainingMs(host.farm.plotAt(st.growing))) + "</b> to go.";
+    return lead + "No " + w + " in the shed or on the farm.";
+  }
+  /* No wood to turn for an order: a button to get some. Chop down a grown tree, look in
+     on a growing one, or plant one. */
+  function getWood(o, st) {
+    var wl = woodName(o.wood).toLowerCase();
+    if (st.grown >= 0) return act("CHOP IT DOWN", "Take the order and go to the " + wl + " tree", "primary", "fell");
+    if (st.growing >= 0) return act("SEE THE TREE", "On the farm", "", "seetree");
+    var sd = seedFor(o), coins = state.wallet.balance("coins");
+    return act("PLANT ONE", sd.price + " coins, " + sd.grow, sd.free < 0 || coins < sd.price ? "short" : "primary", "plant");
+  }
+  /* Coins a seed of this wood costs, how long it takes, and the first free plot. */
+  function seedFor(o) {
+    var f = host.farm, plots = f.state.plots, free = -1;
+    for (var i = 0; i < plots.length; i++) if (!plots[i]) { free = i; break; }
+    var instant = host.mine && host.mine.isUnlocked && host.mine.isUnlocked();
+    return { price: f.plantPrice(o.wood), free: free, grow: instant ? "ready right away" : "grows in " + F.formatDuration(F.WOODS[o.wood].growMs) };
   }
 
   function act(label, desc, cls, data) {
@@ -102,7 +139,7 @@
   /* ---------------- the board ---------------- */
   function signature() {
     var B = board.state;
-    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces]; }), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
+    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces, st.misses, st.grown, st.growing]; }), state.wallet.balance("coins"), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
   }
   function render(force) {
     if (!shown) return;
@@ -123,7 +160,7 @@
       h += '<div class="o-tags"><span class="tag"><i class="dot" style="background:' + (R.WOODS[o.wood] ? R.WOODS[o.wood].trunk : "#c99a5e") + '"></i>' + woodName(o.wood) + "</span>";
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
       h += '<p class="o-blurb">' + esc(C.PIECES[o.kind].blurb) + "</p>";
-      h += '<p class="o-have' + (st.blanks || st.logs || st.pieces ? "" : " none") + '">' + haveLine(o, st) + "</p>";
+      h += '<p class="o-have' + (st.blanks || st.logs || st.pieces ? "" : st.grown >= 0 ? " ready" : st.growing >= 0 ? " growing" : " none") + '">' + haveLine(o, st) + "</p>";
       if (lock) h += '<p class="o-lock"><b>Locked.</b> Needs the ' + esc(name) + " blueprint" + (api.guided ? "." : ", from Arbor Freight.") + "</p>";
       h += '<div class="row">';
       if (lock) {
@@ -132,6 +169,7 @@
           h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
         }
       } else if (on) {
+        if (!st.blanks && !st.logs && !api.guided && !(root.__lathe && root.__lathe.stock && root.__lathe.wood === o.wood)) h += getWood(o, st);
         h += act("GO TO LATHE", "Turn it to the dashed line", "primary", "lathe");
         h += act("PUT ASIDE", "Keep the order, free the lathe", "", "release");
       } else {
@@ -139,10 +177,13 @@
         if (st.blanks || st.logs) {
           h += act("TAKE IT", "Put the " + woodName(o.wood).toLowerCase() + " on the lathe", "primary", "take");
           if (!api.guided) h += act("PRACTISE", "On a free practice blank. Your " + woodName(o.wood).toLowerCase() + " stays in the shed", "practice", "practise");
-        } else if (!api.guided) h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
+        } else if (!api.guided) {
+          h += getWood(o, st);
+          h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
+        }
         if (!api.guided) h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
       }
-      if (st.pieces && !lock) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");
+      if (st.pieces && !lock) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");   // only pieces it would accept
       h += "</div></article>";
     });
     for (var k = B.orders.length; k < C.CFG.BOARD_SIZE && !api.guided; k++) {
@@ -175,6 +216,10 @@
   function tickClock() {
     var w = waitText();
     Array.prototype.forEach.call(listEl.querySelectorAll("[data-wait]"), function (el) { if (el.textContent !== w) el.textContent = w; });
+    Array.prototype.forEach.call(listEl.querySelectorAll("[data-grow]"), function (el) {
+      var p = host.farm.plotAt(parseInt(el.getAttribute("data-grow"), 10)), t = p ? F.formatDuration(host.farm.remainingMs(p)) : "";
+      if (el.textContent !== t) el.textContent = t;
+    });
   }
 
   listEl.addEventListener("click", function (ev) {
@@ -208,8 +253,48 @@
       render(true);
     } else if (what === "deliver") {
       choose(o);
+    } else if (what === "fell") {             // take the order, and go and chop down that tree
+      var at = onFarm(o).grown;
+      if (at < 0) { render(true); return; }
+      if (!board.locked(o)) board.accept(id);
+      if (root.Lathe.syncOrder) root.Lathe.syncOrder();
+      G.harvestPlot = at;
+      if (root.Lathe.harvestHost.fresh) root.Lathe.harvestHost.fresh();
+      G.showScreen("harvest");
+    } else if (what === "seetree") {
+      var g = onFarm(o).growing;
+      G.showScreen("farm");
+      if (g >= 0 && host.select) host.select(g);
+    } else if (what === "plant") {
+      askPlant(o);
     }
   });
+  /* PLANT ONE asks first: what it costs, how long it takes and where it goes. */
+  function askPlant(o) {
+    var sd = seedFor(o), coins = state.wallet.balance("coins"), w = woodName(o.wood), wl = w.toLowerCase();
+    if (G.tutorialHoldsCoins && G.tutorialHoldsCoins()) { toast(G.tutorialHoldsCoins()); return; }
+    if (sd.free < 0) { toast("Every plot is taken. Clear new land on the farm."); G.showScreen("farm"); return; }
+    if (coins < sd.price) {
+      toast(article(wl).replace(/^a/, "A") + " " + wl + " seed costs " + sd.price + " coins. You have " + coins + ". The farm can plant one for an ad.");
+      G.showScreen("farm"); if (host.select) host.select(sd.free);
+      return;
+    }
+    var h = '<div class="grade-card"><h2 id="gradeTitle">Plant ' + article(wl) + " " + esc(wl) + "?</h2>" +
+      '<p class="g-note">For ' + esc(o.client) + "'s " + esc(pieceName(o).toLowerCase()) + ". It goes in plot " + (sd.free + 1) + " and " + sd.grow + ".</p>" +
+      '<p class="g-pay">Costs ' + COIN + "<b>" + sd.price + "</b>. You have " + coins + ".</p>" +
+      '<div class="row">' + act("PLANT IT", "Spend " + sd.price + " coins", "primary", "doplant") + act("NOT NOW", "Back to the orders", "", "noplant") + "</div></div>";
+    overlay.innerHTML = h; overlay.hidden = false;
+    overlay.querySelector('[data-act="noplant"]').addEventListener("click", closeOverlay);
+    overlay.querySelector('[data-act="doplant"]').addEventListener("click", function () {
+      var r = host.farm.plant(sd.free, o.wood);
+      closeOverlay();
+      if (!r.ok) { toast(r.reason === "not enough coins" ? "Not enough coins for that seed." : "That plot is taken now. Try again."); render(true); return; }
+      host.renderWallet();
+      var p = host.farm.plotAt(sd.free);
+      toast(w + " planted in plot " + (sd.free + 1) + "." + (p && host.farm.isMature(p) ? " It's grown already." : " It'll be ready in " + F.formatDuration(host.farm.remainingMs(p)) + "."));
+      render(true);
+    });
+  }
   /* The shop, on one blueprint's card. */
   function openBlueprint(kind) {
     G.showScreen("shop");
