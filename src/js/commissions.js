@@ -23,7 +23,8 @@
    order for practice, but only the wood the order names can be delivered.
 
    The model owns the commissions section of the save:
-     game.commissions { orders: [...], active, nextId, nextAt, seed, done, history, blueprints }
+     game.commissions { orders: [...], active, nextId, nextAt, seed, done, history, blueprints, met }
+   met lists every client a piece has been delivered to, in the order they were met.
 
    Blueprints gate the board: it only rolls orders for pieces whose blueprint
    the player owns (blueprints, seeded with FREE_BLUEPRINTS). Each PIECES entry
@@ -272,7 +273,7 @@
   }
 
   /* ---------------- the board ---------------- */
-  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice() }; }
+  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice(), met: [] }; }
   function normalizeBoard(b) {
     var out = defaultBoard();
     if (!b || typeof b !== "object") return out;
@@ -285,6 +286,7 @@
     if (isFinite(b.seed)) out.seed = b.seed >>> 0;
     if (isFinite(b.done) && b.done >= 0) out.done = Math.floor(b.done);
     if (Array.isArray(b.blueprints)) b.blueprints.forEach(function (k) { if (PIECES[k] && out.blueprints.indexOf(k) < 0) out.blueprints.push(k); });
+    if (Array.isArray(b.met)) b.met.forEach(function (c) { if (typeof c === "string" && c && out.met.indexOf(c) < 0) out.met.push(c); });
     if (Array.isArray(b.history)) out.history = b.history.filter(function (h) { return h && typeof h === "object"; }).slice(-CFG.HISTORY);
     return out;
   }
@@ -456,6 +458,7 @@
       B.orders.splice(B.orders.indexOf(o), 1);
       if (B.active === id) B.active = null;
       B.done++;
+      if (B.met.indexOf(o.client) < 0) B.met.push(o.client);
       B.history.push({ id: o.id, kind: o.kind, wood: o.wood, client: o.client, stars: g.stars, total: Math.round(g.total * 1000) / 1000, pay: g.pay, at: now() });
       if (B.history.length > CFG.HISTORY) B.history.splice(0, B.history.length - CFG.HISTORY);
       if (B.orders.length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);

@@ -124,6 +124,7 @@ if (shots) await page.screenshot({ path: `${shots}/grade.png` });
 const pieceId = await page.evaluate(() => window.__farm.state.inventory.list("piece").at(-1).id);
 await page.locator('#gradeOverlay [data-act="give"]').click();
 await tick(0.3);
+await page.waitForFunction(() => document.querySelector(".cel[data-cel=done]"), null, { timeout: 10000 });   // the celebration counts the rank reward in (progress-ui.js)
 const coins1 = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
 const bonusPay = Math.round(first.reward * 1.1), rankUp = 100;   // the first stars also reach Apprentice, which pays 100 coins (progress.js)
 check(coins1 === coins0 + bonusPay + rankUp, `a 90%+ piece pays the full ${first.reward} coins plus the 10% bonus, and the first rank-up pays 100 (${coins0} -> ${coins1})`);

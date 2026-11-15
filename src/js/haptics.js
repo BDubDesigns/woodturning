@@ -7,7 +7,7 @@
      Haptics.cut(level)           every frame while cutting; level 0..1. 0 = stop
      Haptics.sand(level)          every frame while the pad is on the wood; level = how rough the spot is
      Haptics.stop()               stop now
-     Haptics.pulse(name)          a one-off: "catch", "done", "stars3"
+     Haptics.pulse(name)          a one-off: "catch", "done", "stars3", "star", "levelup"
 
    SWAP POINT FOR CAPACITOR (Slice 7, not now): this browser backend can
    only switch the motor on or off, so strength comes from how dense the
@@ -48,7 +48,9 @@
     PULSES: {              // one-off patterns: on, off, on, ... in ms
       "catch": [35, 40, 35],              // the tool digs in: a sharp double jolt
       done: [30],                         // DONE: one soft thump
-      stars3: [15, 70, 20, 70, 40]        // a 3-star grade: three rising taps
+      stars3: [15, 70, 20, 70, 40],       // a 3-star grade: three rising taps
+      star: [6],                          // the celebration: each star landing in its bar, one tiny tick
+      levelup: [10, 55, 16, 55, 26]       // a mastery tier or a rank reached: a short rising pattern
     }
   };
 

@@ -61,6 +61,10 @@
           <button class="tab" id="tabShop" role="tab" aria-selected="false" aria-controls="shopScreen">SHOP</button>
         </div>
         <div class="wallet" aria-label="Wallet">
+          <button type="button" class="rank-chip" id="rankBadge" title="Your rank and skills" aria-haspopup="dialog">
+            <span class="rk" id="rankLabel">R1 · Hobbyist</span>
+            <span class="rbar" aria-hidden="true"><i id="rankBar"></i></span>
+          </button>
           <span class="coin-chip" title="Coins">
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#e8a33d" stroke="#8a5a1c" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#8a5a1c" stroke-width="1.6"/></svg>
             <b id="walletCoins" data-currency="coins">0</b>
@@ -251,6 +255,7 @@
     <div id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden></div>
     <div id="undoOverlay" role="dialog" aria-modal="true" aria-labelledby="undoTitle" hidden></div>
     <div id="gradeOverlay" role="dialog" aria-modal="true" aria-labelledby="gradeTitle" hidden></div>
+    <div id="progressOverlay" role="dialog" aria-modal="true" aria-labelledby="progressTitle" hidden></div>
 
     <script src="vendor/three.min.js"></script>
     <script src="js/registry.js"></script>
@@ -278,6 +283,7 @@
     <script src="js/commissions-ui.js"></script>
     <script src="js/shop-ui.js"></script>
     <script src="js/monetize-ui.js"></script>
+    <script src="js/progress-ui.js"></script>
     <script src="js/tutorial-ui.js"></script>
   </body>
 </html>

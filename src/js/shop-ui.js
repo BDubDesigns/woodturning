@@ -41,7 +41,7 @@
   }
 
   function signature() {
-    return JSON.stringify([shop.state.owned, state.wallet.balance("coins"), board.state.blueprints]);
+    return JSON.stringify([shop.state.owned, state.wallet.balance("coins"), board.state.blueprints, G.progress && G.progress.state.totalStars]);
   }
   function render(force) {
     if (!shown) return;
@@ -83,7 +83,7 @@
       var pay = Math.round(def.base * (1 + C.CFG.BONUS));
       h += '<div class="bp-card' + (own ? " owned" : "") + '" data-bp-card="' + k + '">';
       h += Art.blueprintSVG(k, { owned: own, afford: own || ok, id: "shop" + k });
-      h += '<div class="bp-text"><b>' + esc(def.name) + "</b><small>" + esc(def.blurb) + ' Pays up to <span class="bp-pay">' + COIN + pay + "</span> coins in pine.</small></div>";
+      h += '<div class="bp-text"><b>' + esc(def.name) + "</b>" + (own && G.ProgressUI ? '<span class="bp-mastery">' + esc(G.ProgressUI.masteryText(k)) + "</span>" : "") + "<small>" + esc(def.blurb) + ' Pays up to <span class="bp-pay">' + COIN + pay + "</span> coins in pine.</small></div>";
       if (own) h += '<button type="button" class="act af-buy bp-buy owned" data-blueprint="' + k + '" aria-disabled="true"><span class="an">OWNED</span><span class="ad">' + (def.price ? "Its orders turn up on the board" : "It came with the shed") + "</span></button>";
       else h += '<button type="button" class="act primary af-buy bp-buy" data-blueprint="' + k + '"' + (ok ? "" : ' aria-disabled="true"') + '><span class="an">' + (ok ? "BUY IT" : "SAVE UP") + '</span><span class="ad">' +
         (ok ? def.price + " coins. You have " + coins + "." : "You need " + (def.price - coins) + " more coins. Orders pay.") + "</span></button>";
