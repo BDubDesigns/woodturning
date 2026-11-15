@@ -6,7 +6,10 @@
 
    A line's card shows what is installed, the next rung for sale
    with its price tag and a BUY button, and the rungs after it, so
-   the player can see what they are saving toward.
+   the player can see what they are saving toward. Every rung owned
+   gets a USE button (ACTIVE on the one in use), so a player can go back
+   to the old lamp or a coarser grit; chisels only add to the rack, so
+   that line has none.
 
    Above the lines, BLUEPRINTS: a card per piece with its drawing
    (blueprint-art.js), what it pays, and BUY IT / SAVE UP / OWNED.
@@ -41,7 +44,7 @@
   }
 
   function signature() {
-    return JSON.stringify([shop.state.owned, state.wallet.balance("coins"), board.state.blueprints, G.progress && G.progress.state.totalStars]);
+    return JSON.stringify([shop.state.owned, shop.state.active, state.wallet.balance("coins"), board.state.blueprints, G.progress && G.progress.state.totalStars]);
   }
   function render(force) {
     if (!shown) return;
@@ -57,7 +60,18 @@
       var ln = Sh.LINES[k], lv = shop.level(k), cur = shop.current(k), nx = shop.next(k);
       h += '<section class="af-line" data-line="' + k + '">';
       h += '<div class="af-head"><span class="af-icon">' + ICON[k] + '</span><div><h2>' + ln.name.toUpperCase() + "</h2><p>" + esc(ln.blurb) + '</p></div><span class="af-step">' + (lv + 1) + " / " + ln.tiers.length + "</span></div>";
-      h += '<div class="af-now"><span class="af-k">INSTALLED</span><b>' + esc(cur.name) + "</b><small>" + esc(cur.blurb) + "</small></div>";
+      if (shop.switchable(k)) {
+        // every rung owned, with USE on it (ACTIVE on the one in use)
+        h += '<div class="af-own"><span class="af-k">' + (lv ? "YOURS: PICK ONE TO USE" : "INSTALLED") + "</span>";
+        for (var t = 0; t <= lv; t++) {
+          var on = t === shop.activeLevel(k), tr = ln.tiers[t];
+          h += '<div class="af-tier' + (on ? " on" : "") + '"><div class="af-text"><b>' + esc(tr.name) + "</b>" + (on ? "<small>" + esc(tr.blurb) + "</small>" : "") + "</div>" +
+            '<button type="button" class="act af-use' + (on ? " active" : "") + '" data-use="' + k + '" data-tier="' + t + '"' + (on ? ' aria-pressed="true" aria-disabled="true"' : "") + '><span class="an">' + (on ? "ACTIVE" : "USE") + "</span></button></div>";
+        }
+        h += "</div>";
+      } else {
+        h += '<div class="af-now"><span class="af-k">INSTALLED</span><b>' + esc(cur.name) + "</b><small>" + esc(cur.blurb) + "</small></div>";
+      }
       if (nx) {
         var ok = coins >= nx.price;
         h += '<div class="af-item"><div class="af-text"><span class="af-k">NEXT UP</span><b>' + esc(nx.name) + "</b><small>" + esc(nx.blurb) + '</small></div><div class="af-price" aria-label="' + nx.price + ' coins">' + COIN + "<b>" + nx.price + "</b></div></div>";
@@ -138,6 +152,16 @@
     finish: "The sheen builds faster and more evenly now."
   };
   bodyEl.addEventListener("click", function (ev) {
+    var u = ev.target.closest ? ev.target.closest("[data-use]") : null;
+    if (u) {
+      var r0 = shop.use(u.getAttribute("data-use"), parseInt(u.getAttribute("data-tier"), 10));
+      if (r0.ok && !r0.same) {
+        toast("Using: " + r0.tier.name + ".");
+        if (root.Lathe.applyUpgrades) root.Lathe.applyUpgrades();
+        render(true);
+      }
+      return;
+    }
     var bp = ev.target.closest ? ev.target.closest("[data-blueprint]") : null;
     if (bp) { if (!bp.classList.contains("owned")) buyBlueprint(bp.getAttribute("data-blueprint")); return; }
     var b = ev.target.closest ? ev.target.closest("[data-buy]") : null;

@@ -9,6 +9,8 @@
 //  6. What was bought is saved: a reload keeps it.
 //  7. Blueprints: buying the walking stick's makes its orders turn up on the board,
 //     and the board teases the next one. (The skip pack has the bat's.)
+//  8. USE: every tier owned can be put back in use, the lathe picks it up at once,
+//     and a reload keeps it. Chisels have no USE.
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import { resolve } from "node:path";
@@ -228,6 +230,34 @@ await page.goto(`file://${file}?tutorial=off&view=2d&testclock&reset`);
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 check(await page.evaluate(() => window.__farm.state.wallet.balance("coins")) === 250, "?reset on the URL starts over too");
 check(!/reset/.test(await page.evaluate(() => location.search)), "and drops itself from the URL, so a reload does not wipe again");
+
+console.log("\nUSE");
+await page.evaluate(() => { window.__farm.state.wallet.earn("coins", 9000); window.Game.showScreen("shop"); window.__shop.ui.render(true); });
+for (const k of ["light", "motor", "abrasives", "brushes", "finish"]) { await page.locator(`[data-buy="${k}"]`).click(); await page.locator(`[data-buy="${k}"]`).click(); }
+await page.locator('[data-buy="chisels"]').click();
+let u = await page.evaluate(() => ({ light: window.__lathe.lightLevel, boost: window.__lathe.cutBoost, grit: window.__lathe.grit, brush: window.__lathe.brushTool, spray: window.__lathe.sprayGun }));
+const L = await page.evaluate(() => window.Game.Shop.LINES);
+check(u.light === 2 && u.boost === L.motor.tiers[2].boost, "the tiers just bought are the ones in use");
+check(await page.locator('[data-use="light"]').count() === 3 && /ACTIVE/.test(await page.locator('[data-use="light"][data-tier="2"]').textContent()) && /USE/.test(await page.locator('[data-use="light"][data-tier="0"]').textContent()),
+  "every lamp owned has a button: ACTIVE on the one in use, USE on the others");
+check(await page.locator('[data-use="chisels"]').count() === 0, "chisels have none: each tier adds tools to the rack");
+for (const k of ["light", "motor", "abrasives", "brushes", "finish"]) await page.locator(`[data-use="${k}"][data-tier="0"]`).click();
+u = await page.evaluate(() => ({ light: window.__lathe.lightLevel, boost: window.__lathe.cutBoost, grit: window.__lathe.grit, brush: window.__lathe.brushTool, spray: window.__lathe.sprayGun, finish: document.getElementById("finishName").textContent }));
+check(u.light === 0, "USE on the bare bulb: the lathe's light drops back at once");
+check(u.boost === L.motor.tiers[0].boost, "the half horse motor: the lathe cuts slower again");
+check(JSON.stringify(u.grit) === JSON.stringify(L.abrasives.tiers[0].grit), "80 grit back on the rack");
+check(JSON.stringify(u.brush) === JSON.stringify(L.brushes.tiers[0].brush) && JSON.stringify(u.spray) === JSON.stringify(L.finish.tiers[0].spray) && u.finish === "SPRAY BOTTLE", "the old brush and the spray bottle are back in use");
+check(/ACTIVE/.test(await page.locator('[data-use="light"][data-tier="0"]').textContent()) && /USE/.test(await page.locator('[data-use="light"][data-tier="2"]').textContent()), "the buttons follow");
+await page.evaluate(() => window.__farm.persist());
+await page.reload();
+await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
+await tick(0.2);
+u = await page.evaluate(() => ({ light: window.__lathe.lightLevel, owned: window.__shop.shop.level("light"), boost: window.__lathe.cutBoost }));
+check(u.light === 0 && u.owned === 2 && u.boost === L.motor.tiers[0].boost, "a reload keeps the tiers in use, and still owns the rest");
+await page.evaluate(() => window.Game.showScreen("shop"));
+await page.locator('[data-use="light"][data-tier="1"]').click();
+check(await page.evaluate(() => window.__lathe.lightLevel) === 1, "USE on the halogen hangs the halogen");
+if (shots) await page.screenshot({ path: `${shots}/use.png` });
 
 console.log("\nLAYOUT");
 for (const w of [360, 412]) {

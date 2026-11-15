@@ -20,8 +20,15 @@
      brushes brush { flow, width }: paint goes on faster, and the wide brush is wider (paint.js brush)
      finish  spray { rate, width, even }: sheen builds faster, wider and more evenly (paint.js spray)
 
+   USE: every tier owned in a line can be put back in use (issue #35): active[line]
+   is the tier the workshop is using, and current(line) returns it, so the lathe
+   reads the active tier (a brighter light, the old motor, a coarser grit...).
+   Buying a tier makes it the active one. Chisels are the exception: each tier adds
+   tools to the rack rather than replacing one, so there is nothing to switch and
+   current("chisels") is always the top owned tier.
+
    The model owns the shop section of the save:
-     game.shop { owned: { light: 0, motor: 0, chisels: 0, abrasives: 0, brushes: 0, finish: 0 }, spent }
+     game.shop { owned: { light: 0, motor: 0, ... }, active: { light: 0, motor: 0, ... }, spent }
    Coins go through the shared wallet (state.js).
    ============================================================ */
 (function (root) {
@@ -88,10 +95,11 @@
   };
   var LINE_ORDER = ["light", "motor", "chisels", "abrasives", "brushes", "finish"];
 
+  var NO_USE = { chisels: true };   // lines whose tiers add up rather than replace each other: no USE
   function defaultShop() {
-    var owned = {};
-    LINE_ORDER.forEach(function (k) { owned[k] = 0; });
-    return { owned: owned, spent: 0 };
+    var owned = {}, active = {};
+    LINE_ORDER.forEach(function (k) { owned[k] = 0; active[k] = 0; });
+    return { owned: owned, active: active, spent: 0 };
   }
   function normalizeShop(s) {
     var out = defaultShop();
@@ -102,6 +110,11 @@
         if (typeof v === "number" && isFinite(v)) out.owned[k] = Math.max(0, Math.min(LINES[k].tiers.length - 1, Math.floor(v)));
       });
     }
+    LINE_ORDER.forEach(function (k) {
+      var a = s.active && typeof s.active === "object" ? s.active[k] : undefined;
+      // nothing saved: the best one owned, as before USE existed
+      out.active[k] = NO_USE[k] || !(typeof a === "number" && isFinite(a)) ? out.owned[k] : Math.max(0, Math.min(out.owned[k], Math.floor(a)));
+    });
     if (typeof s.spent === "number" && isFinite(s.spent) && s.spent >= 0) out.spent = Math.floor(s.spent);
     return out;
   }
@@ -118,7 +131,21 @@
 
     function line(k) { return LINES[k] || null; }
     function level(k) { return line(k) ? S.owned[k] : 0; }
-    function current(k) { var l = line(k); return l ? l.tiers[level(k)] : null; }
+    /* The tier in use: the one picked with USE (chisels: the top one owned). */
+    function activeLevel(k) { return line(k) ? (NO_USE[k] ? S.owned[k] : S.active[k]) : 0; }
+    function current(k) { var l = line(k); return l ? l.tiers[activeLevel(k)] : null; }
+    /* USE: put an owned tier of a line back in use. */
+    function use(k, tier) {
+      if (!line(k)) return { ok: false, reason: "no such line" };
+      if (NO_USE[k]) return { ok: false, reason: "not switchable" };
+      tier = Math.floor(tier);
+      if (!(tier >= 0 && tier <= S.owned[k])) return { ok: false, reason: "not owned" };
+      if (S.active[k] === tier) return { ok: true, line: k, tier: line(k).tiers[tier], level: tier, same: true };
+      S.active[k] = tier;
+      onChange();
+      return { ok: true, line: k, tier: line(k).tiers[tier], level: tier };
+    }
+    function switchable(k) { return !!line(k) && !NO_USE[k]; }
     /* The next tier for sale in a line, or null at the top of the line. */
     function next(k) { var l = line(k); return l && level(k) + 1 < l.tiers.length ? l.tiers[level(k) + 1] : null; }
     function canAfford(k) { var n = next(k); return !!n && state.wallet.balance("coins") >= n.price; }
@@ -130,6 +157,7 @@
       var paid = state.wallet.spend("coins", n.price);
       if (!paid.ok) return { ok: false, reason: "not enough coins", need: n.price, have: state.wallet.balance("coins") };
       S.owned[k]++; S.spent += n.price;
+      S.active[k] = S.owned[k];   // a new tier goes straight into use
       onChange();
       return { ok: true, line: k, tier: n, level: S.owned[k] };
     }
@@ -151,11 +179,12 @@
 
     return {
       state: S, line: line, level: level, current: current, next: next, canAfford: canAfford, buy: buy,
+      activeLevel: activeLevel, use: use, switchable: switchable,
       lightLevel: lightLevel, cutBoost: cutBoost, tips: tips, brush: brush, spray: spray, grit: grit
     };
   }
 
-  var api = { LINES: LINES, LINE_ORDER: LINE_ORDER, defaultShop: defaultShop, normalizeShop: normalizeShop, createShop: createShop };
+  var api = { LINES: LINES, LINE_ORDER: LINE_ORDER, NO_USE: NO_USE, defaultShop: defaultShop, normalizeShop: normalizeShop, createShop: createShop };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});
   G.Shop = api;
