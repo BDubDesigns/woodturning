@@ -371,12 +371,13 @@ check(await page.evaluate(() => window.__lathe.tip) === "sand" && /SMOOTH HERE/.
   const info = await page.evaluate(() => { const S = window.__lathe, v = S.views.current, lay = v.layout(), rect = document.getElementById("stage").getBoundingClientRect(); return { x: rect.left + lay.left + 0.5 * (lay.right - lay.left), y: Math.min(rect.bottom - 30, rect.top + lay.cy + lay.rPx + 70) }; });
   await page.mouse.move(info.x, info.y); await page.mouse.down();
   for (let i = 1; i <= 12; i++) { await page.mouse.move(info.x, info.y - 30 * i / 12); await tick(0.025); }
-  // frame by frame: on the test clock, particles only age when a frame is drawn
-  const frames = (n) => page.evaluate((n) => { for (let i = 0; i < n; i++) window.__lathe.advance(1 / 60); }, n);
-  await frames(50);
-  var dustRough = await page.evaluate(() => window.__lathe.views.current.dustCount());
-  await frames(150);
-  var dustSmooth = await page.evaluate(() => { const v = window.__lathe.views.current; return v.dustCount(); });
+  // frame by frame below: on the test clock, particles only age when a frame is drawn
+  // the dust is random, so a single frame can tie by chance (CI once saw 17 -> 17): compare the busiest
+  // moment of the first second with the average over the last half second, a frame at a time
+  const sample = (n) => page.evaluate((n) => { const out = []; for (let i = 0; i < n; i++) { window.__lathe.advance(1 / 60); out.push(window.__lathe.views.current.dustCount()); } return out; }, n);
+  const counts = (await sample(50)).concat(await sample(150));
+  var dustRough = Math.max(...counts.slice(0, 60));
+  var dustSmooth = Math.round(counts.slice(170).reduce((a, b) => a + b, 0) / 30 * 10) / 10;
   await page.mouse.up(); await tick(0.06);
 }
 if (shots) await page.screenshot({ path: `${shots}/lathe-sanded-2d.png` });
