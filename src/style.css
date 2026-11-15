@@ -558,6 +558,11 @@ footer {
 .coin { vertical-align: -2px; }
 .o-name { margin: 2px 0 8px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .o-mastery { font-size: 12px; letter-spacing: 0.1em; padding: 2px 7px; border-radius: 5px; background: rgba(184, 220, 138, 0.14); border: 1px solid rgba(184, 220, 138, 0.55); color: var(--ok); font-variant-numeric: tabular-nums; }
+.o-quirk { font-size: 12px; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 5px; background: rgba(246, 196, 106, 0.14); border: 1px solid rgba(246, 196, 106, 0.6); color: #f6c46a; }
+.o-line { margin: -4px 0 8px; font-size: 14px; font-style: italic; color: #f3e7d3; }
+.o-intro { margin: -2px 0 8px; padding: 6px 10px; border-radius: 8px; background: rgba(184, 220, 138, 0.12); border: 1px dashed rgba(184, 220, 138, 0.6); font-size: 13.5px; color: var(--ok); }
+.order.intro { border-color: rgba(184, 220, 138, 0.7); }
+.o-wait { margin: 4px 0 0; font-size: 13.5px; color: #bfae8f; }
 .o-badge { font-size: 11.5px; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber); }
 .o-shape { display: block; width: 100%; height: 64px; margin: 0 0 10px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45)); }
 .o-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }

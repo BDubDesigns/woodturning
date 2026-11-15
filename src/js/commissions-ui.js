@@ -152,6 +152,8 @@
   function act(label, desc, cls, data) {
     return '<button type="button" class="act' + (cls ? " " + cls : "") + '" data-act="' + data + '"><span class="an">' + label + '</span><span class="ad">' + desc + "</span></button>";
   }
+  /* What DECLINE says: a new customer's first order took no slot, so nothing comes in its place. */
+  function declineText(o) { return o.intro ? "They'll order again another time" : "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS); }
   function waitText() {
     var ms = board.msUntilNext();
     return ms == null ? "" : F.formatDuration(ms);
@@ -160,7 +162,7 @@
   /* ---------------- the board ---------------- */
   function signature() {
     var B = board.state;
-    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces, st.misses, st.grown, st.growing]; }), state.wallet.balance("coins"), state.inventory.count("piece"), B.active, B.done, B.history.length, B.orders.length < C.CFG.BOARD_SIZE]);
+    return JSON.stringify([api.guided, B.blueprints, B.orders.map(function (o) { var st = stockFor(o); return [o.id, st.blanks, st.logs, st.pieces, st.misses, st.grown, st.growing]; }), state.wallet.balance("coins"), state.inventory.count("piece"), B.active, B.done, B.history.length, board.emptySlots(), board.progress.state.totalStars]);
   }
   function render(force) {
     if (!shown) return;
@@ -174,10 +176,14 @@
       var st = stockFor(o), on = B.active === o.id, name = pieceName(o), lock = board.locked(o);
       if ((wasLocked[o.id] || justBought[o.kind]) && !lock) flipped.push(o.id);
       wasLocked[o.id] = lock;
-      h += '<article class="order' + (on ? " on" : "") + (lock ? " locked" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '" data-kind="' + esc(o.kind) + '">';
+      h += '<article class="order' + (on ? " on" : "") + (lock ? " locked" : "") + (o.intro ? " intro" : "") + '" data-order="' + o.id + '" data-wood="' + esc(o.wood) + '" data-kind="' + esc(o.kind) + '">';
+      if (o.intro) h += '<p class="o-intro">A new customer is at the door: <b>' + esc(o.client) + "</b></p>";
       var mst = board.progress.masteryOf(o.kind);
       h += '<div class="o-top"><div class="o-who">Order from <b>' + esc(o.client) + '</b></div><div class="o-pay" title="Pay for a perfect job">' + COIN + "<b>" + board.rewardOf(o) + "</b></div></div>";
-      h += '<h3 class="o-name">' + esc(name) + (mst.tier && !lock ? '<span class="o-mastery" title="Your skill with this piece raises its pay">' + esc(mst.name) + " +" + Math.round((mst.mult - 1) * 100) + "%</span>" : "") + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
+      var qk = C.Clients.quirkText(o.client);
+      h += '<h3 class="o-name">' + esc(name) + (mst.tier && !lock ? '<span class="o-mastery" title="Your skill with this piece raises its pay">' + esc(mst.name) + " +" + Math.round((mst.mult - 1) * 100) + "%</span>" : "") +
+        (qk ? '<span class="o-quirk" title="' + esc(o.client) + ' pays extra">' + esc(qk) + "</span>" : "") + (on ? '<span class="o-badge">ON THE LATHE</span>' : "") + "</h3>";
+      if (o.line) h += '<p class="o-line">\u201c' + esc(o.line) + "\u201d</p>";
       h += shapeSvg(o);
       h += '<div class="o-tags"><span class="tag"><i class="dot" style="background:' + (R.WOODS[o.wood] ? R.WOODS[o.wood].trunk : "#c99a5e") + '"></i>' + woodName(o.wood) + "</span>";
       h += '<span class="tag">' + esc(o.spec.name) + "</span><span class=\"tag\">" + P.SHEEN[o.spec.sheen].name + " finish</span></div>";
@@ -188,7 +194,7 @@
       if (lock) {
         if (!api.guided) {
           h += act("SEE BLUEPRINT", C.PIECES[o.kind].price + " coins at Arbor Freight", "primary", "blueprint");
-          h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
+          h += act("DECLINE", declineText(o), "", "decline");
         }
       } else if (on) {
         if (!st.blanks && !st.logs && !api.guided && !(root.__lathe && root.__lathe.stock && root.__lathe.wood === o.wood)) h += getWood(o, st);
@@ -203,12 +209,12 @@
           h += getWood(o, st);
           h += act("PRACTISE IT", "Practice only: it needs " + woodName(o.wood).toLowerCase() + " to deliver", "practice", "take");
         }
-        if (!api.guided) h += act("DECLINE", "Another order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS), "", "decline");
+        if (!api.guided) h += act("DECLINE", declineText(o), "", "decline");
       }
       if (st.pieces && !lock) h += act("DELIVER", st.pieces === 1 ? "A turned piece in the shed fits" : st.pieces + " turned pieces in the shed fit", on ? "" : "", "deliver");   // only pieces it would accept
       h += "</div></article>";
     });
-    for (var k = B.orders.length; k < C.CFG.BOARD_SIZE && !api.guided; k++) {
+    for (var k = 0; k < board.emptySlots() && !api.guided; k++) {
       var dia = state.wallet.balance("diamonds"), cost = C.CFG.RUSH_DIAMONDS;
       h += '<article class="order empty"><p>A new order comes in <b data-wait>' + waitText() + "</b>.</p>" +
         '<div class="row">' + act("GET ONE NOW", cost + (cost === 1 ? " diamond" : " diamonds") + ". You have " + dia + ".", dia >= cost ? "" : "short", "rush") + "</div></article>";
@@ -273,7 +279,8 @@
       if (root.Lathe.syncOrder) root.Lathe.syncOrder();
       render(true);
     } else if (what === "decline") {
-      board.decline(id); toast("Declined. A new order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS) + ".");
+      var wasIntro = o.intro;
+      board.decline(id); toast(wasIntro ? "Declined. " + o.client + " will order again another time." : "Declined. A new order comes in " + F.formatDuration(C.CFG.NEW_ORDER_MS) + ".");
       if (root.Lathe.syncOrder) root.Lathe.syncOrder();
       render(true);
     } else if (what === "deliver") {

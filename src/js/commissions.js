@@ -44,6 +44,15 @@
    stars after the customer accepts, pays any rank reward into the wallet
    right there, and returns the events (tiers and ranks crossed) for the
    screen to celebrate.
+
+   Customers (clients.js): orders come from the everyday customers and from
+   one new customer per rank reached. A customer with a lean follows it in
+   LEAN_CHANCE of their orders (only ever for pieces the player owns), and a
+   pay quirk multiplies with mastery. The moment a rank is reached, that
+   rank's customer posts an introduction order (intro: true) even on a full
+   board: intro orders don't count toward BOARD_SIZE, so the board is one
+   bigger until it is taken or declined. Each customer is introduced once
+   (introduced). An order from a customer with lines carries one (line).
    ============================================================ */
 (function (root) {
   "use strict";
@@ -53,6 +62,7 @@
   var R = Game.Registry || require("./registry.js");
   var State = Game.State || require("./state.js");
   var Prog = Game.Progress || require("./progress.js");
+  var Clients = Game.Clients || require("./clients.js");
   var Lathe = root.Lathe || {};
   var P = Lathe.Paint || require("./paint.js");
   var Cut = Lathe.CFG ? Lathe : require("./cutting.js");
@@ -149,8 +159,7 @@
   // what each wood is worth over pine, and how often it is asked for (relative weights)
   var WOOD_PAY = { pine: 1, oak: 1.6, walnut: 2.4 };
   var WOOD_WEIGHT = { pine: 1, oak: 1, walnut: 1 };   // each wood as likely as the others
-  var CLIENTS = ["Mrs. Alder", "Old Tom", "The Hollis twins", "Pastor Reed", "Juniper Cafe", "Coach Barrow", "Aunt Marigold",
-    "Mr. Fennick", "The Bramble Inn", "Dr. Okafor", "Little Wren", "Captain Moss", "Granny Pell", "The Quarry Club"];
+  var CLIENTS = Clients.EVERYDAY;   // the customers before any rank-up; the rest are in clients.js
 
   /* ---------------- the target shape ---------------- */
   /* SEG radii (world units, like Workpiece.radius) for an order. A light
@@ -189,8 +198,11 @@
   }
   /* One order from a seed. opts.wood / opts.kind / opts.specKind / opts.sheen /
      opts.client force those. opts.kinds: the pieces it may roll (the board
-     passes the blueprints owned); every piece when it is not given. Same
-     seed, same order. */
+     passes the blueprints owned); every piece when it is not given.
+     opts.clients: who may order (the board passes the rotation at the player's
+     rank); the everyday customers when not given. opts.owned: the blueprints
+     owned, which a customer's lean picks from. opts.lean: always follow the
+     customer's lean (an introduction). Same seed, same order. */
   function makeOrder(seed, opts) {
     opts = opts || {};
     var r = P.rng(seed >>> 0);
@@ -199,11 +211,29 @@
     var kinds = Array.isArray(opts.kinds) ? PIECE_ORDER.filter(function (k) { return opts.kinds.indexOf(k) >= 0; }) : PIECE_ORDER;
     if (!kinds.length) kinds = FREE_BLUEPRINTS;
     var kind = opts.kind && PIECES[opts.kind] ? opts.kind : kinds[Math.floor(r() * kinds.length)];
-    var client = CLIENTS[Math.floor(r() * CLIENTS.length)];
+    var pool = Array.isArray(opts.clients) && opts.clients.length ? opts.clients : CLIENTS;
+    var client = pool[Math.floor(r() * pool.length)];
     if (opts.client) client = opts.client;
-    var spec = P.generateSpec(Math.floor(r() * 4294967296), { kind: opts.specKind, sheen: opts.sheen });
+    var specSeed = Math.floor(r() * 4294967296), specOpts = { kind: opts.specKind, sheen: opts.sheen };
+    // the customer's lean, from a stream of its own so orders without one roll as they always did
+    var who = Clients.get(client), lean = who && who.lean, lr = P.rng(((seed >>> 0) ^ 0x1ea95eed) >>> 0), line = null;
+    if (lean && (opts.lean || lr() < Clients.LEAN_CHANCE)) {
+      if (!opts.kind && lean.kinds) {
+        var owned = Array.isArray(opts.owned) ? opts.owned : Array.isArray(opts.kinds) ? opts.kinds : PIECE_ORDER;
+        var mine = lean.kinds.filter(function (k) { return owned.indexOf(k) >= 0 && PIECES[k]; });
+        if (mine.length) kind = mine[Math.floor(lr() * mine.length)];   // leaning toward a piece they can't have: they order one you own
+      }
+      if (!opts.wood && lean.woods) { var lw = lean.woods.filter(function (w) { return WOOD_PAY[w] != null; }); if (lw.length) wood = lw[Math.floor(lr() * lw.length)]; }
+      if (!opts.specKind && lean.styles) specOpts.kind = lean.styles[Math.floor(lr() * lean.styles.length)];
+      if (!opts.sheen && lean.sheen) specOpts.sheen = lean.sheen;
+      if (lean.colors) specOpts.colors = lean.colors;
+    }
+    if (who && who.lines && who.lines.length) line = who.lines[Math.floor(lr() * who.lines.length)];
+    var spec = P.generateSpec(specSeed, specOpts);
     var reward = Math.round(PIECES[kind].base * (WOOD_PAY[wood] || 1) / 5) * 5;
-    return { id: 0, kind: kind, seed: seed >>> 0, wood: wood, client: client, spec: spec, reward: reward, postedAt: 0 };
+    var o = { id: 0, kind: kind, seed: seed >>> 0, wood: wood, client: client, spec: spec, reward: reward, postedAt: 0 };
+    if (line) o.line = line;
+    return o;
   }
 
   /* ---------------- grading ---------------- */
@@ -273,19 +303,24 @@
   }
 
   /* ---------------- the board ---------------- */
-  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice(), met: [] }; }
+  function defaultBoard() { return { orders: [], active: null, nextId: 1, nextAt: 0, seed: 0, done: 0, history: [], blueprints: FREE_BLUEPRINTS.slice(), met: [], introduced: [] }; }
+  /* The orders that take a slot: everything but a new customer's introduction. */
+  function regulars(orders) { return orders.filter(function (o) { return !o.intro; }); }
   function normalizeBoard(b) {
     var out = defaultBoard();
     if (!b || typeof b !== "object") return out;
     if (Array.isArray(b.orders)) out.orders = b.orders.filter(function (o) {
       return o && typeof o === "object" && PIECES[o.kind] && R.WOODS[o.wood] && P.validSpec(o.spec) && o.reward > 0 && o.id > 0;
-    }).slice(0, CFG.BOARD_SIZE);
+    });
+    var kept = 0;
+    out.orders = out.orders.filter(function (o) { return o.intro || kept++ < CFG.BOARD_SIZE; });
     if (out.orders.some(function (o) { return o.id === b.active; })) out.active = b.active;
     out.nextId = Math.max(isFinite(b.nextId) ? b.nextId : 1, 1 + out.orders.reduce(function (m, o) { return Math.max(m, o.id); }, 0));
     if (isFinite(b.nextAt)) out.nextAt = b.nextAt;
     if (isFinite(b.seed)) out.seed = b.seed >>> 0;
     if (isFinite(b.done) && b.done >= 0) out.done = Math.floor(b.done);
     if (Array.isArray(b.blueprints)) b.blueprints.forEach(function (k) { if (PIECES[k] && out.blueprints.indexOf(k) < 0) out.blueprints.push(k); });
+    if (Array.isArray(b.introduced)) b.introduced.forEach(function (c) { if (typeof c === "string" && c && out.introduced.indexOf(c) < 0) out.introduced.push(c); });
     if (Array.isArray(b.met)) b.met.forEach(function (c) { if (typeof c === "string" && c && out.met.indexOf(c) < 0) out.met.push(c); });
     if (Array.isArray(b.history)) out.history = b.history.filter(function (h) { return h && typeof h === "object"; }).slice(-CFG.HISTORY);
     return out;
@@ -322,8 +357,11 @@
       var onBoard = function (kb) { return B.orders.filter(function (q) { return q.kind === kb; }).length; };
       var least = Math.min.apply(null, B.blueprints.map(onBoard));
       o2.kinds = B.blueprints.filter(function (kb) { return onBoard(kb) === least; });
+      o2.owned = B.blueprints.slice();
+      if (!o2.clients) o2.clients = Clients.rotation(progress.rankOf().rank);
       var o = makeOrder(opts2 && opts2.seed != null ? opts2.seed : nextSeed(), o2);
       o.id = B.nextId++; o.postedAt = now();
+      if (opts2 && opts2.intro) o.intro = true;
       B.orders.push(o);
       return o;
     }
@@ -333,14 +371,14 @@
     function refill() {
       var t = now(), added = [];
       if (paused()) return added;
-      if (!B.done && !B.orders.length && !B.history.length && !B.nextAt) {
+      if (!B.done && !regulars(B.orders).length && !B.history.length && !B.nextAt) {
         added.push(post({ wood: "pine", kind: "rolling_pin", specKind: "dipped" }));
-        while (B.orders.length < CFG.BOARD_SIZE) added.push(post());
+        while (regulars(B.orders).length < CFG.BOARD_SIZE) added.push(post());
         B.nextAt = t + CFG.NEW_ORDER_MS;
       }
       // while away, each empty slot filled NEW_ORDER_MS after the last. A full board
       // does not bank time: decline and deliver restart the clock for the freed slot.
-      while (B.orders.length < CFG.BOARD_SIZE && (timersOff() || t >= B.nextAt)) {
+      while (regulars(B.orders).length < CFG.BOARD_SIZE && (timersOff() || t >= B.nextAt)) {
         added.push(post());
         B.nextAt = timersOff() ? t : B.nextAt + CFG.NEW_ORDER_MS;
       }
@@ -351,7 +389,7 @@
        pause says, up to the board's size. The new-player flow's first board. */
     function postAuthored(list) {
       var added = [];
-      (list || []).forEach(function (d) { if (B.orders.length < CFG.BOARD_SIZE) added.push(post(d)); });
+      (list || []).forEach(function (d) { if (regulars(B.orders).length < CFG.BOARD_SIZE) added.push(post(d)); });
       if (added.length) onChange();
       return added;
     }
@@ -360,7 +398,7 @@
       if (paused()) return [];
       var added = [];
       if (B.done || B.history.length) {
-        while (B.orders.length < CFG.BOARD_SIZE) added.push(post());
+        while (regulars(B.orders).length < CFG.BOARD_SIZE) added.push(post());
         B.nextAt = now() + CFG.NEW_ORDER_MS;
         if (added.length) onChange();
       }
@@ -368,7 +406,19 @@
     }
     function get(id) { for (var i = 0; i < B.orders.length; i++) if (B.orders[i].id === id) return B.orders[i]; return null; }
     function active() { return B.active ? get(B.active) : null; }
-    function msUntilNext() { return B.orders.length >= CFG.BOARD_SIZE ? null : Math.max(0, B.nextAt - now()); }
+    function msUntilNext() { return regulars(B.orders).length >= CFG.BOARD_SIZE ? null : Math.max(0, B.nextAt - now()); }
+    /* Free slots on the board (a new customer's introduction takes none). */
+    function emptySlots() { return Math.max(0, CFG.BOARD_SIZE - regulars(B.orders).length); }
+    /* A rank was reached: its new customer comes to the door with a first order, even on a full
+       board. Once per customer, ever. Returns the order, or null. */
+    function introduce(rank) {
+      var c = Clients.forRank(rank);
+      if (!c || B.introduced.indexOf(c.name) >= 0) return null;
+      B.introduced.push(c.name);
+      var o = post({ client: c.name, lean: true, intro: true, clients: [c.name] });
+      onChange();
+      return o;
+    }
 
     /* ---- blueprints ---- */
     function ownsBlueprint(kind) { return B.blueprints.indexOf(kind) >= 0; }
@@ -409,20 +459,22 @@
     function decline(id) {
       var i = B.orders.findIndex(function (o) { return o.id === id; });
       if (i < 0) return { ok: false, reason: "no such order" };
-      B.orders.splice(i, 1);
+      var gone = B.orders.splice(i, 1)[0];
       if (B.active === id) B.active = null;
-      B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
+      if (!gone.intro) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);   // an introduction took no slot, so nothing waits on it
       onChange();
       return { ok: true };
     }
 
     /* ---- pay ---- */
-    /* What an order pays on top of its reward: the piece's mastery, before this delivery's stars. */
-    function payMult(o) { return progress.mult(o.kind); }
+    /* What an order pays on top of its reward: the piece's mastery (before this delivery's stars)
+       times the customer's quirk, for a piece earning `stars`. */
+    function payMult(o, stars) { return Math.round(progress.mult(o.kind) * Clients.quirkMult(o.client, stars || 0) * 10000) / 10000; }
     /* Grade work against an order with its pay multiplier, as preview() and deliver() see it. */
-    function gradeFor(o, work) { return grade(o, work, { mult: function () { return payMult(o); } }); }
-    /* The pay for a perfect job (before the bonus) with mastery applied: what an order card shows. */
-    function rewardOf(o) { return Math.round(o.reward * payMult(o)); }
+    function gradeFor(o, work) { return grade(o, work, { mult: function (stars) { return payMult(o, stars); } }); }
+    /* The pay for a perfect job (before the bonus) with mastery and any always-on quirk: what an
+       order card shows. A quirk that needs stars shows on the card as its own tag. */
+    function rewardOf(o) { return Math.round(o.reward * payMult(o, 0)); }
 
     /* Pieces in the shed that could go to an order: its wood, turned. */
     function candidates(id) {
@@ -461,19 +513,22 @@
       if (B.met.indexOf(o.client) < 0) B.met.push(o.client);
       B.history.push({ id: o.id, kind: o.kind, wood: o.wood, client: o.client, stars: g.stars, total: Math.round(g.total * 1000) / 1000, pay: g.pay, at: now() });
       if (B.history.length > CFG.HISTORY) B.history.splice(0, B.history.length - CFG.HISTORY);
-      if (B.orders.length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
+      if (!o.intro && regulars(B.orders).length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
+      // each rank reached brings its new customer, with an order of their own
+      var intros = [];
+      events.forEach(function (e) { if (e.type === "rank") { var io = introduce(e.rank); if (io) { e.client = io.client; intros.push(io); } } });
       onChange();
-      return { ok: true, grade: g, order: o, pay: g.pay, events: events, rewards: rewards };
+      return { ok: true, grade: g, order: o, pay: g.pay, events: events, rewards: rewards, intros: intros };
     }
 
     /* Don't wait for the next order: post one now for RUSH_DIAMONDS diamonds. */
     function rushNext() {
       if (paused()) return { ok: false, reason: "paused" };
-      if (B.orders.length >= CFG.BOARD_SIZE) return { ok: false, reason: "board is full" };
+      if (regulars(B.orders).length >= CFG.BOARD_SIZE) return { ok: false, reason: "board is full" };
       var paid = state.wallet.spend("diamonds", CFG.RUSH_DIAMONDS);
       if (!paid.ok) return { ok: false, reason: "not enough diamonds", need: CFG.RUSH_DIAMONDS, have: state.wallet.balance("diamonds") };
       var o = post();
-      if (B.orders.length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
+      if (regulars(B.orders).length < CFG.BOARD_SIZE) B.nextAt = Math.max(B.nextAt, now() + CFG.NEW_ORDER_MS);
       onChange();
       return { ok: true, order: o };
     }
@@ -482,13 +537,13 @@
     return {
       state: B, refill: refill, postAuthored: postAuthored, resume: resume, get: get, active: active, accept: accept, release: release, decline: decline,
       candidates: candidates, preview: preview, deliver: deliver, msUntilNext: msUntilNext, rushNext: rushNext,
-      grade: gradeFor, targetProfile: targetProfile, payMult: payMult, rewardOf: rewardOf, progress: progress,
+      grade: gradeFor, targetProfile: targetProfile, payMult: payMult, rewardOf: rewardOf, progress: progress, introduce: introduce, emptySlots: emptySlots,
       ownsBlueprint: ownsBlueprint, buyBlueprint: buyBlueprint, grantBlueprint: grantBlueprint, teaser: teaser, locked: locked
     };
   }
 
   var api = {
-    CFG: CFG, PIECES: PIECES, PIECE_ORDER: PIECE_ORDER, FREE_BLUEPRINTS: FREE_BLUEPRINTS, BLUEPRINT_ORDER: BLUEPRINT_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
+    CFG: CFG, PIECES: PIECES, Clients: Clients, PIECE_ORDER: PIECE_ORDER, FREE_BLUEPRINTS: FREE_BLUEPRINTS, BLUEPRINT_ORDER: BLUEPRINT_ORDER, WOOD_PAY: WOOD_PAY, CLIENTS: CLIENTS,
     targetProfile: targetProfile, makeOrder: makeOrder, shapeScore: shapeScore, smoothScore: smoothScore, grade: grade, starsFor: starsFor, payFor: payFor,
     defaultBoard: defaultBoard, normalizeBoard: normalizeBoard, createBoard: createBoard
   };

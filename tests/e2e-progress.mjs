@@ -169,6 +169,37 @@ st = await page.evaluate(() => ({ hidden: document.getElementById("gradeOverlay"
 check(st.hidden && st.coins === String(st.real) && !st.lift, "OK mid-celebration skips it and closes the card in one tap, the wallet all counted in");
 await ctx.close();
 
+/* ---------------- 7. the new customers (part 3) ---------------- */
+console.log("\nCUSTOMERS");
+({ ctx, page } = await open());
+await deliverFirst(page);
+await page.locator('#gradeOverlay [data-act="board"]').click();
+await page.evaluate(() => { window.__lathe.advance(0); const b = window.__orders.board; b.state.nextAt = 0; b.refill(); window.__orders.ui.render(true); });
+const intro = await page.evaluate(() => {
+  const el = document.querySelector(".order.intro"), cards = document.querySelectorAll(".order[data-order]").length;
+  return el && { text: el.textContent, line: el.querySelector(".o-line") && el.querySelector(".o-line").textContent, quirk: el.querySelector(".o-quirk") && el.querySelector(".o-quirk").textContent, cards, empty: document.querySelectorAll(".order.empty").length };
+});
+check(!!intro && /A new customer is at the door: Chef Basil Fury/.test(intro.text), "rank 2: Chef Basil Fury's introduction is on the board");
+check(intro && intro.cards === 4 && intro.empty === 0, `as an extra card on a full board (${intro && intro.cards} orders)`);
+check(intro && /^\u201c.+\u201d$/.test(intro.line), `his order card has a line in his voice (${intro && intro.line})`);
+check(intro && intro.quirk === "+20% at 3 stars", "and his pay quirk");
+if (shots) await page.screenshot({ path: `${shots}/intro.png` });
+await page.evaluate(() => { const b = window.__orders.board; b.decline(b.state.orders.find((o) => o.intro).id); window.__orders.ui.render(true); });
+check(await page.locator(".order[data-order]").count() === 3 && await page.locator(".order.empty").count() === 0, "declined, the board goes back to three, with no empty slot");
+// an order from Kaylee Glow on the lathe: its pastel swatches show; back to an everyday order, they hide
+const sw = await page.evaluate(() => {
+  const b = window.__orders.board, C = window.Game.Commissions;
+  const o = Object.assign(C.makeOrder(5, { client: "Kaylee Glow", lean: true, owned: b.state.blueprints, kinds: b.state.blueprints }), { id: 999, wood: "pine" });
+  b.state.orders.push(o); b.accept(999); window.__lathe.syncOrder();
+  const shown = () => Array.from(document.querySelectorAll("#swatches .swatch")).filter((e) => !e.hidden).map((e) => e.dataset.color);
+  const withKaylee = shown();
+  b.release(); b.decline(999); window.__lathe.syncOrder(); window.__lathe.setSpec(window.Lathe.Paint.generateSpec(3));
+  return { need: window.Lathe.Paint.specPaints(o.spec), withKaylee, after: shown() };
+});
+check(sw.need.every((c) => sw.withKaylee.includes(c)) && sw.withKaylee.length === 9 + sw.need.length, `Kaylee's pastels show on the lathe while her order is on it (${sw.need.join(", ")}; showing ${sw.withKaylee.join(", ")})`);
+check(sw.after.length === 9, "and hide again after");
+await ctx.close();
+
 /* ---------------- 6. reduced motion ---------------- */
 console.log("\nREDUCED MOTION");
 ({ ctx, page } = await open({ reducedMotion: "reduce" }));
