@@ -259,10 +259,30 @@
   }
   function unpack(arr) { return Array.isArray(arr) ? Float32Array.from(arr) : arr; }
 
+  /* Playtest helper: ?coins=5000&diamonds=50 on the URL. Returns a grant bundle
+     for each registered currency named with a whole number above 0, and the
+     search string with those params removed (so a reload never grants twice).
+     null when the URL names none. */
+  function urlGrant(search) {
+    search = search || "";
+    var bundle = null, rest = search;
+    R.CURRENCY_ORDER.forEach(function (id) {
+      var re = new RegExp("([?&])" + id + "=(\\d+)(&|$)");
+      var m = re.exec(rest);
+      if (!m) return;
+      var n = parseInt(m[2], 10);
+      if (n > 0) (bundle || (bundle = {}))[id] = n;
+      rest = rest.replace(re, function (_, a, __, b) { return b ? a : ""; });
+    });
+    if (!bundle) return null;
+    if (rest === "?") rest = "";
+    return { bundle: bundle, search: rest };
+  }
+
   var api = {
     defaultWallet: defaultWallet, normalizeWallet: normalizeWallet, createWallet: createWallet,
     defaultInventory: defaultInventory, normalizeInventory: normalizeInventory, createInventory: createInventory,
-    createState: createState, pack: pack, unpack: unpack
+    createState: createState, pack: pack, unpack: unpack, urlGrant: urlGrant
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   var G = root.Game || (root.Game = {});

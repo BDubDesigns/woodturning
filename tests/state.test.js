@@ -190,3 +190,22 @@ test("a turned piece keeps its roughness in the shed, so the grade can read how 
   const it = st.inventory.add("piece", { wood: "pine", profile: [1, 2], rough: [0.3, 0.4] });
   assert.deepEqual(st.inventory.get(it.id).rough, [0.3, 0.4]);
 });
+
+test("urlGrant: ?coins and ?diamonds become a grant bundle and leave the URL", () => {
+  assert.equal(St.urlGrant(""), null);
+  assert.equal(St.urlGrant("?view=2d"), null);
+  assert.equal(St.urlGrant("?coins=0"), null);
+  assert.deepEqual(St.urlGrant("?coins=5000"), { bundle: { coins: 5000 }, search: "" });
+  assert.deepEqual(St.urlGrant("?coins=5000&diamonds=50"), { bundle: { coins: 5000, diamonds: 50 }, search: "" });
+  assert.deepEqual(St.urlGrant("?view=2d&diamonds=7&tutorial=off"), { bundle: { diamonds: 7 }, search: "?view=2d&tutorial=off" });
+  assert.deepEqual(St.urlGrant("?coins=10&view=2d"), { bundle: { coins: 10 }, search: "?view=2d" });
+  assert.equal(St.urlGrant("?coins=abc"), null);
+  assert.equal(St.urlGrant("?gems=99"), null);
+});
+
+test("urlGrant's bundle goes through grant into the wallet", () => {
+  const { state } = fresh();
+  const before = state.wallet.balance("coins");
+  state.grant(St.urlGrant("?coins=5000").bundle);
+  assert.equal(state.wallet.balance("coins"), before + 5000);
+});
