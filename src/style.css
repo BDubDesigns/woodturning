@@ -882,3 +882,78 @@ header .gear-btn { margin-left: 4px; }
 .p-fit .act.p-give .an { font-size: 15px; }
 #shed .log.see { cursor: pointer; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--amber); background: var(--btn-bg); font: inherit; }
 #shed .log.see .see-k { font-size: 10.5px; letter-spacing: 0.14em; color: var(--amber); font-weight: 700; }
+
+/* ---------- progress: the header rank badge, the delivery celebration, the panel (progress-ui.js) ---------- */
+.rank-chip {
+  display: inline-flex; flex-direction: column; align-items: stretch; gap: 3px; min-height: 34px; padding: 4px 9px 5px;
+  border-radius: 8px; border: 1px solid var(--chrome-line); background: var(--btn-bg); color: var(--ink);
+  font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.06em; line-height: 1;
+}
+.rank-chip:hover { border-color: var(--amber); }
+.rank-chip .rk { white-space: nowrap; }
+.rank-chip .rbar { display: block; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
+.rank-chip .rbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #c97b2d, #f6c46a); transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.rank-chip.bump { animation: celBump 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@media (max-width: 460px) { .rank-chip { font-size: 13px; padding: 4px 7px 5px; } }
+/* while a celebration plays, the wallet row shows above the card's shade so the rewards can count into it */
+body.cel-lift #tabs { position: relative; z-index: 51; pointer-events: none; }
+body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--nav-bottom, 0px) + 10px); overflow-y: auto; }
+.coin-chip.bump { animation: celBump 0.24s ease-out; }
+
+.cel { margin: 4px 0 12px; }
+.cel-row { padding: 9px 11px 7px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); border: 1px solid #4a3a28; margin-bottom: 8px; }
+.cel-head { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.cel-k { font-size: 11px; letter-spacing: 0.16em; color: #bfae8f; }
+.cel-name { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.04em; color: #f3e7d3; display: inline-block; }
+.cel-name.flip { animation: celFlip 0.22s ease-in-out; }
+.cel-pop { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; color: #1d1408; background: var(--ok); font-variant-numeric: tabular-nums; }
+.cel-rank .cel-pop { background: #f6c46a; }
+.cel-pop.on { animation: celPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.cel-bar { height: 10px; border-radius: 5px; background: rgba(0, 0, 0, 0.5); overflow: hidden; margin: 6px 0 4px; }
+.cel-bar i { display: block; height: 100%; max-width: 100%; border-radius: 5px; background: linear-gradient(90deg, #6f9a3c, #b8dc8a); }
+.cel-bar.rank i { background: linear-gradient(90deg, #c97b2d, #f6c46a); }
+.cel-bar.bump { animation: celBarBump 0.24s ease-out; }
+.cel-row.flash { animation: celFlash 0.5s ease-out; }
+.cel-sub { margin: 0; font-size: 12.5px; color: #bfae8f; font-variant-numeric: tabular-nums; }
+.cel-line { margin: 4px 0 0; min-height: 2.6em; font-size: 14px; color: #f6e3b8; text-align: center; }
+.cel-skip { margin: 2px 0 0; font-size: 11.5px; letter-spacing: 0.12em; color: #8a7a5f; text-align: center; text-transform: uppercase; }
+.cel[data-cel="done"] .cel-skip { visibility: hidden; }
+.cel-fly { position: fixed; z-index: 70; pointer-events: none; font-size: 30px; line-height: 1; color: #f6c46a; text-shadow: 0 0 10px rgba(246, 196, 106, 0.8); will-change: transform; }
+@keyframes celFlip { 0% { transform: rotateX(0); } 50% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+@keyframes celPop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes celBump { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes celBarBump { 0% { transform: scaleY(1); } 40% { transform: scaleY(1.5); } 100% { transform: scaleY(1); } }
+@keyframes celFlash { 0% { box-shadow: 0 0 0 0 rgba(246, 196, 106, 0); background: rgba(246, 196, 106, 0.35); } 100% { box-shadow: 0 0 0 6px rgba(246, 196, 106, 0); background: rgba(0, 0, 0, 0.28); } }
+@media (prefers-reduced-motion: reduce) {
+  .cel-name.flip, .cel-pop.on, .cel-bar.bump, .cel-row.flash, .rank-chip.bump, .coin-chip.bump { animation: none; }
+  .rank-chip .rbar i { transition: none; }
+}
+
+.bp-mastery { display: block; margin: 1px 0 2px; font-size: 12.5px; color: var(--ok); font-variant-numeric: tabular-nums; }
+
+#progressOverlay {
+  position: fixed; inset: 0; z-index: 58; display: flex; align-items: flex-start; justify-content: center;
+  padding: 18px; background: rgba(8, 6, 4, 0.82); overflow-y: auto;
+}
+#progressOverlay[hidden] { display: none !important; }
+.progress-card section { margin-bottom: 14px; }
+.progress-card h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.16em; color: #bfae8f; font-weight: 600; }
+.pp-head { display: flex; align-items: center; gap: 8px; }
+.pp-k { font-size: 11px; letter-spacing: 0.14em; color: #bfae8f; }
+.pp-head b { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 19px; letter-spacing: 0.03em; }
+.pp-rank .pp-head b { font-size: 24px; }
+.pp-bonus { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--ok); }
+.pp-bar { display: block; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); overflow: hidden; margin: 5px 0 3px; }
+.pp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #6f9a3c, #b8dc8a); }
+.pp-bar.rank i { background: linear-gradient(90deg, #c97b2d, #f6c46a); }
+.pp-next { margin: 4px 0; font-size: 13.5px; }
+.pp-help, .pp-sub { margin: 2px 0; font-size: 12.5px; color: #bfae8f; }
+.pp-skill { padding: 7px 0; border-top: 1px solid #3d2f21; }
+.pp-skill.unowned { opacity: 0.45; }
+.pp-faces { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.pp-faces li { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 12px; color: #f3e7d3; }
+.pp-face {
+  width: 46px; height: 46px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: hsl(var(--hue), 35%, 32%); border: 2px solid hsl(var(--hue), 45%, 58%);
+  font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; color: #fff;
+}

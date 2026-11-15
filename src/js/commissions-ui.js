@@ -388,7 +388,7 @@
   });
 
   /* ---------------- handing a piece over ---------------- */
-  function closeOverlay() { overlay.hidden = true; overlay.innerHTML = ""; }
+  function closeOverlay() { if (G.ProgressUI) G.ProgressUI.stop(); overlay.hidden = true; overlay.innerHTML = ""; }
   // a tap outside does nothing: the piece waits on DELIVER or KEEP IT, so it is never left in limbo.
   // Escape on a keyboard means KEEP IT, said plainly by the button it presses.
   root.addEventListener("keydown", function (e) {
@@ -455,8 +455,10 @@
     if (g.stars >= 3 && G.Haptics && !offered[orderId + ":" + pieceId]) G.Haptics.pulse("stars3");
     h += '<p class="g-pay big">+' + COIN + "<b>" + r.pay + "</b></p>";
     h += '<p class="g-note">' + esc(o.client) + (g.stars >= 3 ? " is delighted with the " : g.stars >= 2 ? " is happy with the " : " takes the ") + esc(pieceName(o).toLowerCase()) + (g.bonus ? ", and adds a " + Math.round(C.CFG.BONUS * 100) + "% bonus" : "") + ".</p>";
+    if (G.ProgressUI) h += G.ProgressUI.cardHtml(r);   // the stars fly into the skill and rank bars (progress-ui.js)
     h += '<div class="row">' + act("BOARD", "See the other orders", "primary", "board") + act("OK", "Back to work", "", "keep") + "</div></div>";
     overlay.innerHTML = h; overlay.hidden = false;
+    if (G.ProgressUI) G.ProgressUI.celebrate(overlay.firstChild, r, { onDone: function () { if (api.onCelebrated) api.onCelebrated(r); } });
     overlay.querySelector('[data-act="board"]').addEventListener("click", function () { closeOverlay(); G.showScreen("orders"); });
     overlay.querySelector('[data-act="keep"]').addEventListener("click", closeOverlay);
     if (root.Lathe.syncOrder) root.Lathe.syncOrder();

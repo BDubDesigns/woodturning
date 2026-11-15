@@ -1,5 +1,6 @@
 /* Synthesised lathe audio: looped noise through a bandpass for the cut,
-   a low sawtooth hum for the motor, a thump for a catch. Starts on the
+   a low sawtooth hum for the motor, a thump for a catch, and the delivery
+   celebration's plucks, chime and coin ticks (audio.CEL has their numbers). Starts on the
    first press (browsers block audio until a user gesture). */
 (function (root) {
   "use strict";
@@ -108,6 +109,70 @@
     audio.init();
     audio.burst("bandpass", 4200, 2.5, 0.05, 0.12); audio.thump(1046, 1046, 0.16, 0.06, 0.04); audio.thump(1568, 1568, 0.3, 0.06, 0.12);
   };
+  /* ---- the delivery celebration (progress-ui.js): star plucks, a level-up chime, coin ticks ----
+     Every tuning number for these three sounds is here. */
+  audio.CEL = {
+    STAR_BASE_HZ: 587.33,          // the first star's note (D5); each next star climbs the scale
+    STAR_SCALE: [0, 2, 4, 7, 9],   // major pentatonic, in semitones: any run of stars sounds pleasant
+    STAR_GAIN: 0.16,               // how loud a pluck is
+    STAR_DECAY: 0.32,              // seconds for a pluck to ring out
+    STAR_BRIGHT_HZ: 5200,          // the pluck's filter opens this far...
+    STAR_DULL_HZ: 1300,            // ...and closes to this, which is what makes it a pluck
+    LEVEL_NOTES: [0, 4, 7, 12],    // the level-up chime: root, third, fifth, octave (semitones over LEVEL_BASE_HZ)
+    LEVEL_BASE_HZ: 783.99,         // G5
+    LEVEL_GAP: 0.085,              // seconds between the chime's notes
+    LEVEL_GAIN: 0.12,
+    LEVEL_DECAY: 0.7,              // the last note rings this long; the others a little less
+    COIN_HZ: [2093, 2349],         // a coin tick alternates between these two (C7, D7)
+    COIN_GAIN: 0.05,
+    COIN_DECAY: 0.05
+  };
+  function noteHz(base, semis) { return base * Math.pow(2, semis / 12); }
+  /* One plucked note: a triangle and a soft octave through a closing lowpass. */
+  function pluck(freq, gain, decay, delay) {
+    if (!audio.ctx || !audio.on) return;
+    var ctx = audio.ctx, t = ctx.currentTime + (delay || 0), C = audio.CEL;
+    var o1 = ctx.createOscillator(); o1.type = "triangle"; o1.frequency.value = freq;
+    var o2 = ctx.createOscillator(); o2.type = "sine"; o2.frequency.value = freq * 2;
+    var g2 = ctx.createGain(); g2.gain.value = 0.35;
+    var lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 1.2;
+    lp.frequency.setValueAtTime(C.STAR_BRIGHT_HZ, t); lp.frequency.exponentialRampToValueAtTime(C.STAR_DULL_HZ, t + decay * 0.5);
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(audio.master);
+    o1.start(t); o2.start(t); o1.stop(t + decay + 0.03); o2.stop(t + decay + 0.03);
+  }
+  /* A bell-ish note: a sine with a quiet inharmonic partial. */
+  function bell(freq, gain, decay, delay) {
+    if (!audio.ctx || !audio.on) return;
+    var ctx = audio.ctx, t = ctx.currentTime + (delay || 0);
+    [[1, 1], [2.76, 0.18], [5.4, 0.06]].forEach(function (pt) {
+      var o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = freq * pt[0];
+      var g = ctx.createGain(), d = decay / (pt[0] > 1 ? 1.8 : 1);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain * pt[1], t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(audio.master); o.start(t); o.stop(t + d + 0.03);
+    });
+  }
+  /* Star i of a delivery (0, 1, 2...) flies into the bar: each a note higher on the pentatonic scale. */
+  audio.star = function (i) {
+    var C = audio.CEL, sc = C.STAR_SCALE, k = Math.max(0, i | 0);
+    var semis = sc[k % sc.length] + 12 * Math.floor(k / sc.length);
+    pluck(noteHz(C.STAR_BASE_HZ, semis), C.STAR_GAIN, C.STAR_DECAY);
+  };
+  /* A mastery tier or a rank is reached: a rising chime. */
+  audio.levelUp = function () {
+    var C = audio.CEL, n = C.LEVEL_NOTES.length;
+    C.LEVEL_NOTES.forEach(function (semis, i) {
+      bell(noteHz(C.LEVEL_BASE_HZ, semis), C.LEVEL_GAIN * (i === n - 1 ? 1.1 : 0.85), i === n - 1 ? C.LEVEL_DECAY : C.LEVEL_DECAY * 0.6, i * C.LEVEL_GAP);
+    });
+    audio.burst("highpass", 6500, 0.5, 0.35, 0.025, (n - 1) * C.LEVEL_GAP);   // a little shimmer on the top note
+  };
+  /* A coin (or a diamond) counting into the wallet. i alternates the pitch. */
+  audio.coinTick = function (i) {
+    var C = audio.CEL;
+    bell(C.COIN_HZ[(i | 0) % C.COIN_HZ.length], C.COIN_GAIN, C.COIN_DECAY);
+  };
+
   /* sanding: level 0..1 (pressure x speed x how rough it still is), rpm brightens the hiss */
   audio.sand = function (level, rpmNow) {
     if (!audio.ctx || !audio.sandGain) return;

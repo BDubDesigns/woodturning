@@ -178,12 +178,21 @@
   /* One chip per registered currency: each <b data-currency="id"> shows that balance. */
   var unlockedEl = $("fullBadge");
   var walletEls = Array.prototype.slice.call(document.querySelectorAll("[data-currency]"));
+  /* The delivery celebration (progress-ui.js) counts rank rewards into the wallet: until it
+     does, the wallet shows the balance less what it is still holding back. */
+  var walletHold = { coins: 0, diamonds: 0 };
+  function holdWallet(h) {
+    walletHold.coins = Math.max(0, (h && h.coins) || 0); walletHold.diamonds = Math.max(0, (h && h.diamonds) || 0);
+    renderWallet();
+  }
   function renderWallet() {
     walletEls.forEach(function (el) {
-      var v = String(state.wallet.balance(el.getAttribute("data-currency")));
+      var id = el.getAttribute("data-currency");
+      var v = String(Math.max(0, state.wallet.balance(id) - (walletHold[id] || 0)));
       if (el.textContent !== v) el.textContent = v;
     });
     unlockedEl.hidden = !mine.isUnlocked();
+    if (G.ProgressUI) G.ProgressUI.renderBadge();
   }
 
   /* ---------------- toast ---------------- */
@@ -467,7 +476,7 @@
   // set before the first screen shows: the harvest reads the farm through this
   root.__farm = {
     farm: farm, game: game, state: state, storage: storage, select: select, showScreen: showScreen, tick: tick,
-    mine: mine, persist: persist, toast: toast, renderWallet: renderWallet, tickFarm: tick,
+    mine: mine, persist: persist, toast: toast, renderWallet: renderWallet, holdWallet: holdWallet, tickFarm: tick,
     get selected() { return selected; }
   };
 
