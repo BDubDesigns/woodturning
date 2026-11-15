@@ -386,15 +386,13 @@ footer {
 }
 .paint-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; flex: 1 1 100%; }
 .paint-tools .tip-group { flex: 1 1 300px; min-width: 0; }
-.swatches { display: grid; grid-template-columns: repeat(var(--cols, 9), minmax(0, 1fr)); gap: 7px; flex: 1 1 300px; max-width: 460px; }
+.swatches { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 7px; flex: 1 1 300px; max-width: 460px; }
 .swatch {
   position: relative; aspect-ratio: 1; min-height: 36px; padding: 0; border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.35); background: var(--sw);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
   transition: transform 0.08s, box-shadow 0.15s, border-color 0.15s;
 }
-.swatches.many { gap: 5px; }
-.swatches.many .swatch { min-height: 0; }
 .swatch:active { transform: scale(0.94); }
 .swatch[aria-pressed="true"] { border-color: var(--amber); box-shadow: 0 0 0 2px var(--chrome-bg), 0 0 0 4px var(--amber); transform: scale(1.06); }
 .swatch.needed::after {
@@ -582,6 +580,7 @@ footer {
 .o-line { margin: -4px 0 8px; font-size: 14px; font-style: italic; color: #f3e7d3; }
 .o-intro { margin: -2px 0 8px; padding: 6px 10px; border-radius: 8px; background: rgba(184, 220, 138, 0.12); border: 1px dashed rgba(184, 220, 138, 0.6); font-size: 13.5px; color: var(--ok); }
 .order.intro { border-color: rgba(184, 220, 138, 0.7); }
+.o-wait { margin: 4px 0 0; font-size: 13.5px; color: #bfae8f; }
 .o-badge { font-size: 11.5px; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--amber); color: var(--amber); }
 .o-shape { display: block; width: 100%; height: 64px; margin: 0 0 10px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45)); }
 .o-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
@@ -8332,15 +8331,9 @@ body.cel-lift #gradeOverlay { align-items: flex-start; padding-top: calc(var(--n
       if (def.extra) b.hidden = true;
       swatchWrap.appendChild(b); swatchEls[key] = b;
     });
+    // the extras wrap onto a second row while they show, so every swatch stays finger-sized
     function showSwatches(need) {
-      var n = 0;
-      for (var k in swatchEls) {
-        var on = !P.PALETTE[k].extra || need.indexOf(k) >= 0;
-        swatchEls[k].hidden = !on;
-        if (on) n++;
-      }
-      swatchWrap.style.setProperty("--cols", n);
-      swatchWrap.classList.toggle("many", n > P.PALETTE_ORDER.length);   // an extra colour or two: a little smaller, still one row
+      for (var k in swatchEls) swatchEls[k].hidden = !!P.PALETTE[k].extra && need.indexOf(k) < 0;
       if (swatchEls[S.color] && swatchEls[S.color].hidden) setColor(P.PALETTE_ORDER[0]);
     }
     function setColor(key) {
