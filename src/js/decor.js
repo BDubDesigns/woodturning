@@ -34,9 +34,7 @@
     cat:           { id: "cat",           name: "Shop cat",      price: 800,  blurb: "Naps on a stool by the lathe. Looks up when the chisel catches, and stretches when you press DONE." },
     trophy_wall:   { id: "trophy_wall",   name: "Trophy wall",   price: 1200, blurb: "A shelf on the back wall with a spot for every blueprint, showing your best delivered piece of each. Legendary ones get a gold plaque." }
   };
-  /* What the store lists, cheapest first and the disco ball last. The cat and the trophy wall
-     join in the next PR (issue #35 part 6, second half). */
-  var ORDER = ["radio", "string_lights", "disco"];
+  var ORDER = ["radio", "string_lights", "cat", "trophy_wall", "disco"];   // as the store lists them: cheapest first, the disco ball last
 
   function defaultDecor() { return { owned: [], radio: false }; }
   function normalize(d) {

@@ -224,3 +224,25 @@ test("the progress section survives a save round trip, and a broken one is repai
   assert.deepEqual(bad.starsByKind, { chair_leg: 2 });
   assert.equal(bad.totalStars, 0); assert.equal(bad.rankPaid, 12);
 });
+
+test("the best piece of each kind delivered is kept for the trophy wall, and survives a reload", () => {
+  const store = Save.memoryStore();
+  const s = setup();
+  const o = s.board.state.orders[0];
+  const plain = s.state.inventory.add("piece", Object.assign({ shape: "Test" }, plainPiece(o)));
+  const first = s.board.deliver(o.id, plain.id);
+  assert.ok(first.ok);
+  const b0 = s.board.state.best[o.kind];
+  assert.equal(b0.total, Math.round(first.grade.total * 1000) / 1000);
+  assert.equal(b0.wood, o.wood); assert.ok(Array.isArray(b0.profile)); assert.equal(b0.client, o.client);
+  // a worse one later doesn't replace it; a better one does
+  s.advance(C.CFG.NEW_ORDER_MS); s.board.refill();
+  const o2 = s.board.state.orders.find((q) => q.kind === o.kind && !q.intro) || Object.assign(C.makeOrder(5, { kind: o.kind, wood: "pine" }), { id: 9001 });
+  if (!s.board.get(o2.id)) s.board.state.orders.push(o2);
+  const top = s.state.inventory.add("piece", Object.assign({ shape: "Test" }, perfectPiece(o2)));
+  s.board.deliver(o2.id, top.id);
+  assert.ok(s.board.state.best[o.kind].total > b0.total);
+  Save.write(store, s.game);
+  const again = setup(Save.load(store));
+  assert.equal(again.board.state.best[o.kind].total, s.board.state.best[o.kind].total);
+});

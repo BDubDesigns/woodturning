@@ -436,8 +436,12 @@
        Every placement and tuning number is in DECOR_AT / DISCO / STRINGS below. */
     var DECOR_AT = {
       radio: [0.66, 0.5, -1.4],            // screen x, screen y, depth (world z): on a shelf above the tailstock
-      strings: [-1.05, 1.05, 0.985, -0.6]  // from screen x, to screen x, at screen y, depth: along the rafters
+      strings: [-1.05, 1.05, 0.985, -0.6], // from screen x, to screen x, at screen y, depth: along the rafters
+      cat: [-0.8, -0.9],                   // screen x, screen y: the stool stands where this point meets the floor
+      trophies: [-0.92, -0.28, 0.4, -1.4]  // from screen x, to screen x, the shelf at screen y, depth: on the back wall
     };
+    var CAT = { LOOK_S: 1.6, STRETCH_S: 1.9, BREATHE: 0.05, SIZE: 1 };   // how long it looks up after a catch, and stretches after DONE
+    var TROPHY = { LEN: 0.85, RAD: 0.14, POINTS: 24, SIDES: 10 };       // each piece on the wall: height and girth in world units
     var DISCO = {
       LIGHT: 16, AMBIENT: 0.32,            // the work light dims to this with the disco ball up (the bare bulb is 38)
       HUE_SPEED: 0.12,                     // colour turns a second
@@ -448,7 +452,9 @@
     var STRINGS = { BULBS: 18, SAG: 0.32, FLICKER: 0.14, COLORS: [0xffc46b, 0xffe2b0, 0xff9a5c, 0xfff1d6] };
     var decorG = new THREE.Group(); scene.add(decorG);
     var discoBall = null, discoT = 0, decorSig = "";
-    var deco = { radio: null, radioBox: null, radioDial: null, strings: null, bulbs: [], spots: null, spotList: [] };
+    var deco = { radio: null, radioBox: null, radioDial: null, strings: null, bulbs: [], spots: null, spotList: [], cat: null, trophies: null, trophyN: 0, goldN: 0 };
+    var cat = { mode: "doze", t: 0, catchN: 0, doneN: 0, parts: null };
+    var trophySig = "", trophyCheck = 0;
     function decorOwned(id) { return !!(S.decor && S.decor.owned && S.decor.owned.indexOf(id) >= 0); }
     /* A world point at screen (nx, ny), on the plane z = zw. */
     function anchorAt(nx, ny, zw, out) {
@@ -490,6 +496,113 @@
       g.add(wire);
       return g;
     }
+    /* ---- the shop cat, napping on a stool ---- */
+    function buildCat() {
+      var g = new THREE.Group(), fur = new THREE.MeshStandardMaterial({ color: 0xd9822b, roughness: 0.9 }), dark = new THREE.MeshBasicMaterial({ color: 0x2a1a10 });
+      var stoolWood = new THREE.MeshStandardMaterial({ color: 0x8a5a32, roughness: 0.75 });
+      function m(geo, mat, x, y, z, parent) { var o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); (parent || g).add(o); return o; }
+      m(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 12), stoolWood, 0, 1.0, 0);   // the stool
+      [0, 2.1, 4.2].forEach(function (a) { var leg = m(new THREE.CylinderGeometry(0.035, 0.045, 1.0, 5), stoolWood, Math.cos(a) * 0.3, 0.5, Math.sin(a) * 0.3); leg.rotation.z = Math.cos(a) * 0.08; leg.rotation.x = -Math.sin(a) * 0.08; });
+      var catG = new THREE.Group(); catG.position.set(0, 1.04, 0); g.add(catG);
+      var body = m(new THREE.SphereGeometry(1, 10, 7), fur, 0, 0.16, 0, catG); body.scale.set(0.34, 0.17, 0.23);
+      var headG = new THREE.Group(); headG.position.set(0.3, 0.2, 0.06); catG.add(headG);
+      m(new THREE.SphereGeometry(0.14, 9, 7), fur, 0, 0, 0, headG);
+      var earL = m(new THREE.ConeGeometry(0.055, 0.1, 4), fur, 0.02, 0.13, -0.07, headG), earR = m(new THREE.ConeGeometry(0.055, 0.1, 4), fur, 0.02, 0.13, 0.07, headG);
+      earL.rotation.x = -0.3; earR.rotation.x = 0.3;
+      var shutL = m(new THREE.BoxGeometry(0.01, 0.012, 0.05), dark, 0.13, 0.02, -0.05, headG), shutR = m(new THREE.BoxGeometry(0.01, 0.012, 0.05), dark, 0.13, 0.02, 0.05, headG);
+      var eyeMat = new THREE.MeshBasicMaterial({ color: 0x9fd24a });
+      var openL = m(new THREE.SphereGeometry(0.025, 6, 4), eyeMat, 0.125, 0.025, -0.05, headG), openR = m(new THREE.SphereGeometry(0.025, 6, 4), eyeMat, 0.125, 0.025, 0.05, headG);
+      openL.visible = openR.visible = false;
+      var tail = m(new THREE.TorusGeometry(0.24, 0.035, 5, 12, Math.PI * 1.1), fur, -0.05, 0.06, 0, catG);
+      tail.rotation.x = Math.PI / 2; tail.rotation.z = 1.4;
+      cat.parts = { body: body, head: headG, tail: tail, shut: [shutL, shutR], open: [openL, openR], catG: catG };
+      cat.catchN = S.catchN || 0; cat.doneN = S.doneN || 0; cat.mode = "doze"; cat.t = 0;   // only what happens from now on wakes it
+      return g;
+    }
+    var _floor = new THREE.Vector3();
+    function placeCat(g) {
+      camera.updateMatrixWorld();
+      _ray.set(DECOR_AT.cat[0], DECOR_AT.cat[1], 0.5).unproject(camera).sub(camera.position).normalize();
+      var t = _ray.y < -0.01 ? -camera.position.y / _ray.y : 9;   // where that point on screen meets the floor
+      _floor.copy(camera.position).addScaledVector(_ray, t);
+      g.position.set(_floor.x, 0, Math.min(_floor.z, camera.position.z - 2));
+      g.rotation.y = 0.5;
+    }
+    function catPose(dt) {
+      var p = cat.parts;
+      if (!p) return;
+      if ((S.catchN || 0) !== cat.catchN) { cat.catchN = S.catchN || 0; cat.mode = "look"; cat.t = 0; }
+      if ((S.doneN || 0) !== cat.doneN) { cat.doneN = S.doneN || 0; cat.mode = "stretch"; cat.t = 0; }
+      cat.t += dt;
+      var dur = cat.mode === "look" ? CAT.LOOK_S : cat.mode === "stretch" ? CAT.STRETCH_S : 1;
+      if (cat.mode !== "doze" && cat.t >= dur) { cat.mode = "doze"; cat.t = 0; }
+      var env = cat.mode === "doze" ? 0 : Math.sin(Math.PI * Math.min(1, cat.t / dur));
+      var breathe = S.reduceMotion ? 0 : CAT.BREATHE * Math.sin(discoT * 1.8);
+      var look = cat.mode === "look" ? env : 0, stretch = cat.mode === "stretch" ? env : 0;
+      p.body.scale.set(0.34 * (1 + 0.35 * stretch), 0.17 * (1 + breathe) * (1 + 0.25 * stretch), 0.23);
+      p.body.position.y = 0.16 + 0.08 * stretch;
+      p.head.position.set(0.3 + 0.12 * stretch, 0.2 + 0.08 * look + 0.1 * stretch, 0.06);
+      p.head.rotation.z = 0.55 * look - 0.25 * stretch;
+      p.tail.rotation.z = 1.4 - 0.9 * stretch;
+      var awake = look > 0.25;
+      p.open[0].visible = p.open[1].visible = awake; p.shut[0].visible = p.shut[1].visible = !awake;
+    }
+
+    /* ---- the trophy wall: the best delivered piece of each kind, standing on a shelf ---- */
+    function trophyTexture(piece) {
+      var c = document.createElement("canvas"), n = 32; c.width = 4; c.height = n;
+      var Rg = root.Game && root.Game.Registry, g = c.getContext("2d"), woodHex = Rg ? Rg.WOODS[piece.wood] : null;
+      var base = woodHex ? woodHex.trunk : "#c99a5e", coat = piece.coat || {}, cv = coat.coat, col = coat.color;
+      for (var j = 0; j < n; j++) {
+        var len = piece.profile.length, i = Math.round((1 - j / (n - 1)) * (len - 1));
+        g.fillStyle = base; g.fillRect(0, j, 4, 1);
+        if (cv && col && cv[i] > 0.02) {
+          g.globalAlpha = Math.min(1, cv[i] * 1.05);
+          g.fillStyle = "rgb(" + Math.round(col[i * 3] * 255) + "," + Math.round(col[i * 3 + 1] * 255) + "," + Math.round(col[i * 3 + 2] * 255) + ")";
+          g.fillRect(0, j, 4, 1); g.globalAlpha = 1;
+        }
+      }
+      var tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+    function buildTrophies(list) {
+      var g = new THREE.Group(), A = new THREE.Vector3(), B = new THREE.Vector3(), cfg = DECOR_AT.trophies;
+      anchorAt(cfg[0], cfg[2], cfg[3], A); anchorAt(cfg[1], cfg[2], cfg[3], B);
+      var kinds = (root.Game && root.Game.Commissions) ? root.Game.Commissions.BLUEPRINT_ORDER : [], n = Math.max(1, kinds.length);
+      var shelfMat = new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 0.8 });
+      var shelf = new THREE.Mesh(new THREE.BoxGeometry(B.x - A.x + 0.4, 0.07, 0.4), shelfMat);
+      shelf.position.set((A.x + B.x) / 2, A.y, A.z); g.add(shelf);
+      var gold = new THREE.MeshStandardMaterial({ color: 0xf2c230, metalness: 0.8, roughness: 0.3, emissive: 0x3a2a00 });
+      var plain = new THREE.MeshStandardMaterial({ color: 0x2b2018, roughness: 0.8 });
+      deco.trophyN = 0; deco.goldN = 0;
+      kinds.forEach(function (k, idx) {
+        var x = A.x + (B.x - A.x) * (n === 1 ? 0.5 : idx / (n - 1)), entry = list[k];
+        var plaque = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.03), entry && entry.legendary ? gold : plain);
+        plaque.position.set(x, A.y - 0.1, A.z + 0.21); g.add(plaque);
+        if (entry && entry.legendary) deco.goldN++;
+        if (!entry) {   // an empty spot: a little stand waiting for its piece
+          var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.04, 10), plain);
+          stand.position.set(x, A.y + 0.055, A.z); g.add(stand);
+          return;
+        }
+        var pc = entry.piece, prof = pc.profile, pts = [], len = prof.length, r0 = C.R0;
+        pts.push(new THREE.Vector2(0, 0));
+        for (var j = 0; j < TROPHY.POINTS; j++) {
+          var i = Math.round(j / (TROPHY.POINTS - 1) * (len - 1));
+          pts.push(new THREE.Vector2(Math.max(0.01, prof[i] / r0 * TROPHY.RAD), j / (TROPHY.POINTS - 1) * TROPHY.LEN));
+        }
+        pts.push(new THREE.Vector2(0, TROPHY.LEN));
+        var gl = 0, gv = pc.coat && pc.coat.gloss;
+        if (gv) { for (var q = 0; q < gv.length; q++) gl += gv[q]; gl /= gv.length || 1; }
+        var mesh = new THREE.Mesh(new THREE.LatheGeometry(pts, TROPHY.SIDES), new THREE.MeshStandardMaterial({ map: trophyTexture(pc), roughness: 0.78 - 0.6 * gl, metalness: 0 }));
+        mesh.position.set(x, A.y + 0.035, A.z);
+        g.add(mesh);
+        deco.trophyN++;
+      });
+      return g;
+    }
+    function trophyList() { return typeof S.trophies === "function" ? S.trophies() : {}; }
+
     function spotTexture() {
       var c = document.createElement("canvas"); c.width = c.height = 64;
       var g2 = c.getContext("2d"), gr = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -527,11 +640,17 @@
     }
     /* Build or drop each decoration when what is owned (or the disco light) changes, and place them for this frame shape. */
     function syncDecor(force) {
-      var sig = JSON.stringify([S.decor && S.decor.owned, !!S.disco]);
+      // the trophy wall changes with deliveries: look again every half second or so
+      if (decorOwned("trophy_wall") && (force || ++trophyCheck % 30 === 0)) {
+        var tl = trophyList(), ts = [];
+        for (var tk in tl) ts.push(tk, tl[tk].piece.at, tl[tk].piece.total, tl[tk].legendary);
+        trophySig = ts.join(",");
+      }
+      var sig = JSON.stringify([S.decor && S.decor.owned, !!S.disco, decorOwned("trophy_wall") ? trophySig : ""]);
       if (!force && sig === decorSig) return;
       decorSig = sig;
       while (decorG.children.length) decorG.remove(decorG.children[0]);
-      deco.radio = null; deco.strings = null; deco.spots = null; deco.bulbs = []; deco.spotList = [];
+      deco.radio = null; deco.strings = null; deco.spots = null; deco.bulbs = []; deco.spotList = []; deco.cat = null; deco.trophies = null; cat.parts = null; deco.trophyN = 0; deco.goldN = 0;
       var at = new THREE.Vector3();
       if (decorOwned("radio")) {
         deco.radio = buildRadio();
@@ -541,6 +660,8 @@
       }
       if (decorOwned("string_lights")) { deco.strings = buildStrings(); decorG.add(deco.strings); }
       if (S.disco) { deco.spots = buildSpots(); decorG.add(deco.spots); moveSpots(0); }
+      if (decorOwned("cat")) { deco.cat = buildCat(); placeCat(deco.cat); decorG.add(deco.cat); catPose(0); }
+      if (decorOwned("trophy_wall")) { deco.trophies = buildTrophies(trophyList()); decorG.add(deco.trophies); }
     }
     var _box = new THREE.Box3(), _c = new THREE.Vector3();
     /* Which decoration is under a point on the stage (x, y in px), or null. Only the radio answers taps. */
@@ -563,6 +684,7 @@
         workLight.color.setHSL((discoT * DISCO.HUE_SPEED) % 1, 0.85, 0.6);
       }
       if (deco.spotList.length) moveSpots(dt);
+      if (deco.cat) catPose(dt);
       for (var i = 0; i < deco.bulbs.length; i++) {
         var b = deco.bulbs[i];
         b.halo.material.opacity = 0.55 + (S.reduceMotion ? 0 : STRINGS.FLICKER * Math.sin(discoT * b.speed * 3 + b.phase) * Math.sin(discoT * 0.7 + b.phase * 2));
@@ -1225,7 +1347,7 @@
       dustCount: function () { return sdLive; },
       decorAt: decorAt,
       /* exposed for tests: which decorations are drawn */
-      decorShown: function () { return { disco: !!discoBall, spots: deco.spotList.length, radio: !!deco.radio, strings: deco.bulbs.length }; },
+      decorShown: function () { return { disco: !!discoBall, spots: deco.spotList.length, radio: !!deco.radio, strings: deco.bulbs.length, cat: !!deco.cat, catMode: cat.mode, trophyWall: !!deco.trophies, trophies: deco.trophyN, gold: deco.goldN }; },
       onPaint: function (pr, dt) {
         var t = S.tool.t, r = work.sample(t);
         contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);

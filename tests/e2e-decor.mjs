@@ -24,13 +24,15 @@ page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
 await page.goto(`file://${file}?tutorial=off&testclock&reset#shop`);
 await page.waitForFunction(() => window.__shop && window.__lathe && window.__lathe.setSpec);
 const tick = (s) => page.evaluate((s) => window.__lathe.advance(s), s);
+// the test clock draws one frame per advance(): run frame by frame where the workshop's own timers matter
+const frames = (n) => page.evaluate((n) => { for (let i = 0; i < n; i++) window.__lathe.advance(1 / 60); }, n);
 const is3d = await page.evaluate(() => window.__lathe.views && window.__lathe.views.current.kind === "3d");
 const shown = async () => { await page.evaluate(() => { window.Game.showScreen("lathe"); window.__lathe.advance(1 / 30); }); return page.evaluate(() => window.__lathe.views.current.decorShown ? window.__lathe.views.current.decorShown() : null); };
 const toShop = () => page.evaluate(() => { window.Game.showScreen("shop"); window.__shop.ui.render(true); });
 
 console.log("\nTHE STORE");
 check(await page.locator("#afDecor").count() === 1 && /DECORATIONS/.test(await page.locator("#afDecor").textContent()), "Arbor Freight has a DECORATIONS section");
-check(await page.locator("[data-decor-card]").count() === 3, "with three things for the workshop: radio, string lights, disco ball");
+check(await page.locator("[data-decor-card]").count() === 5, "with five things for the workshop");
 check(/2500/.test(await page.locator('[data-decor-card="disco"]').textContent()), "the disco ball is 2,500");
 check(/SAVE UP/.test(await page.locator('[data-decor="disco"]').textContent()), "short of coins: SAVE UP");
 await page.locator('[data-decor="disco"]').click({ force: true });
@@ -39,7 +41,7 @@ await page.evaluate(() => { window.__farm.state.wallet.earn("coins", 9000); wind
 
 console.log("\nBUYING");
 if (!is3d) check(true, "3D unavailable in this browser: the workshop checks are skipped");
-for (const [id, key] of [["radio", "radio"], ["string_lights", "strings"]]) {
+for (const [id, key] of [["radio", "radio"], ["string_lights", "strings"], ["cat", "cat"], ["trophy_wall", "trophyWall"]]) {
   await toShop();
   const before = await page.evaluate(() => window.__farm.state.wallet.balance("coins"));
   await page.locator(`[data-decor="${id}"]`).click();
@@ -101,6 +103,47 @@ if (is3d) {
     check(await page.evaluate(() => !window.__farm.decor.radioOn()), "another tap turns it off");
   }
 }
+console.log("\nTHE CAT");
+if (is3d) {
+  await page.evaluate(() => { window.Game.showScreen("lathe"); window.Lathe.mountBlank(null); });
+  await tick(0.2);
+  check((await shown()).catMode === "doze", "the cat dozes on its stool");
+  await page.evaluate(() => { window.__lathe.catchN = (window.__lathe.catchN || 0) + 1; });   // what a catch does (main.js onCatch)
+  await tick(0.3);
+  check((await shown()).catMode === "look", "a catch: it looks up");
+  await frames(130);
+  check((await shown()).catMode === "doze", "then dozes off again");
+  // DONE on a real log: a piece for the shed, and the cat stretches
+  await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "pine" }, 1); window.Lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 40; i < 120; i++) S.work.radius[i] *= 0.8; S.work.version++; });
+  await tick(0.1);
+  await page.click("#doneBtn");
+  await tick(0.3);
+  check((await shown()).catMode === "stretch", "DONE: it stretches");
+}
+
+console.log("\nTHE TROPHY WALL");
+if (is3d) {
+  check((await shown()).trophies === 0, "nothing delivered yet: empty stands");
+  const delivered = await page.evaluate(() => {
+    const f = window.__farm, b = f.board, C = window.Game.Commissions, St = window.Game.State, P = window.Lathe.Paint, R0 = window.Lathe.CFG.R0;
+    const o = Object.assign(C.makeOrder(11, { kind: "rolling_pin", wood: "pine" }), { id: 777 });
+    b.state.orders.push(o);
+    const t = b.targetProfile(o), n = t.length, coat = new P.Coating();
+    for (let i = 0; i < n; i++) { const u = i / (n - 1), seg = o.spec.segments.find((s) => u >= s.a && u <= s.b); if (seg && seg.paint) { coat.coat[i] = 1; coat.color.set(P.targetAt(o.spec, u, P.CFG.WOOD_RGB), i * 3); } coat.gloss[i] = P.SHEEN[o.spec.sheen].gloss; }
+    const it = f.state.inventory.add("piece", { wood: "pine", shape: "T", profile: St.pack(t), start: St.pack(new Float32Array(n).fill(R0)), coat: { coat: St.pack(coat.coat, 3), color: St.pack(coat.color, 3), gloss: St.pack(coat.gloss, 3) }, rough: St.pack(new Float32Array(n).fill(0.05), 3) });
+    return b.deliver(777, it.id).ok;
+  });
+  await page.evaluate(() => { const o = document.getElementById("gradeOverlay"); o.hidden = true; o.innerHTML = ""; });
+  await frames(35);
+  let s = await shown();
+  check(delivered && s.trophies === 1 && s.gold === 0, `a delivered rolling pin stands on the wall (${s.trophies} piece)`);
+  await page.evaluate(() => window.__farm.progress.addStars("rolling_pin", 60));
+  await frames(35);
+  s = await shown();
+  check(s.gold === 1, "Legendary rolling pins: a gold plaque under it");
+  if (shots) await page.locator("#stage").screenshot({ path: `${shots}/trophies.png` });
+}
+
 check(errors.length === 0, "no page errors" + (errors.length ? ": " + errors.join(" | ") : ""));
 await browser.close();
 console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");

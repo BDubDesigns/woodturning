@@ -154,6 +154,7 @@
       setTimeout(function () { cutflash.classList.remove("on"); }, 110);
       audio.clunk();
       Hap.pulse("catch");
+      S.catchN = (S.catchN || 0) + 1;   // the shop cat looks up (view3d.js)
     }
 
     /* ---------------- UI ---------------- */
@@ -385,6 +386,13 @@
       S.disco = !!(shop.discoOn && shop.discoOn());   // the disco ball hangs in place of the work light (view3d.js)
       var dec = root.Game.decor;
       S.decor = dec ? dec.state : null;           // the decorations the workshop owns (view3d.js draws them)
+      // the trophy wall's pieces: the best delivered of each kind, and which are Legendary
+      S.trophies = function () {
+        var b = root.Game.commissions, pr = root.Game.progress, out = {};
+        if (!b || !b.state.best) return out;
+        for (var k in b.state.best) out[k] = { piece: b.state.best[k], legendary: !!pr && pr.masteryOf(k).tier >= root.Game.Progress.TOP_TIER };
+        return out;
+      };
       if (dec && audio.radio && audio.radioOn() !== dec.radioOn()) audio.radio(dec.radioOn());
       var fn = document.getElementById("finishName");     // the finish panel names the sprayer the workshop owns
       if (fn && shop.current("finish")) fn.textContent = shop.current("finish").name.toUpperCase();
@@ -610,6 +618,7 @@
         rough: St.pack(S.work.rough, 3)
       });
       var order = S.order;
+      S.doneN = (S.doneN || 0) + 1;     // the shop cat stretches (view3d.js)
       clearLathe();
       if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
       else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
