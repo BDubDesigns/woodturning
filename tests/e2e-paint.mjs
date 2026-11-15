@@ -118,7 +118,15 @@ for (const kind of ["3d", "2d"]) {
   const palette = await page.evaluate(() => Object.keys(window.Lathe.Paint.PALETTE));
   const swatches = await page.locator(".swatch").evaluateAll((els) => els.map((e) => e.dataset.color));
   check(swatches.length === palette.length && palette.every((k) => swatches.includes(k)), `the palette offers exactly the ${palette.length} spec paints`);
-  check((await page.locator(".swatch").evaluateAll((els) => els.every((e) => e.getBoundingClientRect().width >= 34 && e.getBoundingClientRect().height >= 34))), "swatches are finger-sized");
+  check((await page.locator(".swatch:not([hidden])").evaluateAll((els) => els.length === 9 && els.every((e) => e.getBoundingClientRect().width >= 34 && e.getBoundingClientRect().height >= 34))), "the nine everyday swatches show, finger-sized");
+  check(await page.locator(".swatch[hidden]").count() === palette.length - 9, "the extra colours (pastels, oxblood) wait until an order needs one");
+  {
+    const prev = await page.evaluate(() => window.__lathe.spec);
+    await page.evaluate(() => window.__lathe.setSpec({ name: "Two tone", kind: "twotone", sheen: "gloss", segments: [{ a: 0, b: 0.5, paint: "blush" }, { a: 0.5, b: 1, paint: "mint" }] }));
+    const ex = await page.locator(".swatch:not([hidden])").evaluateAll((els) => ({ n: els.length, ok: els.every((e) => e.getBoundingClientRect().width >= 34 && e.getBoundingClientRect().height >= 34), extra: els.filter((e) => ["blush", "mint"].includes(e.dataset.color)).length }));
+    check(ex.n === 11 && ex.extra === 2 && ex.ok, `a spec in blush and mint shows those two as well, still finger-sized (${ex.n} swatches)`);
+    await page.evaluate((s) => window.__lathe.setSpec(s), prev);
+  }
 
   await page.evaluate((s) => window.__lathe.setSpec(s), BANDED);
   const needed = await page.locator(".swatch.needed").evaluateAll((els) => els.map((e) => e.dataset.color).sort());

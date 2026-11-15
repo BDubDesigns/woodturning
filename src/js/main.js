@@ -662,15 +662,9 @@
       if (def.extra) b.hidden = true;
       swatchWrap.appendChild(b); swatchEls[key] = b;
     });
+    // the extras wrap onto a second row while they show, so every swatch stays finger-sized
     function showSwatches(need) {
-      var n = 0;
-      for (var k in swatchEls) {
-        var on = !P.PALETTE[k].extra || need.indexOf(k) >= 0;
-        swatchEls[k].hidden = !on;
-        if (on) n++;
-      }
-      swatchWrap.style.setProperty("--cols", n);
-      swatchWrap.classList.toggle("many", n > P.PALETTE_ORDER.length);   // an extra colour or two: a little smaller, still one row
+      for (var k in swatchEls) swatchEls[k].hidden = !!P.PALETTE[k].extra && need.indexOf(k) < 0;
       if (swatchEls[S.color] && swatchEls[S.color].hidden) setColor(P.PALETTE_ORDER[0]);
     }
     function setColor(key) {
