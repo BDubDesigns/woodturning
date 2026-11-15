@@ -374,7 +374,8 @@ check(await page.evaluate(() => window.__lathe.tip) === "sand" && /SMOOTH HERE/.
   // frame by frame below: on the test clock, particles only age when a frame is drawn
   // the dust is random, so a single frame can tie by chance (CI once saw 17 -> 17): compare the busiest
   // moment of the first second with the average over the last half second, a frame at a time
-  const counts = await page.evaluate(() => { const out = []; for (let i = 0; i < 200; i++) { window.__lathe.advance(1 / 60); out.push(window.__lathe.views.current.dustCount()); } return out; });
+  const sample = (n) => page.evaluate((n) => { const out = []; for (let i = 0; i < n; i++) { window.__lathe.advance(1 / 60); out.push(window.__lathe.views.current.dustCount()); } return out; }, n);
+  const counts = (await sample(50)).concat(await sample(150));
   var dustRough = Math.max(...counts.slice(0, 60));
   var dustSmooth = Math.round(counts.slice(170).reduce((a, b) => a + b, 0) / 30 * 10) / 10;
   await page.mouse.up(); await tick(0.06);
