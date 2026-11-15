@@ -94,7 +94,8 @@
     if (!badge) return;
     var r = Pr.rankAt(Math.max(0, progress.state.totalStars - badgeHeld));
     var t = "R" + r.rank + " · " + r.title;
-    if (badgeLabel.textContent !== t) badgeLabel.textContent = t;
+    // the title hides on phones (style.css .rt), leaving "R1" and the bar; the panel names it
+    if (badgeLabel.textContent !== t) badgeLabel.innerHTML = "R" + r.rank + '<span class="rt"> · ' + r.title + "</span>";
     badgeBar.style.width = Math.round(r.frac * 100) + "%";
     badge.setAttribute("aria-label", "Rank " + r.rank + ", " + r.title + ". " + rankSub(r) + ". Open your progress");
   }
@@ -183,7 +184,7 @@
     host.holdWallet(hold);
     badgeHeld = b.n; renderBadge();
     // the wallet shows above the card's shade, to count into, and the card sits below it
-    var nav = document.getElementById("tabs");
+    var nav = document.querySelector("#app > header");
     if (nav) overlay.style.setProperty("--nav-bottom", Math.round(nav.getBoundingClientRect().bottom) + "px");
     document.body.classList.add("cel-lift");
     audio.init();
