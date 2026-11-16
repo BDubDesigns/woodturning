@@ -17,11 +17,27 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # The licensed shop cat lives in a private repo (BDubDesigns/woodturning-assets), read
+      # with the ASSETS_TOKEN secret; the build puts it in scrambled. Never commit it here.
+      - name: Private assets
+        if: env.ASSETS_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: BDubDesigns/woodturning-assets
+          token: ${{ secrets.ASSETS_TOKEN }}
+          path: private-assets
+      - name: Refuse to ship without the cat
+        if: env.ASSETS_TOKEN == ''
+        run: |
+          echo "::error::ASSETS_TOKEN is missing or empty, so the build would have no cat. Renew the token (Settings > Secrets > Actions)."
+          exit 1
       - name: Build the single-file game
         run: |
           mkdir _site

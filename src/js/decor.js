@@ -11,7 +11,9 @@
      radio         on a shelf by the lathe. Tap it to play a soft tune
                    (audio.js radio), which follows the sound toggle.
      string_lights along the rafters: a warm glow, a gentle flicker.
-     cat           naps on a stool. Looks up on a catch, stretches on DONE.
+     cat           a 3D cat on a walkway high on the back wall: naps, looks up on a
+                   catch, sits up on DONE, now and then walks or rolls over.
+                   Its model is licensed and lives in a private repo (assets.js).
      trophy_wall   a shelf with one spot per blueprint, showing the best
                    piece of each kind delivered (commissions.js keeps
                    those, best), and a gold plaque at Legendary.

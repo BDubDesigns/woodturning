@@ -31,6 +31,8 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
+    env:
+      ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -44,6 +46,15 @@ jobs:
       # the same Playwright the cloud sessions use, so a check behaves the same in both places
       - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
       - run: npx playwright install --with-deps chromium
+      # The licensed shop cat lives in a private repo (BDubDesigns/woodturning-assets), read
+      # with the ASSETS_TOKEN secret; the build puts it in scrambled. Never commit it here.
+      - name: Private assets
+        if: env.ASSETS_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: BDubDesigns/woodturning-assets
+          token: ${{ secrets.ASSETS_TOKEN }}
+          path: private-assets
       - name: Build the single-file game
         run: node tools/build.mjs
       - name: Run ${{ matrix.suite }}

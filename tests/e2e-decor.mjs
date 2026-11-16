@@ -107,24 +107,38 @@ console.log("\nTHE CAT");
 if (is3d) {
   await page.evaluate(() => { window.Game.showScreen("lathe"); window.Lathe.mountBlank(null); });
   await tick(0.2);
-  check((await shown()).catMode === "doze", "the cat dozes on its walkway");
-  await page.evaluate(() => { window.__lathe.catchN = (window.__lathe.catchN || 0) + 1; });   // what a catch does (main.js onCatch)
-  await tick(0.3);
-  check((await shown()).catMode === "look", "a catch: it looks up");
-  await frames(130);
-  check((await shown()).catMode === "doze", "then dozes off again");
-  // DONE on a real log: a piece for the shed, and the cat stretches
-  await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "pine" }, 1); window.Lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 40; i < 120; i++) S.work.radius[i] *= 0.8; S.work.version++; });
-  await tick(0.1);
-  await page.click("#doneBtn");
-  await tick(0.3);
-  check((await shown()).catMode === "stretch", "DONE: it stretches");
-  const x0 = (await shown()).catX;
-  await page.evaluate(() => window.__lathe.views.current.catWalk());
-  await frames(60);
-  const w = await shown();
-  check(w.catMode === "walk" && Math.abs(w.catX - x0) > 0.3, `now and then it walks along the walkway (${x0} -> ${w.catX})`);
-  check(w.picture, "and a small picture hangs on the back wall");
+  const hasModel = await page.evaluate(() => window.Lathe.assets.has("cat.glb"));
+  if (!hasModel) {
+    console.log("  skip  this build has no private assets (no ASSETS_TOKEN / private-assets/), so no cat model");
+  } else {
+    await page.waitForFunction(() => window.__lathe.views.current.decorShown().catModel, null, { timeout: 15000 });
+    check((await shown()).catModel, "the cat model loads from the private assets");
+    await frames(10);
+    let c = await shown();
+    check(c.catMode === "doze" && c.catClip === "sleep", `the cat sleeps on its walkway (${c.catMode}, ${c.catClip})`);
+    await page.evaluate(() => { window.__lathe.catchN = (window.__lathe.catchN || 0) + 1; });   // what a catch does (main.js onCatch)
+    await tick(0.3);
+    c = await shown();
+    check(c.catMode === "look" && c.catClip === "look", "a catch: it crouches and looks");
+    await frames(200);
+    check((await shown()).catMode === "doze", "then goes back to sleep");
+    // DONE on a real log: a piece for the shed, and the cat sits up
+    await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "pine" }, 1); window.Lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 40; i < 120; i++) S.work.radius[i] *= 0.8; S.work.version++; });
+    await tick(0.1);
+    await page.click("#doneBtn");
+    await tick(0.3);
+    c = await shown();
+    check(c.catMode === "sit" && c.catClip === "sit", "DONE: it sits up");
+    await page.evaluate(() => window.__lathe.views.current.catRoll());
+    await frames(5);
+    check((await shown()).catClip === "roll", "now and then it rolls onto its back");
+    const x0 = (await shown()).catX;
+    await page.evaluate(() => window.__lathe.views.current.catWalk());
+    await frames(60);
+    c = await shown();
+    check(c.catMode === "walk" && c.catClip === "walk" && Math.abs(c.catX - x0) > 0.3, `and walks along the walkway (${x0} -> ${c.catX})`);
+  }
+  check((await shown()).picture, "a small picture hangs on the back wall");
 }
 
 console.log("\nTHE TROPHY WALL");

@@ -267,6 +267,7 @@ src/js/view3d.js    Three.js view
 src/js/view2d.js    Canvas2D view (fallback and first-class view)
 src/js/audio.js     synthesised cut / motor / catch sounds
 src/vendor/         three.js r186 (bundled build that sets window.THREE)
+src/js/assets.js    unscrambles licensed assets from the private repo (the cat)
 tools/build.mjs     inlines src/ into the single-file lathe.html
 tests/              model tests (node --test) and a Playwright browser check
 ```
@@ -287,6 +288,13 @@ know which view is showing. Tuning lives in `CFG` and `TIPS` at the top of `cutt
 npm test        # cutting model, farm model, save, harvest model, paint and finish model
 npm run e2e     # builds, then plays the harvest into the lathe, drives the lathe (both views), the farm, paint and finish, the commission board, the store and the new-player flow in Chromium
 npm run build   # rebuild lathe.html after editing src/
+
+`lathe.html` is a build output and isn't committed. The licensed shop cat lives in
+a private repo, `BDubDesigns/woodturning-assets`: CI checks it out into
+`private-assets/` (gitignored) with the `ASSETS_TOKEN` secret, and the build puts
+it in the page scrambled (`src/js/assets.js` unscrambles it). Without that folder
+the build still works and the game has no cat. Never commit bought models or
+textures to this repo: it's public, and the store licence forbids sharing them.
 ```
 
 The browser checks drive the lathe on a test clock: `lathe.html?testclock` stops
