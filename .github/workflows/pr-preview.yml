@@ -31,6 +31,7 @@ jobs:
       # The licensed shop cat lives in a private repo (BDubDesigns/woodturning-assets), read
       # with the ASSETS_TOKEN secret; the build puts it in scrambled. Never commit it here.
       - name: Private assets
+        continue-on-error: true   # a bad token means no cat in this build (the decor test says so), not a red PR
         if: env.ASSETS_TOKEN != '' && github.event.action != 'closed'
         uses: actions/checkout@v4
         with:
