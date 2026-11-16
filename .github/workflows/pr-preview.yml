@@ -20,12 +20,24 @@ jobs:
     # Forks get a read-only token, so they cannot publish previews.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         if: github.event.action != 'closed'
         with:
           node-version: 20
+      # The licensed shop cat lives in a private repo (BDubDesigns/woodturning-assets), read
+      # with the ASSETS_TOKEN secret; the build puts it in scrambled. Never commit it here.
+      - name: Private assets
+        continue-on-error: true   # a bad token means no cat in this build (the decor test says so), not a red PR
+        if: env.ASSETS_TOKEN != '' && github.event.action != 'closed'
+        uses: actions/checkout@v4
+        with:
+          repository: BDubDesigns/woodturning-assets
+          token: ${{ secrets.ASSETS_TOKEN }}
+          path: private-assets
       - name: Build the single-file game
         if: github.event.action != 'closed'
         run: |

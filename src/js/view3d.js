@@ -441,7 +441,7 @@
       picture: [0.12, 0.44, -1.4],         // screen x, screen y, depth: a small framed picture between the shelves
       trophies: [-0.92, -0.28, 0.4, -1.4]  // from screen x, to screen x, the shelf at screen y, depth: on the back wall
     };
-    var CAT = { LOOK_S: 1.6, STRETCH_S: 1.9, BREATHE: 0.03, SIZE: 1.6, WALK_SPEED: 0.45, STRIDES: 1.4, WALK_EVERY_S: 90 };   // look and stretch times; SIZE in world units; walks: units a second, strides a second, about how often
+    var CAT = { SIZE: 1.9, LOOK_S: 2.4, SIT_S: 3.2, ROLL_S: 2.0, FADE_S: 0.45, WALK_SPEED: 0.6, WALK_EVERY_S: 90, ROLL_EVERY_S: 55, TURN_TO_YOU: 0.35, TINT: 0xffc48a };   // SIZE: nose to tail tip, world units; seconds for each reaction; walks in units a second; about how often it walks and rolls
     var TROPHY = { LEN: 0.85, RAD: 0.14, POINTS: 24, SIDES: 10 };       // each piece on the wall: height and girth in world units
     var DISCO = {
       LIGHT: 16, AMBIENT: 0.32,            // the work light dims to this with the disco ball up (the bare bulb is 38)
@@ -521,100 +521,70 @@
       return g;
     }
     /* ---- the shop cat, on a walkway high on the back wall ----
-       Drawn, not modelled: at that distance a flat side-on cat reads at a glance where a
-       few spheres never did. Each pose is drawn on a small canvas (redrawn only when the
-       pose changes, or every frame while it walks), on a plane that faces the camera.
-       It naps at one end, looks up when the chisel catches, stretches when you press DONE,
-       and now and then gets up, walks to the other end and curls up there. */
-    var CW = 256, CH = 160;                    // the cat's canvas: the ground line is at y = 150
-    function drawCat(g, pose, u, eyes) {
-      g.clearRect(0, 0, CW, CH);
-      var FUR = "#d9822b", DARK = "#9a5418", LINE = "#2e1a0c", BELLY = "#efc28c";
-      g.lineJoin = g.lineCap = "round";
-      function ell(x, y, rx, ry, rot) { g.beginPath(); g.ellipse(x, y, rx, ry, rot || 0, 0, Math.PI * 2); }
-      function fillLine(w) { g.fillStyle = FUR; g.fill(); g.lineWidth = w || 4; g.strokeStyle = LINE; g.stroke(); }
-      function tail(pts, w) {                  // a thick tail: outline first, fur over it, a dark tip
-        g.beginPath(); g.moveTo(pts[0], pts[1]); g.bezierCurveTo(pts[2], pts[3], pts[4], pts[5], pts[6], pts[7]);
-        g.lineWidth = w + 7; g.strokeStyle = LINE; g.stroke(); g.lineWidth = w; g.strokeStyle = FUR; g.stroke();
-      }
-      function leg(pts, w, far) {             // a limb through its joints, tapering, with a paw; the far ones darker
-        g.beginPath(); g.moveTo(pts[0], pts[1]);
-        for (var i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
-        g.lineWidth = w + 7; g.strokeStyle = LINE; g.stroke(); g.lineWidth = w; g.strokeStyle = far ? DARK : FUR; g.stroke();
-        var px = pts[pts.length - 2], py = pts[pts.length - 1];
-        ell(px + 4, py - 3, 8, 5); g.fillStyle = far ? DARK : FUR; g.fill(); g.lineWidth = 3; g.strokeStyle = LINE; g.stroke();
-      }
-      function front(x, y, s, far) { leg([x, y, x + 4 * s - 1, y + 24, x + 13 * s, 147], 10, far); }        // shoulder, elbow, paw
-      function back(x, y, s, far) { leg([x, y, x + 14 + 8 * s, y + 20, x + 2 + 10 * s, y + 36, x + 6 + 14 * s, 147], 11, far); }   // hip, knee, hock, paw
-      function head(x, y, r, tilt, open) {     // round head, two pointed ears, a muzzle, eyes shut or open
-        g.save(); g.translate(x, y); g.rotate(tilt || 0);
-        [[-1, -0.95, -0.15], [1, 0.95, 0.15]].forEach(function (e) {
-          g.beginPath(); g.moveTo(e[0] * r * 0.85, -r * 0.35); g.lineTo(e[1] * r * 0.62 + e[2] * r, -r * 1.55); g.lineTo(e[0] * r * 0.08, -r * 0.82); g.closePath();
-          fillLine(4);
-          g.beginPath(); g.moveTo(e[0] * r * 0.62, -r * 0.55); g.lineTo(e[1] * r * 0.6 + e[2] * r * 0.7, -r * 1.25); g.lineTo(e[0] * r * 0.25, -r * 0.8); g.closePath();
-          g.fillStyle = "#e9a0a0"; g.fill();
+       A rigged, animated 3D cat (bought, licensed; it comes in through assets.js from the
+       private assets repo). It lies asleep at one end, crouches and looks when the chisel
+       catches, sits up when you press DONE, now and then rolls onto its back, and every so
+       often gets up and walks to the other end. A build without the private assets has no
+       cat model: the walkway still goes up, empty. The model is parsed once and cloned for
+       each rebuild (a resize rebuilds the decorations). */
+    var catModel = null, catModelState = "none";   // none | loading | ready | missing
+    var CAT_CLIPS = { walk: "a_cat_walk_01", stand: "a_cat_idle_01", sit: "a_cat_idle_02", look: "a_cat_idle_03", sleep: "a_cat_idle_04", roll: "a_cat_idle_05" };
+    function loadCatModel(done) {
+      if (catModelState === "ready") return done();
+      if (catModelState === "loading") return;
+      var A = L.assets;
+      if (!A || !A.has("cat.glb") || !THREE.GLTFLoader) { catModelState = "missing"; return; }
+      catModelState = "loading";
+      var glb = A.bytes("cat.glb");
+      new THREE.GLTFLoader().parse(glb.buffer, "", function (gltf) {
+        var url = A.objectUrl("cat.png", "image/png");
+        new THREE.TextureLoader().load(url, function (tex) {
+          URL.revokeObjectURL(url);
+          tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace;
+          var mat = new THREE.MeshStandardMaterial({ map: tex, color: CAT.TINT, roughness: 0.85 });   // a warm tint so it reads ginger in a dim shop
+          gltf.scene.traverse(function (o) { if (o.isMesh) { o.material = mat; o.frustumCulled = false; } });
+          var box = new THREE.Box3().setFromObject(gltf.scene), size = box.getSize(new THREE.Vector3());
+          catModel = { scene: gltf.scene, clips: gltf.animations, length: Math.max(size.x, size.z), floor: box.min.y };
+          catModelState = "ready";
+          done();
         });
-        ell(0, 0, r, r * 0.9); fillLine(4);
-        ell(r * 0.55, r * 0.35, r * 0.42, r * 0.3); g.fillStyle = BELLY; g.fill();   // the muzzle, toward the way it faces
-        g.beginPath(); g.moveTo(r * 0.92, r * 0.18); g.lineTo(r * 0.78, r * 0.3); g.lineTo(r * 0.98, r * 0.32); g.closePath(); g.fillStyle = "#c46a6a"; g.fill();   // nose
-        if (open) {
-          ell(r * 0.35, -r * 0.12, r * 0.17, r * 0.2); g.fillStyle = "#b9e05a"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = LINE; g.stroke();
-          ell(r * 0.38, -r * 0.12, r * 0.05, r * 0.16); g.fillStyle = LINE; g.fill();
-        } else {
-          g.beginPath(); g.arc(r * 0.38, -r * 0.16, r * 0.17, 0.15 * Math.PI, 0.85 * Math.PI); g.lineWidth = 3.5; g.strokeStyle = LINE; g.stroke();
-        }
-        g.beginPath(); g.moveTo(r * 0.75, r * 0.42); g.lineTo(r * 1.45, r * 0.3); g.moveTo(r * 0.75, r * 0.5); g.lineTo(r * 1.42, r * 0.62);   // whiskers
-        g.lineWidth = 1.5; g.strokeStyle = "rgba(255,240,220,0.8)"; g.stroke();
-        g.restore();
-      }
-      function stripes(x, y, rx, ry, n) {      // tabby stripes across the back, clipped to the body
-        g.save(); ell(x, y, rx, ry); g.clip(); g.strokeStyle = DARK; g.lineWidth = 6;
-        for (var i = 0; i < n; i++) { var sx = x - rx * 0.7 + i * (rx * 1.4 / (n - 1)); g.beginPath(); g.moveTo(sx - 6, y - ry - 2); g.quadraticCurveTo(sx + 4, y - ry * 0.4, sx - 2, y - ry * 0.05); g.stroke(); }
-        g.restore();
-      }
-      if (pose === "curl" || pose === "loaf") {          // asleep in a loaf, tail wrapped round the front
-        var up = pose === "loaf" ? u : 0;                // the head comes up when it looks
-        tail([66, 136, 40, 160, 150, 160, 196, 146], 13);
-        ell(122, 116, 74, 34); fillLine(4); stripes(122, 116, 74, 34, 5);
-        ell(150, 136, 36, 12); g.fillStyle = BELLY; g.fill();
-        head(192, 116 - 26 * up, 30, -0.15 + 0.2 * up, eyes);
-      } else if (pose === "sit") {
-        tail([84, 146, 120, 158, 168, 156, 186, 140], 12);
-        ell(104, 114, 46, 36); fillLine(4); stripes(104, 112, 46, 36, 4);
-        ell(140, 96, 26, 44, 0.25); fillLine(4);
-        ell(146, 104, 14, 30, 0.25); g.fillStyle = BELLY; g.fill();
-        leg([134, 112, 136, 145], 10, true); leg([148, 110, 150, 145], 10);
-        head(152, 50, 28, 0, eyes);
-      } else if (pose === "stretch") {                   // front down and long, rear up, tail high
-        var k = u;                                       // 0 sitting up into it, 1 the full stretch
-        tail([76, 80, 44, 64, 30, 40 - 10 * k, 50, 16], 11);
-        leg([84, 92, 92, 120, 80, 145], 11, true); leg([96, 94, 104, 122, 94, 146], 11);
-        ell(122, 98 + 14 * k, 64, 26, 0.18 + 0.12 * k); fillLine(4); stripes(122, 98 + 14 * k, 64, 26, 5);
-        leg([158, 124, 182, 140, 200 + 10 * k, 146], 10, true); leg([166, 122, 190, 138, 212 + 10 * k, 145], 10);
-        head(186, 112 + 10 * k, 26, 0.25, true);
-      } else {                                           // walking: legs swing with u (0..1 is one stride)
-        var a = Math.sin(u * Math.PI * 2), b = Math.sin(u * Math.PI * 2 + Math.PI), bob = Math.abs(Math.cos(u * Math.PI * 2)) * 3;
-        tail([66, 86 - bob, 36, 60, 30, 26, 46, 14], 11);
-        back(82, 96 - bob, a, true); front(170, 100 - bob, b, true);                   // the far pair, behind
-        ell(128, 90 - bob, 66, 26); fillLine(4); stripes(128, 90 - bob, 66, 26, 5);
-        back(94, 98 - bob, b); front(160, 102 - bob, a);
-        head(196, 66 - bob, 25, 0.05, eyes);
-      }
+      }, function () { catModelState = "missing"; });
     }
     function buildCat() {
       var g = new THREE.Group();
-      var c = document.createElement("canvas"); c.width = CW; c.height = CH;
-      var tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-      var w = CAT.SIZE, h = w * CH / CW;
-      var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.4, roughness: 0.95, side: THREE.DoubleSide }));
-      mesh.position.y = h / 2 - h * (CH - 150) / CH;      // its ground line sits on the walkway
-      g.add(mesh);
       var walk = buildWalkway();
-      cat.parts = { g: g, mesh: mesh, canvas: c, ctx: c.getContext("2d"), tex: tex, sig: "", walk: walk, x: walk.a, dir: 1, target: null };
+      cat.parts = { g: g, walk: walk, x: walk.a, dir: 1, target: null, model: null, mixer: null, actions: null, clip: "" };
       cat.catchN = S.catchN || 0; cat.doneN = S.doneN || 0; cat.mode = "doze"; cat.t = 0;   // only what happens from now on wakes it
       cat.nextWalk = CAT.WALK_EVERY_S * (0.6 + Math.random() * 0.8);
+      cat.nextRoll = CAT.ROLL_EVERY_S * (0.6 + Math.random() * 0.8);
+      var parts = cat.parts;
+      loadCatModel(function () { if (cat.parts === parts) attachCatModel(parts); });
       var both = new THREE.Group(); both.add(walk.group); both.add(g);
       return both;
+    }
+    function attachCatModel(p) {
+      var m = THREE.SkeletonUtils.clone(catModel.scene), s = CAT.SIZE / catModel.length;
+      m.scale.setScalar(s); m.position.y = -catModel.floor * s;
+      p.g.add(m);
+      p.model = m;
+      p.mixer = new THREE.AnimationMixer(m);
+      p.actions = {};
+      Object.keys(CAT_CLIPS).forEach(function (k) {
+        var clip = THREE.AnimationClip.findByName(catModel.clips, CAT_CLIPS[k]);
+        if (!clip) return;
+        var act = p.mixer.clipAction(clip);
+        if (k === "roll") { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; }
+        p.actions[k] = act;
+      });
+      p.clip = "";
+      playCat(p, "sleep", 0);
+    }
+    function playCat(p, k, fade) {
+      if (!p.actions || p.clip === k || !p.actions[k]) return;
+      var next = p.actions[k], prev = p.clip ? p.actions[p.clip] : null;
+      next.reset(); next.play();
+      if (prev && fade > 0) prev.crossFadeTo(next, fade, false); else if (prev) prev.stop();
+      p.clip = k;
     }
     /* The walkway: a long plank on brackets high on the back wall, under the string lights. */
     function buildWalkway() {
@@ -622,24 +592,30 @@
       anchorAt(cfg[0], cfg[2], cfg[3], A); anchorAt(cfg[1], cfg[2], cfg[3], B);
       var grp = new THREE.Group(), len = B.x - A.x;
       var plankMat = new THREE.MeshStandardMaterial({ color: 0x6b4426, roughness: 0.85 }), brMat = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.6, metalness: 0.4 });
-      var plank = new THREE.Mesh(new THREE.BoxGeometry(len, 0.07, 0.55), plankMat); plank.position.set((A.x + B.x) / 2, A.y - 0.035, A.z); grp.add(plank);
+      var plank = new THREE.Mesh(new THREE.BoxGeometry(len, 0.07, 0.8), plankMat); plank.position.set((A.x + B.x) / 2, A.y - 0.035, A.z); grp.add(plank);
       for (var i = 0; i < 4; i++) {
         var br = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.32, 0.05), brMat);
         br.position.set(A.x + 0.3 + i * (len - 0.6) / 3, A.y - 0.22, A.z - 0.22); grp.add(br);
       }
-      return { group: grp, a: A.x + CAT.SIZE * 0.42, b: B.x - CAT.SIZE * 0.42, y: A.y, z: A.z + 0.05 };
+      return { group: grp, a: A.x + CAT.SIZE * 0.75, b: B.x - CAT.SIZE * 0.75, y: A.y, z: A.z + 0.05 };   // its ends: room for nose and tail
     }
     function catPose(dt) {
       var p = cat.parts;
       if (!p) return;
-      if ((S.catchN || 0) !== cat.catchN) { cat.catchN = S.catchN || 0; if (cat.mode !== "walk") { cat.mode = "look"; cat.t = 0; } }
-      if ((S.doneN || 0) !== cat.doneN) { cat.doneN = S.doneN || 0; cat.mode = "stretch"; cat.t = 0; }
+      if ((S.catchN || 0) !== cat.catchN) { cat.catchN = S.catchN || 0; if (cat.mode === "doze" || cat.mode === "look") { cat.mode = "look"; cat.t = 0; } }
+      if ((S.doneN || 0) !== cat.doneN) { cat.doneN = S.doneN || 0; if (cat.mode !== "walk") { cat.mode = "sit"; cat.t = 0; } }
       cat.t += dt;
+      var calm = !S.reduceMotion;
       if (cat.mode === "look" && cat.t >= CAT.LOOK_S) { cat.mode = "doze"; cat.t = 0; }
-      if (cat.mode === "stretch" && cat.t >= CAT.STRETCH_S) {   // up and stretched: half the time it wanders off
-        cat.mode = Math.random() < 0.5 && !S.reduceMotion ? "walk" : "doze"; cat.t = 0;
+      if (cat.mode === "sit" && cat.t >= CAT.SIT_S) {          // up anyway: half the time it wanders off
+        cat.mode = calm && Math.random() < 0.5 ? "walk" : "doze"; cat.t = 0;
       }
-      if (cat.mode === "doze" && !S.reduceMotion) { cat.nextWalk -= dt; if (cat.nextWalk <= 0) { cat.mode = "walk"; cat.t = 0; } }
+      if (cat.mode === "roll" && cat.t >= CAT.ROLL_S) { cat.mode = "doze"; cat.t = 0; }
+      if (cat.mode === "doze" && calm) {
+        cat.nextWalk -= dt; cat.nextRoll -= dt;
+        if (cat.nextWalk <= 0) { cat.mode = "walk"; cat.t = 0; }
+        else if (cat.nextRoll <= 0) { cat.mode = "roll"; cat.t = 0; cat.nextRoll = CAT.ROLL_EVERY_S * (0.6 + Math.random() * 0.8); }
+      }
       if (cat.mode === "walk") {
         if (p.target === null) p.target = Math.abs(p.x - p.walk.a) < Math.abs(p.x - p.walk.b) ? p.walk.b : p.walk.a;
         p.dir = p.target > p.x ? 1 : -1;
@@ -649,18 +625,14 @@
           cat.nextWalk = CAT.WALK_EVERY_S * (0.6 + Math.random() * 0.8);
         }
       }
-      // pick the pose, and redraw only when it changes (every frame only while it walks or stretches)
-      var pose, u = 0, eyes = false;
-      if (cat.mode === "walk") { pose = "walk"; u = (cat.t * CAT.STRIDES) % 1; eyes = true; }
-      else if (cat.mode === "stretch") { pose = cat.t < 0.35 ? "sit" : "stretch"; u = Math.min(1, Math.sin(Math.PI * Math.min(1, cat.t / CAT.STRETCH_S)) * 1.6); eyes = true; }
-      else if (cat.mode === "look") { pose = "loaf"; u = Math.min(1, Math.sin(Math.PI * Math.min(1, cat.t / CAT.LOOK_S)) * 2); eyes = u > 0.3; }
-      else pose = "curl";
-      var sig = pose + (pose === "walk" || pose === "stretch" || pose === "loaf" ? Math.round(u * 24) : "") + eyes;
-      if (sig !== p.sig) { p.sig = sig; drawCat(p.ctx, pose, u, eyes); p.tex.needsUpdate = true; }
-      var breathe = cat.mode === "doze" && !S.reduceMotion ? CAT.BREATHE * Math.sin(discoT * 1.8) : 0;
       p.g.position.set(p.x, p.walk.y, p.walk.z);
-      p.mesh.scale.set(p.dir, 1 + breathe, 1);
-      p.g.quaternion.copy(camera.quaternion);              // a flat cat always faces you
+      if (!p.model) return;
+      playCat(p, { doze: "sleep", look: "look", sit: "sit", walk: "walk", roll: "roll" }[cat.mode], CAT.FADE_S);
+      // walking: side-on, the way it goes. Otherwise turned a little toward you, so it reads as a cat, not a line
+      var want = p.dir * Math.PI / 2 + (cat.mode === "walk" ? 0 : -p.dir * CAT.TURN_TO_YOU);
+      var cur = p.g.rotation.y, d = want - cur;
+      p.g.rotation.y = cur + d * Math.min(1, dt * 6);
+      p.mixer.update(dt);
     }
 
     /* ---- the trophy wall: the best delivered piece of each kind, standing on a shelf ---- */
@@ -1466,8 +1438,9 @@
       dustCount: function () { return sdLive; },
       decorAt: decorAt,
       /* exposed for tests: which decorations are drawn */
-      catWalk: function () { if (cat.parts) { cat.mode = "walk"; cat.t = 0; } },   // tests: send the cat on its walk now
-      decorShown: function () { return { disco: !!discoBall, spots: deco.spotList.length, radio: !!deco.radio, strings: deco.bulbs.length, cat: !!deco.cat, catMode: cat.mode, catX: cat.parts ? +cat.parts.x.toFixed(2) : null, picture: !!deco.picture, trophyWall: !!deco.trophies, trophies: deco.trophyN, gold: deco.goldN }; },
+      catWalk: function () { if (cat.parts) { cat.mode = "walk"; cat.t = 0; } },
+      catRoll: function () { if (cat.parts) { cat.mode = "roll"; cat.t = 0; } },   // tests: send the cat on its walk now
+      decorShown: function () { return { disco: !!discoBall, spots: deco.spotList.length, radio: !!deco.radio, strings: deco.bulbs.length, cat: !!deco.cat, catModel: !!(cat.parts && cat.parts.model), catClip: cat.parts ? cat.parts.clip : "", catMode: cat.mode, catX: cat.parts ? +cat.parts.x.toFixed(2) : null, picture: !!deco.picture, trophyWall: !!deco.trophies, trophies: deco.trophyN, gold: deco.goldN }; },
       onPaint: function (pr, dt) {
         var t = S.tool.t, r = work.sample(t);
         contactPoint.set(axialX(t), CENTER_Y + CONTACT_N.y * r, CONTACT_N.z * r);
