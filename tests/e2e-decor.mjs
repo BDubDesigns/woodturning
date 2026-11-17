@@ -113,15 +113,43 @@ if (is3d) {
   } else {
     await page.waitForFunction(() => window.__lathe.views.current.decorShown().catModel, null, { timeout: 15000 });
     check((await shown()).catModel, "the cat model loads from the private assets");
+    // a real cut: press below the log and push up into it while the clock runs
+    const at = await page.evaluate(() => {
+      const v = window.__lathe.views.current, lay = v.layout(), rect = document.getElementById("stage").getBoundingClientRect();
+      return { x: rect.left + lay.left + 0.4 * (lay.right - lay.left), y: Math.min(rect.bottom - 30, rect.top + lay.cy + lay.rPx + 70) };
+    });
+    const cut = async (n, dx) => {   // dx: somewhere along the log not cut yet
+      await page.mouse.move(at.x + dx, at.y); await page.mouse.down();
+      for (let i = 1; i <= n; i++) { await page.mouse.move(at.x + dx, at.y - Math.min(40, 4 * i)); await frames(4); }
+      await page.mouse.up(); await frames(1);
+    };
     await frames(10);
     let c = await shown();
-    check(c.catMode === "doze" && c.catClip === "sleep", `the cat sleeps on its walkway (${c.catMode}, ${c.catClip})`);
-    await page.evaluate(() => { window.__lathe.catchN = (window.__lathe.catchN || 0) + 1; });   // what a catch does (main.js onCatch)
-    await tick(0.3);
+    check(c.catMode === "asleep" && c.catClip === "sleep", `the cat starts asleep on its walkway (${c.catMode}, ${c.catClip})`);
+    await page.mouse.move(at.x, at.y); await page.mouse.down();
+    for (let i = 1; i <= 12; i++) { await page.mouse.move(at.x, at.y - Math.min(40, 4 * i)); await frames(4); }
     c = await shown();
-    check(c.catMode === "look" && c.catClip === "look", "a catch: it crouches and looks");
-    await frames(200);
-    check((await shown()).catMode === "doze", "then goes back to sleep");
+    const working = await page.evaluate(() => window.__lathe.working);
+    check(working && c.catMode === "look" && c.catClip === "look", `the first cut wakes it straight away: it watches while you work (${c.catMode})`);
+    await page.mouse.up();
+    await frames(60);
+    const x0 = (await shown()).catX;
+    c = await shown();
+    check(c.catMode === "walk" && c.catClip === "walk", `you lift your finger: it gets up and walks (${c.catMode})`);
+    for (let i = 0; i < 40 && (await shown()).catMode === "walk"; i++) await frames(60);
+    c = await shown();
+    check((c.catMode === "rest" || c.catMode === "asleep") && Math.abs(c.catX - x0) > 2, `it lies down at the other end (${x0} -> ${c.catX}, ${c.catMode})`);
+    await cut(10, 60);
+    check((await shown()).catMode === "look", "cutting again: it lifts its head, it can't sleep through it");
+    await frames(90);
+    c = await shown();
+    check(c.catMode === "rest", `but no second walk inside 30 s (${c.catMode})`);
+    await tick(0.1); for (let i = 0; i < 5; i++) await frames(60);
+    c = await shown();
+    check(c.catMode === "asleep", `5 s of quiet: asleep again (${c.catMode})`);
+    await page.evaluate(() => { window.__lathe.catchN = (window.__lathe.catchN || 0) + 1; });   // what a catch does (main.js onCatch)
+    await frames(2);
+    check((await shown()).catMode === "look", "a catch: it crouches and looks");
     // DONE on a real log: a piece for the shed, and the cat sits up
     await page.evaluate(() => { window.__farm.state.inventory.add("log", { wood: "pine" }, 1); window.Lathe.mountStock({ kind: "log", key: "pine" }); const S = window.__lathe; for (let i = 40; i < 120; i++) S.work.radius[i] *= 0.8; S.work.version++; });
     await tick(0.1);
@@ -132,11 +160,6 @@ if (is3d) {
     await page.evaluate(() => window.__lathe.views.current.catRoll());
     await frames(5);
     check((await shown()).catClip === "roll", "now and then it rolls onto its back");
-    const x0 = (await shown()).catX;
-    await page.evaluate(() => window.__lathe.views.current.catWalk());
-    await frames(60);
-    c = await shown();
-    check(c.catMode === "walk" && c.catClip === "walk" && Math.abs(c.catX - x0) > 0.3, `and walks along the walkway (${x0} -> ${c.catX})`);
   }
   check((await shown()).picture, "a small picture hangs on the back wall");
 }

@@ -66,7 +66,9 @@
       pointer: { active: false, hover: false, id: null, x: 0, y: 0, t: 0.5 },
       // what the views draw: rest (parked), hover (mouse over, just off the wood), contact (on the wood)
       tool: { mode: "rest", t: 0.5, r: C.R0, lift: 0 },
-      lastT: -1
+      lastT: -1,
+      working: false,                   // wood, sanding dust, paint or finish going on this frame (the shop cat hears it)
+      quietS: 999                       // seconds since the last such frame
     };
     root.__lathe = S; // handy in the console and for the browser tests
 
@@ -618,7 +620,7 @@
         rough: St.pack(S.work.rough, 3)
       });
       var order = S.order;
-      S.doneN = (S.doneN || 0) + 1;     // the shop cat stretches (view3d.js)
+      S.doneN = (S.doneN || 0) + 1;     // the shop cat sits up (view3d.js)
       clearLathe();
       if (order && order.wood === wood && G.OrdersUI) G.OrdersUI.offer(order.id, piece.id);
       else if (order) toast(woodName(wood) + " piece added to the shed. " + order.client + " wants " + woodName(order.wood).toLowerCase() + ", so it cannot go to them.");
@@ -1031,6 +1033,9 @@
             if (!used[S.mode]) { used[S.mode] = true; hint.classList.add("gone"); }
           }
         }
+        // the shop cat (view3d.js) wakes at the first noise and dozes after a quiet spell
+        S.working = hapCut > 0 || hapSanding || (p.active && S.mode !== "cut" && pr > 0.04);
+        S.quietS = S.working ? 0 : S.quietS + dt;
         if (hapSanding) Hap.sand(hapSand);
         else { S.hapticSand = -1; if (!hapCut) S.hapticCut = 0; Hap.cut(hapCut); }   // no wood off this frame: nothing
         var tool = S.tool;

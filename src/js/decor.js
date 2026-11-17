@@ -11,8 +11,9 @@
      radio         on a shelf by the lathe. Tap it to play a soft tune
                    (audio.js radio), which follows the sound toggle.
      string_lights along the rafters: a warm glow, a gentle flicker.
-     cat           a 3D cat on a walkway high on the back wall: naps, looks up on a
-                   catch, sits up on DONE, now and then walks or rolls over.
+     cat           a 3D cat on a walkway high on the back wall: asleep until you
+                   work, then watches, walks to the far end (at most every 30 s)
+                   and dozes after 5 s of quiet. Sits up on DONE.
                    Its model is licensed and lives in a private repo (assets.js).
      trophy_wall   a shelf with one spot per blueprint, showing the best
                    piece of each kind delivered (commissions.js keeps
@@ -33,7 +34,7 @@
     disco:         { id: "disco",         name: "Disco ball",    price: 2500, blurb: "Hangs where the work light hangs. Pick it as your light under Lighting. Spinning coloured spots: great fun, harder to see the work by." },
     radio:         { id: "radio",         name: "Radio",         price: 300,  blurb: "An old shelf radio by the lathe. Tap it to play a soft tune while you work." },
     string_lights: { id: "string_lights", name: "String lights", price: 400,  blurb: "Warm little bulbs along the rafters, with a gentle flicker." },
-    cat:           { id: "cat",           name: "Shop cat",      price: 800,  blurb: "Naps on a stool by the lathe. Looks up when the chisel catches, and stretches when you press DONE." },
+    cat:           { id: "cat",           name: "Shop cat",      price: 800,  blurb: "Naps on a shelf high on the back wall. Your first cut wakes it, it wanders to the far end, and it dozes off again when the shop goes quiet." },
     trophy_wall:   { id: "trophy_wall",   name: "Trophy wall",   price: 1200, blurb: "A shelf on the back wall with a spot for every blueprint, showing your best delivered piece of each. Legendary ones get a gold plaque." }
   };
   var ORDER = ["radio", "string_lights", "cat", "trophy_wall", "disco"];   // as the store lists them: cheapest first, the disco ball last

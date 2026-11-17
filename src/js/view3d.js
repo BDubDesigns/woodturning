@@ -441,7 +441,7 @@
       picture: [0.12, 0.44, -1.4],         // screen x, screen y, depth: a small framed picture between the shelves
       trophies: [-0.92, -0.28, 0.4, -1.4]  // from screen x, to screen x, the shelf at screen y, depth: on the back wall
     };
-    var CAT = { SIZE: 1.9, LOOK_S: 2.4, SIT_S: 3.2, ROLL_S: 2.0, FADE_S: 0.45, WALK_SPEED: 0.6, WALK_EVERY_S: 90, ROLL_EVERY_S: 55, TURN_TO_YOU: 0.35, TINT: 0xffc48a };   // SIZE: nose to tail tip, world units; seconds for each reaction; walks in units a second; about how often it walks and rolls
+    var CAT = { SIZE: 1.9, LOOK_S: 0.6, SIT_S: 3.2, ROLL_S: 2.0, FADE_S: 0.45, WALK_SPEED: 0.6, WALK_GAP_S: 30, SLEEP_AFTER_S: 5, ROLL_EVERY_S: 55, TURN_TO_YOU: 0.35, TINT: 0xffc48a };   // SIZE nose to tail tip (world units); LOOK_S: least time it watches before moving on; WALK_GAP_S: at most one walk this often; SLEEP_AFTER_S: quiet before it dozes off
     var TROPHY = { LEN: 0.85, RAD: 0.14, POINTS: 24, SIDES: 10 };       // each piece on the wall: height and girth in world units
     var DISCO = {
       LIGHT: 16, AMBIENT: 0.32,            // the work light dims to this with the disco ball up (the bare bulb is 38)
@@ -455,7 +455,7 @@
     var decorG = new THREE.Group(); scene.add(decorG);
     var discoBall = null, discoT = 0, decorSig = "";
     var deco = { radio: null, radioBox: null, radioDial: null, strings: null, bulbs: [], spots: null, spotList: [], cat: null, trophies: null, trophyN: 0, goldN: 0 };
-    var cat = { mode: "doze", t: 0, catchN: 0, doneN: 0, parts: null };
+    var cat = { mode: "asleep", t: 0, catchN: 0, doneN: 0, parts: null, walkQueued: false, sinceWalk: 999 };
     var trophySig = "", trophyCheck = 0;
     function decorOwned(id) { return !!(S.decor && S.decor.owned && S.decor.owned.indexOf(id) >= 0); }
     /* A world point at screen (nx, ny), on the plane z = zw. */
@@ -554,8 +554,8 @@
       var g = new THREE.Group();
       var walk = buildWalkway();
       cat.parts = { g: g, walk: walk, x: walk.a, dir: 1, target: null, model: null, mixer: null, actions: null, clip: "" };
-      cat.catchN = S.catchN || 0; cat.doneN = S.doneN || 0; cat.mode = "doze"; cat.t = 0;   // only what happens from now on wakes it
-      cat.nextWalk = CAT.WALK_EVERY_S * (0.6 + Math.random() * 0.8);
+      cat.catchN = S.catchN || 0; cat.doneN = S.doneN || 0; cat.mode = "asleep"; cat.t = 0;   // it starts asleep; only what happens from now on wakes it
+      cat.walkQueued = false; cat.sinceWalk = 999;
       cat.nextRoll = CAT.ROLL_EVERY_S * (0.6 + Math.random() * 0.8);
       var parts = cat.parts;
       loadCatModel(function () { if (cat.parts === parts) attachCatModel(parts); });
@@ -599,35 +599,43 @@
       }
       return { group: grp, a: A.x + CAT.SIZE * 0.75, b: B.x - CAT.SIZE * 0.75, y: A.y, z: A.z + 0.05 };   // its ends: room for nose and tail
     }
+    /* What the cat does, driven by you. It starts asleep. The first noise (wood, sanding,
+       paint or finish going on) wakes it: it lifts its head and watches while you work, and
+       when you lift your finger it gets up, walks to the other end and lies down there, at most
+       once every CAT.WALK_GAP_S (inside that, waking only lifts its head). While it's awake every
+       new noise lifts its head again; it can't sleep through it. After CAT.SLEEP_AFTER_S of quiet
+       it's asleep again. DONE sits it up; asleep, it now and then rolls onto its back. */
     function catPose(dt) {
       var p = cat.parts;
       if (!p) return;
-      if ((S.catchN || 0) !== cat.catchN) { cat.catchN = S.catchN || 0; if (cat.mode === "doze" || cat.mode === "look") { cat.mode = "look"; cat.t = 0; } }
+      var working = !!S.working, quiet = S.quietS == null ? 999 : S.quietS, calm = !S.reduceMotion;
+      cat.t += dt; cat.sinceWalk += dt;
       if ((S.doneN || 0) !== cat.doneN) { cat.doneN = S.doneN || 0; if (cat.mode !== "walk") { cat.mode = "sit"; cat.t = 0; } }
-      cat.t += dt;
-      var calm = !S.reduceMotion;
-      if (cat.mode === "look" && cat.t >= CAT.LOOK_S) { cat.mode = "doze"; cat.t = 0; }
-      if (cat.mode === "sit" && cat.t >= CAT.SIT_S) {          // up anyway: half the time it wanders off
-        cat.mode = calm && Math.random() < 0.5 ? "walk" : "doze"; cat.t = 0;
+      if ((S.catchN || 0) !== cat.catchN) { cat.catchN = S.catchN || 0; if (cat.mode !== "walk") { cat.mode = "look"; cat.t = 0; } }
+      if (working && (cat.mode === "asleep" || cat.mode === "roll")) {          // woken: it watches, and means to move
+        cat.walkQueued = calm && cat.sinceWalk >= CAT.WALK_GAP_S;
+        cat.mode = "look"; cat.t = 0;
+      } else if (working && (cat.mode === "rest" || cat.mode === "sit")) { cat.mode = "look"; cat.t = 0; }
+      if (cat.mode === "look" && !working && quiet >= CAT.LOOK_S && cat.t >= CAT.LOOK_S) {   // watches until a beat after the last noise
+        if (cat.walkQueued) { cat.walkQueued = false; cat.sinceWalk = 0; cat.mode = "walk"; }
+        else cat.mode = "rest";
+        cat.t = 0;
       }
-      if (cat.mode === "roll" && cat.t >= CAT.ROLL_S) { cat.mode = "doze"; cat.t = 0; }
-      if (cat.mode === "doze" && calm) {
-        cat.nextWalk -= dt; cat.nextRoll -= dt;
-        if (cat.nextWalk <= 0) { cat.mode = "walk"; cat.t = 0; }
-        else if (cat.nextRoll <= 0) { cat.mode = "roll"; cat.t = 0; cat.nextRoll = CAT.ROLL_EVERY_S * (0.6 + Math.random() * 0.8); }
-      }
+      if (cat.mode === "sit" && cat.t >= CAT.SIT_S) { cat.mode = "rest"; cat.t = 0; }
+      if (cat.mode === "rest" && quiet >= CAT.SLEEP_AFTER_S) { cat.mode = "asleep"; cat.t = 0; cat.nextRoll = CAT.ROLL_EVERY_S * (0.6 + Math.random() * 0.8); }
+      if (cat.mode === "asleep" && calm) { cat.nextRoll -= dt; if (cat.nextRoll <= 0) { cat.mode = "roll"; cat.t = 0; } }
+      if (cat.mode === "roll" && cat.t >= CAT.ROLL_S) { cat.mode = "asleep"; cat.t = 0; cat.nextRoll = CAT.ROLL_EVERY_S * (0.6 + Math.random() * 0.8); }
       if (cat.mode === "walk") {
         if (p.target === null) p.target = Math.abs(p.x - p.walk.a) < Math.abs(p.x - p.walk.b) ? p.walk.b : p.walk.a;
         p.dir = p.target > p.x ? 1 : -1;
         p.x += p.dir * CAT.WALK_SPEED * dt;
         if ((p.dir > 0 && p.x >= p.target) || (p.dir < 0 && p.x <= p.target)) {
-          p.x = p.target; p.target = null; cat.mode = "doze"; cat.t = 0;
-          cat.nextWalk = CAT.WALK_EVERY_S * (0.6 + Math.random() * 0.8);
+          p.x = p.target; p.target = null; cat.mode = working ? "look" : "rest"; cat.t = 0;
         }
       }
       p.g.position.set(p.x, p.walk.y, p.walk.z);
       if (!p.model) return;
-      playCat(p, { doze: "sleep", look: "look", sit: "sit", walk: "walk", roll: "roll" }[cat.mode], CAT.FADE_S);
+      playCat(p, { asleep: "sleep", rest: "sleep", look: "look", sit: "sit", walk: "walk", roll: "roll" }[cat.mode], CAT.FADE_S);
       // walking: side-on, the way it goes. Otherwise turned a little toward you, so it reads as a cat, not a line
       var want = p.dir * Math.PI / 2 + (cat.mode === "walk" ? 0 : -p.dir * CAT.TURN_TO_YOU);
       var cur = p.g.rotation.y, d = want - cur;
@@ -1438,7 +1446,7 @@
       dustCount: function () { return sdLive; },
       decorAt: decorAt,
       /* exposed for tests: which decorations are drawn */
-      catWalk: function () { if (cat.parts) { cat.mode = "walk"; cat.t = 0; } },
+      catWalk: function () { if (cat.parts) { cat.mode = "walk"; cat.t = 0; cat.sinceWalk = 0; } },
       catRoll: function () { if (cat.parts) { cat.mode = "roll"; cat.t = 0; } },   // tests: send the cat on its walk now
       decorShown: function () { return { disco: !!discoBall, spots: deco.spotList.length, radio: !!deco.radio, strings: deco.bulbs.length, cat: !!deco.cat, catModel: !!(cat.parts && cat.parts.model), catClip: cat.parts ? cat.parts.clip : "", catMode: cat.mode, catX: cat.parts ? +cat.parts.x.toFixed(2) : null, picture: !!deco.picture, trophyWall: !!deco.trophies, trophies: deco.trophyN, gold: deco.goldN }; },
       onPaint: function (pr, dt) {
